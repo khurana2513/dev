@@ -100,17 +100,17 @@ function StudentRow({
         {student.email ?? <span className="italic text-muted-foreground/50">—</span>}
       </td>
       <td className="px-4 py-3 text-sm text-card-foreground">
-        {(student as any).class_name ?? "—"}
+        {student.class_name ?? "—"}
       </td>
       <td className="px-4 py-3 text-sm text-card-foreground">
-        {(student as any).course ?? "—"}
+        {student.course ?? "—"}
       </td>
       <td className="px-4 py-3 text-sm text-card-foreground">
-        {(student as any).branch ?? "—"}
+        {student.branch ?? "—"}
       </td>
       <td className="px-4 py-3">
         {(() => {
-          const s: string = (student as any).status ?? "active";
+          const s: string = student.status ?? "active";
           return (
             <span
               className={`text-xs font-semibold px-2 py-1 rounded-full ${STATUS_STYLES[s] ?? STATUS_STYLES.active}`}
@@ -170,9 +170,9 @@ function StudentFormModal({
   isEdit: boolean;
 }) {
   const inputCls =
-    "w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all";
+    "w-full px-3 py-2 bg-background dark:bg-slate-800 border border-border dark:border-slate-600 rounded-lg text-foreground dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all";
   const selectCls =
-    "w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all";
+    "w-full px-3 py-2 bg-background dark:bg-slate-800 border border-border dark:border-slate-600 rounded-lg text-foreground dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all";
   const labelCls = "block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1";
 
   return (
@@ -541,10 +541,9 @@ export default function AdminStudentManagement() {
         (s.public_id ?? "").toLowerCase().includes(term) ||
         (s.display_name ?? "").toLowerCase().includes(term);
 
-      const sa = s as any;
-      const matchStatus = !filterStatus || sa.status === filterStatus;
-      const matchBranch = !filterBranch || sa.branch === filterBranch;
-      const matchCourse = !filterCourse || sa.course === filterCourse;
+      const matchStatus = !filterStatus || s.status === filterStatus;
+      const matchBranch = !filterBranch || s.branch === filterBranch;
+      const matchCourse = !filterCourse || s.course === filterCourse;
 
       return matchSearch && matchStatus && matchBranch && matchCourse;
     });
@@ -553,9 +552,9 @@ export default function AdminStudentManagement() {
   // ── Stats ────────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const total = students.length;
-    const active = students.filter((s) => (s as any).status === "active" || !(s as any).status).length;
-    const inactive = students.filter((s) => (s as any).status === "inactive").length;
-    const closed = students.filter((s) => (s as any).status === "closed").length;
+    const active = students.filter((s) => s.status === "active" || !s.status).length;
+    const inactive = students.filter((s) => s.status === "inactive").length;
+    const closed = students.filter((s) => s.status === "closed").length;
     return { total, active, inactive, closed };
   }, [students]);
 
@@ -599,24 +598,23 @@ export default function AdminStudentManagement() {
   };
 
   const openEdit = (student: User) => {
-    const sa = student as any;
     setEditStudent(student);
     setEditForm({
       name: student.name,
       email: student.email ?? "",
       display_name: student.display_name ?? "",
-      class_name: sa.class_name ?? "",
-      course: sa.course ?? "",
-      level_type: sa.level_type ?? "",
-      level: sa.level ?? "",
-      branch: sa.branch ?? "",
-      status: sa.status ?? "active",
-      join_date: sa.join_date ? sa.join_date.split("T")[0] : "",
-      finish_date: sa.finish_date ? sa.finish_date.split("T")[0] : "",
-      parent_contact_number: sa.parent_contact_number ?? "",
+      class_name: student.class_name ?? "",
+      course: student.course ?? "",
+      level_type: student.level_type ?? "",
+      level: student.level ?? "",
+      branch: student.branch ?? "",
+      status: student.status ?? "active",
+      join_date: student.join_date ? student.join_date.split("T")[0] : "",
+      finish_date: student.finish_date ? student.finish_date.split("T")[0] : "",
+      parent_contact_number: student.parent_contact_number ?? "",
     });
-    if (sa.course && sa.level_type) {
-      fetchLevels(sa.course, sa.level_type, setEditValidLevels);
+    if (student.course && student.level_type) {
+      fetchLevels(student.course, student.level_type, setEditValidLevels);
     } else {
       setEditValidLevels([]);
     }
@@ -674,7 +672,7 @@ export default function AdminStudentManagement() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   const selectCls =
-    "px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all";
+    "px-3 py-2 bg-background dark:bg-slate-800 border border-border dark:border-slate-600 rounded-lg text-foreground dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all";
 
   return (
     <div className="min-h-screen bg-background py-8 px-4">
@@ -753,7 +751,7 @@ export default function AdminStudentManagement() {
             <div className="relative flex-1 min-w-[220px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
-                className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                className="w-full pl-9 pr-4 py-2 bg-background dark:bg-slate-800 border border-border dark:border-slate-600 rounded-lg text-foreground dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
                 placeholder="Search by name, email, or ID…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}

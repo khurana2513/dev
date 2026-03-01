@@ -874,10 +874,11 @@ async def get_all_students(
         profiles_map = {}
         if student_ids:
             profiles = db.query(StudentProfile).filter(StudentProfile.user_id.in_(student_ids)).all()
-            profiles_map = {p.user_id: p.public_id for p in profiles}
+            profiles_map = {p.user_id: p for p in profiles}
 
         result = []
         for student in students:
+            prof = profiles_map.get(student.id)
             student_dict = {
                 "id": student.id,
                 "email": student.email,
@@ -890,7 +891,16 @@ async def get_all_students(
                 "longest_streak": student.longest_streak,
                 "is_archived": getattr(student, "is_archived", False),
                 "created_at": student.created_at,
-                "public_id": profiles_map.get(student.id)
+                "public_id": prof.public_id if prof else None,
+                "class_name": prof.class_name if prof else None,
+                "course": prof.course if prof else None,
+                "level_type": prof.level_type if prof else None,
+                "level": prof.level if prof else None,
+                "branch": prof.branch if prof else None,
+                "status": (prof.status if prof else None) or "active",
+                "join_date": prof.join_date if prof else None,
+                "finish_date": prof.finish_date if prof else None,
+                "parent_contact_number": prof.parent_contact_number if prof else None,
             }
 
             result.append(AdminStudentResponse.model_validate(student_dict))
@@ -964,6 +974,15 @@ async def create_student_admin(
         is_archived=new_user.is_archived,
         created_at=new_user.created_at,
         public_id=profile.public_id,
+        class_name=profile.class_name,
+        course=profile.course,
+        level_type=profile.level_type,
+        level=profile.level,
+        branch=profile.branch,
+        status=profile.status or "active",
+        join_date=profile.join_date,
+        finish_date=profile.finish_date,
+        parent_contact_number=profile.parent_contact_number,
     )
 
 
@@ -1044,6 +1063,15 @@ async def update_student_info_admin(
         is_archived=student.is_archived,
         created_at=student.created_at,
         public_id=profile.public_id,
+        class_name=profile.class_name,
+        course=profile.course,
+        level_type=profile.level_type,
+        level=profile.level,
+        branch=profile.branch,
+        status=profile.status or "active",
+        join_date=profile.join_date,
+        finish_date=profile.finish_date,
+        parent_contact_number=profile.parent_contact_number,
     )
 async def get_student_stats_admin(
     student_id: int,
@@ -1353,10 +1381,11 @@ async def get_admin_dashboard_data(
     profiles_map = {}
     if student_ids:
         profiles = db.query(StudentProfile).filter(StudentProfile.user_id.in_(student_ids)).all()
-        profiles_map = {p.user_id: p.public_id for p in profiles}
+        profiles_map = {p.user_id: p for p in profiles}
     
     students_result = []
     for student in students:
+        prof = profiles_map.get(student.id)
         student_dict = {
             "id": student.id,
             "email": student.email,
@@ -1369,7 +1398,16 @@ async def get_admin_dashboard_data(
             "longest_streak": student.longest_streak,
             "is_archived": getattr(student, "is_archived", False),
             "created_at": student.created_at,
-            "public_id": profiles_map.get(student.id)
+            "public_id": prof.public_id if prof else None,
+            "class_name": prof.class_name if prof else None,
+            "course": prof.course if prof else None,
+            "level_type": prof.level_type if prof else None,
+            "level": prof.level if prof else None,
+            "branch": prof.branch if prof else None,
+            "status": (prof.status if prof else None) or "active",
+            "join_date": prof.join_date if prof else None,
+            "finish_date": prof.finish_date if prof else None,
+            "parent_contact_number": prof.parent_contact_number if prof else None,
         }
         students_result.append(AdminStudentResponse.model_validate(student_dict))
 

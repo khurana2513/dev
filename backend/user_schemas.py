@@ -320,7 +320,8 @@ class AdminUpdateStudentRequest(BaseModel):
 
 
 class AdminStudentResponse(BaseModel):
-    """Response schema for admin-created/managed students (email may be null)."""
+    """Response schema for admin-created/managed students — includes all profile fields."""
+    # ── User fields ────────────────────────────────────────────────────────────
     id: int
     email: Optional[str] = None
     name: str
@@ -333,6 +334,16 @@ class AdminStudentResponse(BaseModel):
     is_archived: bool = False
     created_at: datetime
     public_id: Optional[str] = None
+    # ── Profile fields ─────────────────────────────────────────────────────────
+    class_name: Optional[str] = None
+    course: Optional[str] = None
+    level_type: Optional[str] = None
+    level: Optional[str] = None
+    branch: Optional[str] = None
+    status: str = "active"
+    join_date: Optional[datetime] = None
+    finish_date: Optional[datetime] = None
+    parent_contact_number: Optional[str] = None
 
     @field_serializer('created_at')
     def serialize_created_at(self, dt: datetime, _info) -> str:
@@ -341,6 +352,17 @@ class AdminStudentResponse(BaseModel):
         elif dt.tzinfo is None:
             utc_dt = dt.replace(tzinfo=timezone.utc)
             return utc_to_ist(utc_dt).isoformat()
+        else:
+            return utc_to_ist(dt).isoformat()
+
+    @field_serializer('join_date', 'finish_date')
+    def serialize_opt_datetime(self, dt: Optional[datetime], _info) -> Optional[str]:
+        if dt is None:
+            return None
+        if dt.tzinfo == IST_TIMEZONE:
+            return dt.isoformat()
+        elif dt.tzinfo is None:
+            return utc_to_ist(dt.replace(tzinfo=timezone.utc)).isoformat()
         else:
             return utc_to_ist(dt).isoformat()
 

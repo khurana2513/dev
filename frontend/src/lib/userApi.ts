@@ -16,6 +16,16 @@ export interface User {
   is_archived?: boolean;
   created_at: string;
   public_id?: string | null;
+  // Profile fields (populated in admin context)
+  class_name?: string | null;
+  course?: string | null;
+  level_type?: string | null;
+  level?: string | null;
+  branch?: string | null;
+  status?: string;
+  join_date?: string | null;
+  finish_date?: string | null;
+  parent_contact_number?: string | null;
 }
 
 export interface LoginResponse {
