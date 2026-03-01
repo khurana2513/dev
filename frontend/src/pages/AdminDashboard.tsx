@@ -1,19 +1,23 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
 import { 
-  getAdminStats, getAllStudents, getStudentStatsAdmin, AdminStats, StudentStats,
-  deleteStudent, updateStudentPoints, refreshLeaderboard, getDatabaseStats, DatabaseStats,
+  getAdminDashboardData, getStudentStatsAdmin, AdminStats, StudentStats,
+  deleteStudent, updateStudentPoints, getDatabaseStats, DatabaseStats,
   getStudentPracticeSessionDetailAdmin, PracticeSessionDetail,
-  getStudentPaperAttemptDetailAdmin
+  getStudentPaperAttemptDetailAdmin, User, AdminDashboardData,
+  getOverallLeaderboard, getWeeklyLeaderboard, LeaderboardEntry,
 } from "../lib/userApi";
-import { PaperAttempt, PaperAttemptDetail } from "../lib/api";
-import { Shield, Users, BarChart3, Target, TrendingUp, User as UserIcon, Award, Trash2, Edit2, RefreshCw, Database, Save, X, ExternalLink, Brain, FileText, Clock, Eye, CheckCircle2, XCircle } from "lucide-react";
+import { PaperAttemptDetail } from "../lib/api";
+import { Shield, Users, BarChart3, Target, TrendingUp, User as UserIcon, Trash2, Edit2, RefreshCw, Database, X, ExternalLink, Brain, FileText, Clock, Eye, CheckCircle2, XCircle, Trophy } from "lucide-react";
+import Skeleton from "../components/Skeleton";
 import { useLocation } from "wouter";
 import { formatDateToIST, formatDateOnlyToIST } from "../lib/timezoneUtils";
 
 export default function AdminDashboard() {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [students, setStudents] = useState<User[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
@@ -21,65 +25,65 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [editingPoints, setEditingPoints] = useState<number | null>(null);
   const [pointsInput, setPointsInput] = useState<string>("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [sortBy, setSortBy] = useState<"id" | "name" | "points">("id");
   const [selectedSession, setSelectedSession] = useState<PracticeSessionDetail | null>(null);
   const [selectedPaperAttempt, setSelectedPaperAttempt] = useState<PaperAttemptDetail | null>(null);
-  const [sortBy, setSortBy] = useState<"id" | "name" | "points" | "streak">("id");
+  const [leaderboardTab, setLeaderboardTab] = useState<"overall" | "weekly">("overall");
+
+  // ─── Leaderboard Queries ───────────────────────────────────────────────────
+  const { data: overallLb = [], isLoading: lbOverallLoading, refetch: refetchOverall } = useQuery<LeaderboardEntry[]>({
+    queryKey: ["leaderboard", "overall"],
+    queryFn: () => getOverallLeaderboard(100),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: true,
+  });
+  const { data: weeklyLb = [], isLoading: lbWeeklyLoading, refetch: refetchWeekly } = useQuery<LeaderboardEntry[]>({
+    queryKey: ["leaderboard", "weekly"],
+    queryFn: () => getWeeklyLeaderboard(100),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: true,
+  });
+
+  // ─── Combined Admin Dashboard Query (replaces 3 separate API calls) ────────
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery<AdminDashboardData>({
+    queryKey: ["adminDashboard"],
+    queryFn: getAdminDashboardData,
+    staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh, no refetch
+    refetchOnMount: false,     // Prevent duplicate fetch in React StrictMode
+    refetchOnWindowFocus: false,
+    retry: 2,
+  });
+
+  // Derive state from the combined query result
+  useEffect(() => {
+    if (!dashboardData) return;
+
+    setStats(dashboardData.stats);
+    setDbStats(dashboardData.database_stats);
+
+    if (dashboardData.students && dashboardData.students.length > 0) {
+      const sortedStudents = [...dashboardData.students].sort((a, b) => {
+        if (a.public_id && b.public_id) {
+          const numA = parseInt(a.public_id.split('-')[1]) || 0;
+          const numB = parseInt(b.public_id.split('-')[1]) || 0;
+          return numA - numB;
+        }
+        return (a.public_id ? 0 : 1) - (b.public_id ? 0 : 1) || a.id - b.id;
+      });
+      setStudents(sortedStudents);
+    }
+
+    setLoading(false);
+  }, [dashboardData]);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        console.log("🔄 [ADMIN] Loading admin stats...");
-        const statsData = await getAdminStats();
-        setStats(statsData);
-        console.log("✅ [ADMIN] Admin stats loaded");
-
-        console.log("🔄 [ADMIN] Loading students...");
-        const studentsData = await getAllStudents();
-        // Sort students by public_id (if available) or ID in ascending order
-        const sortedStudents = [...studentsData].sort((a, b) => {
-          if (a.public_id && b.public_id) {
-            // Extract number from TH-0001 format
-            const numA = parseInt(a.public_id.split('-')[1]) || 0;
-            const numB = parseInt(b.public_id.split('-')[1]) || 0;
-            return numA - numB;
-          }
-          return (a.public_id ? 0 : 1) - (b.public_id ? 0 : 1) || a.id - b.id;
-        });
-        setStudents(sortedStudents);
-        console.log("✅ [ADMIN] Students loaded");
-
-        console.log("🔄 [ADMIN] Loading database stats...");
-        try {
-          const dbStatsData = await getDatabaseStats();
-          setDbStats(dbStatsData);
-          console.log("✅ [ADMIN] Database stats loaded");
-        } catch (dbError) {
-          console.error("❌ [ADMIN] Failed to load database stats:", dbError);
-          // Set empty stats so the UI doesn't break
-          setDbStats({
-            total_users: 0,
-            total_students: 0,
-            total_admins: 0,
-            total_sessions: 0,
-            total_paper_attempts: 0,
-            total_rewards: 0,
-            total_papers: 0,
-            database_size_mb: 0
-          });
-        }
-      } catch (error) {
-        console.error("❌ [ADMIN] Failed to load admin data:", error);
-        // Don't set loading to false if we failed, so user sees loading state
-        // setLoading(false);
-      } finally {
-        setLoading(false);
-      }
+    if (dashboardLoading) {
+      setLoading(true);
     }
-    loadData();
-  }, []);
+  }, [dashboardLoading]);
 
   const handleStudentClick = async (student: User) => {
     setSelectedStudent(student);
@@ -134,21 +138,19 @@ export default function AdminDashboard() {
     }
     try {
       await deleteStudent(studentId);
-      setStudents(students.filter(s => s.id !== studentId));
+      
+      // Clear selected student if deleted
       if (selectedStudent?.id === studentId) {
         setSelectedStudent(null);
         setStudentStats(null);
       }
-      // Reload stats
-      const statsData = await getAdminStats();
-      setStats(statsData);
-      const dbStatsData = await getDatabaseStats();
-      setDbStats(dbStatsData);
+      
+      // ✓ Use React Query invalidation instead of manual fetches
+      await queryClient.invalidateQueries({ queryKey: ["adminDashboard"] });
     } catch (error) {
       console.error("Failed to delete student:", error);
       alert("Failed to delete student. Please try again.");
     }
-    setShowDeleteConfirm(null);
   };
 
   const isPaperAnswerCorrect = (studentAnswer: unknown, correctAnswer: unknown): boolean => {
@@ -174,13 +176,15 @@ export default function AdminDashboard() {
     }
     try {
       await updateStudentPoints(selectedStudent.id, newPoints);
-      // Reload data sequentially to avoid API storm
-      const statsData = await getAdminStats();
-      setStats(statsData);
-      const studentsData = await getAllStudents();
-      setStudents(studentsData);
+      
+      // ✓ FIXED: Use React Query cache invalidation instead of manual sequential fetches
+      // Invalidate the combined dashboard query — triggers automatic refetch
+      await queryClient.invalidateQueries({ queryKey: ["adminDashboard"] });
+      
+      // Reload selected student's stats
       const stats = await getStudentStatsAdmin(selectedStudent.id);
       setStudentStats(stats);
+      
       setEditingPoints(null);
       setPointsInput("");
     } catch (error) {
@@ -192,22 +196,6 @@ export default function AdminDashboard() {
   const handleCancelEditPoints = () => {
     setEditingPoints(null);
     setPointsInput("");
-  };
-
-  const handleRefreshLeaderboard = async () => {
-    setRefreshing(true);
-    try {
-      await refreshLeaderboard();
-      // Reload stats
-      const statsData = await getAdminStats();
-      setStats(statsData);
-      alert("Leaderboard refreshed successfully!");
-    } catch (error) {
-      console.error("Failed to refresh leaderboard:", error);
-      alert("Failed to refresh leaderboard. Please try again.");
-    } finally {
-      setRefreshing(false);
-    }
   };
 
   const getSortedStudents = () => {
@@ -226,8 +214,6 @@ export default function AdminDashboard() {
         return sorted.sort((a, b) => a.name.localeCompare(b.name));
       case "points":
         return sorted.sort((a, b) => b.total_points - a.total_points);
-      case "streak":
-        return sorted.sort((a, b) => (b.current_streak || 0) - (a.current_streak || 0));
       default:
         return sorted;
     }
@@ -235,8 +221,23 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-xl text-white">Loading admin dashboard...</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <div className="container mx-auto pt-32 pb-20 px-6">
+          <div className="mb-10 space-y-4">
+            <Skeleton className="h-10 w-72" />
+            <Skeleton className="h-5 w-96" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={`admin-stats-skeleton-${index}`} className="h-32 rounded-[2.5rem]" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {Array.from({ length: 2 }).map((_, index) => (
+              <Skeleton key={`admin-panel-skeleton-${index}`} className="h-64 rounded-[2.5rem]" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -310,40 +311,181 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Top Students */}
-        <div className="mb-8 bg-card border border-border rounded-[2.5rem] p-8 shadow-xl">
-          <h2 className="text-2xl font-black tracking-tight text-card-foreground mb-6 flex items-center gap-3">
-            <Award className="w-6 h-6 text-primary" />
-            Top Students
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {stats.top_students.slice(0, 5).map((student, index) => (
-              <div
-                key={student.user_id}
-                className="p-4 bg-background/50 border border-border rounded-2xl transition-all hover:border-primary hover:bg-primary/5"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                    index === 0 ? "badge-gold text-white" :
-                    index === 1 ? "badge-silver text-white" :
-                    index === 2 ? "badge-bronze text-white" :
-                    "bg-primary/10 text-primary"
-                  }`}>
-                    {index + 1}
-                  </div>
-                  {student.avatar_url ? (
-                    <img src={student.avatar_url} alt={student.display_name || student.name} className="w-8 h-8 rounded-full" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
-                      {(student.display_name || student.name).charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <div className="font-bold text-card-foreground text-sm">{student.display_name || student.name}</div>
-                <div className="text-xs text-primary font-medium mt-1">{student.total_points} points</div>
+        {/* ── Premium Leaderboard Panel ─────────────────────────────── */}
+        <div className="mb-8 bg-card border border-border rounded-[2.5rem] shadow-xl overflow-hidden">
+          {/* Header */}
+          <div className="px-8 pt-8 pb-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <h2 className="text-2xl font-black tracking-tight text-card-foreground flex items-center gap-3">
+              <Trophy className="w-6 h-6 text-amber-500" />
+              Leaderboard
+            </h2>
+            <div className="flex items-center gap-2">
+              {/* Tab pills */}
+              <div className="flex bg-background border border-border rounded-xl p-1 gap-1">
+                <button
+                  onClick={() => setLeaderboardTab("overall")}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                    leaderboardTab === "overall"
+                      ? "bg-primary text-primary-foreground shadow"
+                      : "text-muted-foreground hover:text-card-foreground"
+                  }`}
+                >
+                  Overall
+                </button>
+                <button
+                  onClick={() => setLeaderboardTab("weekly")}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                    leaderboardTab === "weekly"
+                      ? "bg-primary text-primary-foreground shadow"
+                      : "text-muted-foreground hover:text-card-foreground"
+                  }`}
+                >
+                  This Week
+                </button>
               </div>
-            ))}
+              {/* Refresh */}
+              <button
+                onClick={() => leaderboardTab === "overall" ? refetchOverall() : refetchWeekly()}
+                className="p-2 rounded-xl border border-border hover:bg-primary/10 hover:border-primary transition-all"
+                title="Refresh leaderboard"
+              >
+                <RefreshCw className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
           </div>
+
+          {/* Table */}
+          {(leaderboardTab === "overall" ? lbOverallLoading : lbWeeklyLoading) ? (
+            <div className="px-8 pb-8 space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-14 bg-background/50 rounded-2xl animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <>
+              {/* Column header */}
+              <div className="px-8 pb-2 grid grid-cols-[2.5rem_1fr_auto] sm:grid-cols-[2.5rem_1fr_auto_auto] gap-3 items-center">
+                <div className="text-xs font-black uppercase tracking-widest text-muted-foreground text-center">#</div>
+                <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">Student</div>
+                <div className="hidden sm:block text-xs font-black uppercase tracking-widest text-muted-foreground text-right">Total</div>
+                <div className="text-xs font-black uppercase tracking-widest text-muted-foreground text-right">
+                  {leaderboardTab === "weekly" ? "Week" : "Points"}
+                </div>
+              </div>
+
+              <div className="pb-4 max-h-[26rem] overflow-y-auto scrollbar-premium">
+                {(leaderboardTab === "overall" ? overallLb : weeklyLb).map((entry, idx) => {
+                  const pts = leaderboardTab === "overall" ? entry.total_points : entry.weekly_points;
+                  const maxPts = leaderboardTab === "overall"
+                    ? (overallLb[0]?.total_points  || 1)
+                    : (weeklyLb[0]?.weekly_points   || 1);
+                  const barPct = Math.round((pts / maxPts) * 100);
+                  const initial = (entry.name || "?").charAt(0).toUpperCase();
+                  // Deterministic avatar colour from name hash
+                  const colours = ["bg-violet-500","bg-sky-500","bg-emerald-500","bg-amber-500","bg-rose-500","bg-pink-500","bg-indigo-500","bg-teal-500"];
+                  const colIdx = entry.name.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % colours.length;
+
+                  return (
+                    <div
+                      key={entry.user_id}
+                      className="mx-4 my-0.5 px-4 py-3 rounded-2xl grid grid-cols-[2.5rem_1fr_auto] sm:grid-cols-[2.5rem_1fr_auto_auto] gap-3 items-center hover:bg-primary/5 transition-all group"
+                    >
+                      {/* Rank badge */}
+                      <div className="flex justify-center">
+                        {idx === 0 ? (
+                          <span className="text-xl leading-none">🥇</span>
+                        ) : idx === 1 ? (
+                          <span className="text-xl leading-none">🥈</span>
+                        ) : idx === 2 ? (
+                          <span className="text-xl leading-none">🥉</span>
+                        ) : (
+                          <span className="text-sm font-black text-muted-foreground w-6 text-center">{idx + 1}</span>
+                        )}
+                      </div>
+
+                      {/* Avatar + info */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        {entry.avatar_url ? (
+                          <img src={entry.avatar_url} alt={entry.name} className="w-9 h-9 rounded-full flex-shrink-0 ring-2 ring-border" />
+                        ) : (
+                          <div className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-sm ${colours[colIdx]}`}>
+                            {initial}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-card-foreground text-sm truncate group-hover:text-primary transition-colors">
+                              {entry.name}
+                            </span>
+                            {entry.public_id && (
+                              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-primary/10 text-primary rounded-md flex-shrink-0">
+                                {entry.public_id}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            {entry.level && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded-md">
+                                {entry.level}
+                              </span>
+                            )}
+                            {entry.course && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-md">
+                                {entry.course}
+                              </span>
+                            )}
+                            {entry.branch && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md">
+                                {entry.branch}
+                              </span>
+                            )}
+                          </div>
+                          {/* Mini points bar */}
+                          <div className="mt-1 h-1 w-full bg-border rounded-full overflow-hidden hidden sm:block">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{
+                                width: `${barPct}%`,
+                                background: idx === 0 ? "#F59E0B" : idx === 1 ? "#94A3B8" : idx === 2 ? "#CD7F32" : "hsl(var(--primary))"
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Total points (overall tab secondary, weekly tab hidden) */}
+                      <div className="hidden sm:block text-right">
+                        {leaderboardTab === "weekly" && (
+                          <span className="text-xs text-muted-foreground font-medium">{entry.total_points.toLocaleString()}</span>
+                        )}
+                      </div>
+
+                      {/* Primary metric */}
+                      <div className="text-right">
+                        <span className={`font-black text-sm ${
+                          idx === 0 ? "text-amber-500" :
+                          idx === 1 ? "text-slate-400" :
+                          idx === 2 ? "text-orange-400" :
+                          "text-card-foreground"
+                        }`}>
+                          {pts.toLocaleString()}
+                        </span>
+                        <div className="text-[10px] text-muted-foreground">pts</div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {(leaderboardTab === "overall" ? overallLb : weeklyLb).length === 0 && (
+                  <div className="px-8 py-12 text-center text-muted-foreground">
+                    <Trophy className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No data yet</p>
+                    <p className="text-sm mt-1">Rankings will appear once students start practicing.</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Main Content Grid */}
@@ -362,22 +504,14 @@ export default function AdminDashboard() {
                 <div className="flex items-center gap-3">
                   <select
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as "id" | "name" | "points" | "streak")}
+                    onChange={(e) => setSortBy(e.target.value as "id" | "name" | "points")}
                     className="px-3 py-2 bg-background dark:bg-slate-800 border border-border rounded-xl text-sm font-medium text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                   >
                     <option value="id">Sort by ID</option>
                     <option value="name">Sort by Name</option>
                     <option value="points">Sort by Points</option>
-                    <option value="streak">Sort by Streak</option>
                   </select>
-                  <button
-                    onClick={handleRefreshLeaderboard}
-                    disabled={refreshing}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-                    Refresh Leaderboard
-                  </button>
+
                 </div>
               </div>
 
@@ -407,9 +541,7 @@ export default function AdminDashboard() {
                             {student.public_id && (
                               <span className="text-xs font-medium text-muted-foreground">ID: {student.public_id}</span>
                             )}
-                            {student.current_streak > 0 && (
-                              <span className="text-xs font-medium text-orange-600">🔥 {student.current_streak}</span>
-                            )}
+
                           </div>
                           <div className="text-sm text-muted-foreground">{student.email}</div>
                         </div>
@@ -555,22 +687,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Badges */}
-                  {studentStats.badges && studentStats.badges.length > 0 && (
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
-                        <Award className="w-4 h-4 text-primary" />
-                        Badges
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {studentStats.badges.map((badge, index) => (
-                          <span key={index} className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold border border-primary/20">
-                            {badge}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+
 
                   {/* Mental Math Sessions */}
                   <div>
@@ -997,10 +1114,6 @@ export default function AdminDashboard() {
               <div className="p-4 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 transition-all duration-300">
                 <div className="text-xs text-slate-600 dark:text-slate-300 mb-1">Paper Attempts</div>
                 <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{dbStats.total_paper_attempts}</div>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 transition-all duration-300">
-                <div className="text-xs text-slate-600 dark:text-slate-300 mb-1">Rewards</div>
-                <div className="text-xl font-bold text-yellow-600 dark:text-yellow-400">{dbStats.total_rewards}</div>
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 transition-all duration-300">
                 <div className="text-xs text-slate-600 dark:text-slate-300 mb-1">DB Size</div>

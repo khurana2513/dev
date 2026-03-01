@@ -197,7 +197,7 @@ export default function Login() {
               </span>
             </h1>
             <p className="text-white/80 text-lg md:text-xl font-medium leading-relaxed max-w-2xl mx-auto">
-              Sign in to track your progress, compete on leaderboards, and unlock achievements
+              Sign in to track your progress, earn points, and improve your mental math skills
             </p>
           </div>
 
@@ -267,7 +267,7 @@ export default function Login() {
 
           {/* Terms */}
           <p className="mt-8 text-center text-sm text-white/60 leading-relaxed">
-            By signing in, you agree to track your practice progress and compete on leaderboards
+            By signing in, you agree to track your practice progress and earn points
           </p>
         </div>
 

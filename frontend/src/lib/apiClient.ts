@@ -9,16 +9,58 @@
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE || "/api";
-const DEFAULT_TIMEOUT = 15000; // 15 seconds
-const MAX_RETRIES = 3;
+const DEFAULT_TIMEOUT = 30000; // 30 seconds (was 15s — too short, caused cascading retries)
+const MUTATION_TIMEOUT = 45000; // 45 seconds for POST/PUT/DELETE (heavier ops)
+const MAX_RETRIES = 2; // Reduced from 3 — fewer retries = fewer duplicate requests on slow backend
 const RETRY_DELAY = 1000; // 1 second base delay
+const MAX_PENDING_REQUESTS = 50; // Prevent unbounded cache growth
+const REQUEST_CACHE_TTL = 5000; // Clear requests older than 5 seconds
 console.log("🌍 API_BASE =", API_BASE);
-// Request deduplication cache
-const pendingRequests = new Map<string, Promise<any>>();
+
+// Request deduplication cache with automatic cleanup
+// ✓ Prevents memory leaks with automatic TTL and max size limits
+const pendingRequests = new Map<string, { 
+  promise: Promise<any>; 
+  timestamp: number;
+}>();
+
+// Periodic cleanup of stale requests (every 10 seconds)
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+  for (const [key, value] of pendingRequests.entries()) {
+    if (now - value.timestamp > REQUEST_CACHE_TTL) {
+      pendingRequests.delete(key);
+      cleaned++;
+    }
+  }
+  if (cleaned > 0) {
+    console.debug(`🧹 [API] Cleaned ${cleaned} stale pending requests`);
+  }
+}, 10000);
+
+/**
+ * Enforce maximum cache size to prevent memory leaks
+ */
+function _enforceMaxPendingRequests() {
+  if (pendingRequests.size > MAX_PENDING_REQUESTS) {
+    // Remove oldest entries (FIFO)
+    const entries = Array.from(pendingRequests.entries())
+      .sort((a, b) => a[1].timestamp - b[1].timestamp);
+    
+    const toDelete = entries.slice(0, entries.length - MAX_PENDING_REQUESTS);
+    for (const [key] of toDelete) {
+      pendingRequests.delete(key);
+    }
+    console.warn(`⚠️ [API] Request cache exceeded ${MAX_PENDING_REQUESTS} items, removed oldest ${toDelete.length} entries`);
+  }
+}
 
 // Auth state tracking
 let authReady = false;
 let authToken: string | null = null;
+let isRefreshingToken = false;
+let refreshTokenPromise: Promise<string | null> | null = null;
 
 /**
  * Set auth ready state (called by AuthContext)
@@ -48,6 +90,74 @@ function getAuthToken(): string | null {
   }
   return authToken;
 }
+
+/**
+ * Attempt to refresh the access token using refresh token
+ * Returns new access token or null if refresh fails
+ */
+async function attemptTokenRefresh(): Promise<string | null> {
+  // If already refreshing, wait for that promise
+  if (isRefreshingToken && refreshTokenPromise) {
+    console.log("🔄 [API] Token refresh already in progress, waiting...");
+    return refreshTokenPromise;
+  }
+
+  isRefreshingToken = true;
+  
+  refreshTokenPromise = (async () => {
+    try {
+      const refreshToken = localStorage.getItem("refresh_token");
+      if (!refreshToken) {
+        console.log("❌ [API] No refresh token available");
+        return null;
+      }
+
+      console.log("🔄 [API] Attempting to refresh access token");
+      
+      // Call refresh endpoint WITHOUT auth (to avoid infinite loop)
+      const response = await fetch(`${API_BASE}/users/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!response.ok) {
+        console.error("❌ [API] Token refresh failed:", response.status);
+        // Refresh token expired or invalid - clear all tokens
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user_data");
+        authToken = null;
+        return null;
+      }
+
+      const data = await response.json();
+      const newAccessToken = data.access_token;
+      
+      // Store new access token
+      localStorage.setItem("auth_token", newAccessToken);
+      authToken = newAccessToken;
+      
+      console.log("✅ [API] Token refreshed successfully");
+      return newAccessToken;
+    } catch (error) {
+      console.error("❌ [API] Token refresh error:", error);
+      // Clear tokens on refresh failure
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("refresh_token");
+      authToken = null;
+      return null;
+    } finally {
+      isRefreshingToken = false;
+      refreshTokenPromise = null;
+    }
+  })();
+
+  return refreshTokenPromise;
+}
+
 
 /**
  * Wait for auth to be ready (with timeout)
@@ -240,11 +350,17 @@ if (endpoint.startsWith("http")) {
   const {
     body,
     headers = {},
-    timeout = DEFAULT_TIMEOUT,
-    retries = MAX_RETRIES,
+    timeout: explicitTimeout,
+    retries: explicitRetries,
     requireAuth = true,
     skipAuthCheck = false,
   } = options;
+
+  // Auto-select timeout and retries based on HTTP method
+  // Mutations (POST/PUT/DELETE) get longer timeout, fewer retries to avoid duplicates
+  const isMutation = method !== 'GET';
+  const timeout = explicitTimeout ?? (isMutation ? MUTATION_TIMEOUT : DEFAULT_TIMEOUT);
+  const retries = explicitRetries ?? (isMutation ? 1 : MAX_RETRIES);
 
   // Wait for auth if required
   if (requireAuth && !skipAuthCheck) {
@@ -257,10 +373,13 @@ if (endpoint.startsWith("http")) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
   const requestKey = createRequestKey(method, url, body);
 
-  // Check for pending duplicate request
-  if (pendingRequests.has(requestKey)) {
-    console.log(`🔄 [API] Deduplicating request: ${method} ${endpoint}`);
-    return pendingRequests.get(requestKey)!;
+  // Check for pending duplicate request (GET only — mutations must not be deduplicated)
+  if (!isMutation) {
+    const cachedRequest = pendingRequests.get(requestKey);
+    if (cachedRequest) {
+      console.log(`🔄 [API] Deduplicating request: ${method} ${endpoint}`);
+      return cachedRequest.promise;
+    }
   }
 
   // Create request promise
@@ -398,13 +517,25 @@ if (endpoint.startsWith("http")) {
           );
         }
 
-        // Handle 401 Unauthorized - clear token
+        // Handle 401 Unauthorized - attempt token refresh
         if (lastResponse?.status === 401) {
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user_data');
+          console.log("⚠️ [API] 401 Unauthorized - attempting token refresh");
+          
+          const newToken = await attemptTokenRefresh();
+          
+          if (newToken) {
+            console.log("✅ [API] Token refreshed, retrying request");
+            // Retry the request with new token (one time only)
+            continue;
+          } else {
+            console.log("❌ [API] Token refresh failed - user must log in again");
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('auth_token');
+              localStorage.removeItem('refresh_token');
+              localStorage.removeItem('user_data');
+            }
+            throw new Error('Unauthorized: Please log in again.');
           }
-          throw new Error('Unauthorized: Please log in again.');
         }
 
         // Non-retryable error
@@ -422,14 +553,15 @@ if (endpoint.startsWith("http")) {
     throw createApiError(lastError, lastResponse);
   })();
 
-  // Store pending request
-  pendingRequests.set(requestKey, requestPromise);
+  // Store pending request with timestamp for TTL tracking
+  _enforceMaxPendingRequests(); // Prevent unbounded growth
+  pendingRequests.set(requestKey, { promise: requestPromise, timestamp: Date.now() });
 
   try {
     const result = await requestPromise;
     return result;
   } finally {
-    // Clean up pending request
+    // Clean up pending request (always)
     pendingRequests.delete(requestKey);
   }
 }

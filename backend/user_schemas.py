@@ -1,7 +1,7 @@
 """Pydantic schemas for user-related models."""
 from pydantic import BaseModel, EmailStr, field_serializer, Field, model_validator
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from timezone_utils import utc_to_ist, IST_TIMEZONE
 
 
@@ -29,11 +29,18 @@ class UserResponse(UserBase):
     @field_serializer('created_at')
     def serialize_created_at(self, dt: datetime, _info) -> str:
         """Serialize datetime to ISO string with IST timezone."""
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST_TIMEZONE)
-        elif dt.tzinfo != IST_TIMEZONE:
-            dt = utc_to_ist(dt)
-        return dt.isoformat()
+        if dt.tzinfo == IST_TIMEZONE:
+            # Already IST, return as-is
+            return dt.isoformat()
+        elif dt.tzinfo is None:
+            # Naive - assume UTC (new data after fix)
+            utc_dt = dt.replace(tzinfo=timezone.utc)
+            ist_dt = utc_to_ist(utc_dt)
+            return ist_dt.isoformat()
+        else:
+            # Has timezone, assume it's UTC and convert
+            ist_dt = utc_to_ist(dt)
+            return ist_dt.isoformat()
     
     model_config = {"from_attributes": True}
 
@@ -53,9 +60,19 @@ class LoginRequest(BaseModel):
         raise ValueError("Missing Google OAuth token")
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
 
 class LoginResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     user: UserResponse
 
@@ -102,18 +119,30 @@ class PracticeSessionResponse(BaseModel):
     
     @field_serializer('started_at', 'completed_at')
     def serialize_datetime(self, dt: Optional[datetime], _info) -> Optional[str]:
-        """Serialize datetime to ISO string with IST timezone."""
+        """Serialize datetime to ISO string with IST timezone for API response."""
         if dt is None:
             return None
-        # If datetime is naive, assume it's IST (since we store IST)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST_TIMEZONE)
-        # Convert to IST if not already
-        elif dt.tzinfo != IST_TIMEZONE:
-            dt = utc_to_ist(dt)
-        # Return ISO format with timezone offset (e.g., +05:30)
-        # This ensures JavaScript Date() parses it correctly
-        return dt.isoformat()
+        
+        # Handle different timezone scenarios:
+        # 1. Timezone=IST: Old data stored as IST, return as-is (already IST)
+        # 2. Timezone=None: New UTC data stored as naive, convert UTC→IST
+        # 3. Timezone=UTC: New UTC data stored with tzinfo, convert UTC→IST
+        # 4. Other timezone: Treat as UTC and convert UTC→IST
+        
+        if dt.tzinfo == IST_TIMEZONE:
+            # Old IST data (or correctly stored IST), return as-is
+            # Already has +05:30 offset, which is correct for IST
+            return dt.isoformat()
+        elif dt.tzinfo is None:
+            # Naive datetime - assume it's UTC (new data after fix)
+            utc_dt = dt.replace(tzinfo=timezone.utc)
+            ist_dt = utc_to_ist(utc_dt)
+            return ist_dt.isoformat()
+        else:
+            # Has timezone info like UTC or something else
+            # Treat as starting point for UTC to IST conversion
+            ist_dt = utc_to_ist(dt) if dt.tzinfo != IST_TIMEZONE else dt
+            return ist_dt.isoformat()
     
     model_config = {"from_attributes": True}
 
@@ -149,6 +178,11 @@ class LeaderboardEntry(BaseModel):
     avatar_url: Optional[str]
     total_points: int
     weekly_points: int
+    # Student profile fields (None for users without a profile)
+    public_id: Optional[str] = None
+    level: Optional[str] = None
+    course: Optional[str] = None
+    branch: Optional[str] = None
 
 
 class AdminStats(BaseModel):
@@ -187,14 +221,30 @@ class PaperAttemptResponse(BaseModel):
     
     @field_serializer('started_at', 'completed_at')
     def serialize_datetime(self, dt: Optional[datetime], _info) -> Optional[str]:
-        """Serialize datetime to ISO string with IST timezone."""
+        """Serialize datetime to ISO string with IST timezone for API response."""
         if dt is None:
             return None
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST_TIMEZONE)
-        elif dt.tzinfo != IST_TIMEZONE:
-            dt = utc_to_ist(dt)
-        return dt.isoformat()
+        
+        # Handle different timezone scenarios:
+        # 1. Timezone=IST: Old data stored as IST, return as-is (already IST)
+        # 2. Timezone=None: New UTC data stored as naive, convert UTC→IST
+        # 3. Timezone=UTC: New UTC data stored with tzinfo, convert UTC→IST
+        # 4. Other timezone: Treat as UTC and convert UTC→IST
+        
+        if dt.tzinfo == IST_TIMEZONE:
+            # Old IST data (or correctly stored IST), return as-is
+            # Already has +05:30 offset, which is correct for IST
+            return dt.isoformat()
+        elif dt.tzinfo is None:
+            # Naive datetime - assume it's UTC (new data after fix)
+            utc_dt = dt.replace(tzinfo=timezone.utc)
+            ist_dt = utc_to_ist(utc_dt)
+            return ist_dt.isoformat()
+        else:
+            # Has timezone info like UTC or something else
+            # Treat as starting point for UTC to IST conversion
+            ist_dt = utc_to_ist(dt) if dt.tzinfo != IST_TIMEZONE else dt
+            return ist_dt.isoformat()
     
     model_config = {"from_attributes": True}
 
@@ -247,11 +297,18 @@ class StudentProfileResponse(StudentProfileBase):
         """Serialize datetime to ISO string with IST timezone."""
         if dt is None:
             return None
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST_TIMEZONE)
-        elif dt.tzinfo != IST_TIMEZONE:
-            dt = utc_to_ist(dt)
-        return dt.isoformat()
+        if dt.tzinfo == IST_TIMEZONE:
+            # Already IST, return as-is
+            return dt.isoformat()
+        elif dt.tzinfo is None:
+            # Naive - assume UTC (new data after fix)
+            utc_dt = dt.replace(tzinfo=timezone.utc)
+            ist_dt = utc_to_ist(utc_dt)
+            return ist_dt.isoformat()
+        else:
+            # Has timezone, assume it's UTC and convert
+            ist_dt = utc_to_ist(dt)
+            return ist_dt.isoformat()
     
     model_config = {"from_attributes": True}
 
@@ -326,11 +383,18 @@ class ClassSessionResponse(BaseModel):
     @field_serializer('session_date', 'created_at', 'updated_at')
     def serialize_datetime(self, dt: datetime, _info) -> str:
         """Serialize datetime to ISO string with IST timezone."""
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST_TIMEZONE)
-        elif dt.tzinfo != IST_TIMEZONE:
-            dt = utc_to_ist(dt)
-        return dt.isoformat()
+        if dt.tzinfo == IST_TIMEZONE:
+            # Already IST, return as-is
+            return dt.isoformat()
+        elif dt.tzinfo is None:
+            # Naive - assume UTC (new data after fix)
+            utc_dt = dt.replace(tzinfo=timezone.utc)
+            ist_dt = utc_to_ist(utc_dt)
+            return ist_dt.isoformat()
+        else:
+            # Has timezone, assume it's UTC and convert
+            ist_dt = utc_to_ist(dt)
+            return ist_dt.isoformat()
     
     model_config = {"from_attributes": True}
 
@@ -447,11 +511,18 @@ class BadgeResponse(BaseModel):
     @field_serializer('earned_at')
     def serialize_earned_at(self, dt: datetime, _info) -> str:
         """Serialize datetime to ISO string with IST timezone."""
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST_TIMEZONE)
-        elif dt.tzinfo != IST_TIMEZONE:
-            dt = utc_to_ist(dt)
-        return dt.isoformat()
+        if dt.tzinfo == IST_TIMEZONE:
+            # Already IST, return as-is
+            return dt.isoformat()
+        elif dt.tzinfo is None:
+            # Naive - assume UTC (new data after fix)
+            utc_dt = dt.replace(tzinfo=timezone.utc)
+            ist_dt = utc_to_ist(utc_dt)
+            return ist_dt.isoformat()
+        else:
+            # Has timezone, assume it's UTC and convert
+            ist_dt = utc_to_ist(dt)
+            return ist_dt.isoformat()
     
     model_config = {"from_attributes": True}
 
@@ -469,11 +540,18 @@ class PointsLogResponse(BaseModel):
     @field_serializer('created_at')
     def serialize_created_at(self, dt: datetime, _info) -> str:
         """Serialize datetime to ISO string with IST timezone."""
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=IST_TIMEZONE)
-        elif dt.tzinfo != IST_TIMEZONE:
-            dt = utc_to_ist(dt)
-        return dt.isoformat()
+        if dt.tzinfo == IST_TIMEZONE:
+            # Already IST, return as-is
+            return dt.isoformat()
+        elif dt.tzinfo is None:
+            # Naive - assume UTC (new data after fix)
+            utc_dt = dt.replace(tzinfo=timezone.utc)
+            ist_dt = utc_to_ist(utc_dt)
+            return ist_dt.isoformat()
+        else:
+            # Has timezone, assume it's UTC and convert
+            ist_dt = utc_to_ist(dt)
+            return ist_dt.isoformat()
     
     model_config = {"from_attributes": True}
 
@@ -517,4 +595,35 @@ class GraceSkipResponse(BaseModel):
     streak_preserved: bool
 
 
+# ─── Combined Dashboard Response Schemas ────────────────────────────────────────
+# These aggregate multiple data sources into a single response to eliminate
+# chatty API architecture (9-12 calls → 1-2 calls per dashboard load)
+
+class StudentDashboardData(BaseModel):
+    """Combined student dashboard data."""
+    stats: StudentStats
+    profile: Optional[StudentProfileResponse] = None
+    paper_attempts: List[PaperAttemptResponse] = Field(default_factory=list)
+
+
+class AdminDashboardData(BaseModel):
+    """Combined admin dashboard data - replaces 3+ separate API calls."""
+    stats: AdminStats
+    students: List[UserResponse]
+    database_stats: "DatabaseStatsSchema"
+
+
+class DatabaseStatsSchema(BaseModel):
+    """Database statistics for admin dashboard (used in combined endpoint)."""
+    total_users: int
+    total_students: int
+    total_admins: int
+    total_sessions: int
+    total_paper_attempts: int
+    total_rewards: int
+    total_papers: int
+    database_size_mb: float
+
+
 StudentStats.model_rebuild()
+AdminDashboardData.model_rebuild()

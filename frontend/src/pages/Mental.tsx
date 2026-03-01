@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { useAuth } from "../contexts/AuthContext";
 import { savePracticeSession, PracticeSessionData } from "../lib/userApi";
 import TimeLimitSlider from "../components/TimeLimitSlider";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 type OperationType = 
   | "multiplication" 
@@ -2827,6 +2828,434 @@ export default function Mental() {
         </div>
       </div>
     </div>
+  );
+
+  // ✓ Wrapped with error boundary for crash protection
+  return (
+    <ErrorBoundary
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+            <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">Something went wrong</h1>
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              The Mental Math practice encountered an error. Please try again.
+            </p>
+            <Link href="/">
+              <button className="px-6 py-3 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 font-semibold transition-colors">
+                Go to Home
+              </button>
+            </Link>
+          </div>
+        </div>
+      }
+    >
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 transition-colors duration-300">
+        <div className="w-full max-w-6xl">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-3xl font-bold text-gradient">Mental Math</h1>
+            <Link href="/student-dashboard">
+              <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                <ArrowLeft className="w-5 h-5" />
+                Back
+              </button>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Controls Panel */}
+            <div className="lg:col-span-2">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-8 border border-slate-200 dark:border-slate-700">
+                {/* Student Name Section */}
+                <div className="mb-8">
+                  <label htmlFor="studentName" className="block text-lg font-bold text-gray-700 dark:text-white mb-3">
+                    Student Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="studentName"
+                    type="text"
+                    value={studentName}
+                    onChange={(e) => {
+                      setStudentName(e.target.value);
+                      setStudentNameError("");
+                    }}
+                    onBlur={() => {
+                      if (!studentName.trim()) {
+                        setStudentNameError("Student name is required");
+                      }
+                    }}
+                    placeholder="Enter student name"
+                    className="w-full px-4 py-3 rounded-lg border-2 border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                  />
+                  {studentNameError && (
+                    <p className="text-red-500 text-sm mt-2">{studentNameError}</p>
+                  )}
+                </div>
+                
+                {/* Operation Type Selector */}
+                <div className="mb-8">
+                  <h2 className="text-lg font-bold text-gray-700 dark:text-white mb-4">Operation Type</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {[
+                      "multiplication", "division", "add_sub", "decimal_multiplication",
+                      "decimal_division", "integer_add_sub", "lcm", "gcd", 
+                      "square_root", "cube_root", "percentage"
+                    ].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setOperationType(type as OperationType)}
+                        className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                          operationType === type
+                            ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-lg"
+                            : "bg-slate-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-slate-300 dark:hover:bg-slate-600"
+                        }`}
+                      >
+                        {type.replace(/_/g, " ").split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Number of Questions */}
+                <div className="mb-8">
+                  <label htmlFor="numQuestions" className="block text-lg font-bold text-gray-700 dark:text-white mb-3">
+                    Number of Questions: <span className="text-indigo-600">{numQuestions}</span>
+                  </label>
+                  <input
+                    id="numQuestions"
+                    type="range"
+                    min="1"
+                    max="100"
+                    value={numQuestions}
+                    onChange={(e) => setNumQuestions(parseInt(e.target.value))}
+                    className="w-full h-2 bg-slate-300 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mt-2">
+                    <span>1</span>
+                    <span>100</span>
+                  </div>
+                </div>
+
+                {/* Operation-specific controls */}
+                <div className="space-y-6 mb-8">
+                  {/* Multiplication/Division */}
+                  {(operationType === "multiplication" || operationType === "division") && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            {operationType === "multiplication" ? "Multiplicand Digits" : "Dividend Digits"}
+                          </label>
+                          <NumericInput
+                            value={operationType === "multiplication" ? multiplicandDigits : dividendDigits}
+                            onChange={operationType === "multiplication" ? setMultiplicandDigits : setDividendDigits}
+                            min={1}
+                            max={20}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            {operationType === "multiplication" ? "Multiplier Digits" : "Divisor Digits"}
+                          </label>
+                          <NumericInput
+                            value={operationType === "multiplication" ? multiplierDigits : divisorDigits}
+                            onChange={operationType === "multiplication" ? setMultiplierDigits : setDivisorDigits}
+                            min={1}
+                            max={20}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Add/Sub and Integer Add/Sub */}
+                  {(operationType === "add_sub" || operationType === "integer_add_sub") && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Digits
+                          </label>
+                          <NumericInput
+                            value={operationType === "add_sub" ? addSubDigits : integerAddSubDigits}
+                            onChange={operationType === "add_sub" ? setAddSubDigits : setIntegerAddSubDigits}
+                            min={1}
+                            max={10}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Rows
+                          </label>
+                          <NumericInput
+                            value={operationType === "add_sub" ? addSubRows : integerAddSubRows}
+                            onChange={operationType === "add_sub" ? setAddSubRows : setIntegerAddSubRows}
+                            min={2}
+                            max={10}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Decimal Multiplication */}
+                  {operationType === "decimal_multiplication" && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Multiplicand Digits
+                          </label>
+                          <NumericInput
+                            value={decimalMultMultiplicandDigits}
+                            onChange={setDecimalMultMultiplicandDigits}
+                            min={1}
+                            max={10}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Multiplier Digits
+                          </label>
+                          <NumericInput
+                            value={decimalMultMultiplierDigits}
+                            onChange={setDecimalMultMultiplierDigits}
+                            min={1}
+                            max={10}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Decimal Division */}
+                  {operationType === "decimal_division" && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Dividend Digits
+                          </label>
+                          <NumericInput
+                            value={decimalDivDividendDigits}
+                            onChange={setDecimalDivDividendDigits}
+                            min={1}
+                            max={10}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Divisor Digits
+                          </label>
+                          <NumericInput
+                            value={decimalDivDivisorDigits}
+                            onChange={setDecimalDivDivisorDigits}
+                            min={1}
+                            max={10}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* LCM/GCD */}
+                  {(operationType === "lcm" || operationType === "gcd") && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            First Number Digits
+                          </label>
+                          <NumericInput
+                            value={lcmGcdFirstDigits}
+                            onChange={setLcmGcdFirstDigits}
+                            min={1}
+                            max={10}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Second Number Digits
+                          </label>
+                          <NumericInput
+                            value={lcmGcdSecondDigits}
+                            onChange={setLcmGcdSecondDigits}
+                            min={1}
+                            max={10}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Square Root / Cube Root */}
+                  {(operationType === "square_root" || operationType === "cube_root") && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                          Number Digits
+                        </label>
+                        <NumericInput
+                          value={rootDigits}
+                          onChange={setRootDigits}
+                          min={1}
+                          max={10}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Percentage */}
+                  {operationType === "percentage" && (
+                    <>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Min %
+                          </label>
+                          <NumericInput
+                            value={percentageMin}
+                            onChange={setPercentageMin}
+                            min={1}
+                            max={100}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Max %
+                          </label>
+                          <NumericInput
+                            value={percentageMax}
+                            onChange={setPercentageMax}
+                            min={1}
+                            max={100}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Number Digits
+                          </label>
+                          <NumericInput
+                            value={percentageNumberDigits}
+                            onChange={setPercentageNumberDigits}
+                            min={1}
+                            max={10}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Time Limit Slider (shown for non-add_sub or shown during difficulty selection) */}
+                  {operationType !== "add_sub" && difficultyMode !== "medium" && (
+                    <div>
+                      <label htmlFor="timeLimit" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                        Time Limit per Question: <span className="text-indigo-600">{timeLimit}s</span>
+                      </label>
+                      <input
+                        id="timeLimit"
+                        type="range"
+                        min="1"
+                        max="300"
+                        value={timeLimit}
+                        onChange={(e) => setTimeLimit(parseInt(e.target.value))}
+                        className="w-full h-2 bg-slate-300 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                      />
+                    </div>
+                  )}
+
+                  {/* Add/Sub Specific: Show Row Time input */}
+                  {operationType === "add_sub" && (
+                    <div>
+                      <label htmlFor="addSubRowTime" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                        Time to Show Each Row: <span className="text-indigo-600">{addSubRowTime.toFixed(1)}s</span>
+                      </label>
+                      <DecimalNumericInput
+                        value={addSubRowTime}
+                        onChange={setAddSubRowTime}
+                        min={0.5}
+                        max={10}
+                        step={0.1}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 focus:border-indigo-600 dark:bg-slate-700 dark:text-white transition-colors"
+                      />
+                      <TimeLimitSlider
+                        value={addSubRowTime}
+                        onChange={setAddSubRowTime}
+                        operationType={operationType}
+                        difficultyMode={difficultyMode}
+                        onDifficultyChange={setDifficultyMode}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Panel: Summary */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 border border-slate-200 dark:border-slate-700">
+              <h2 className="text-xl font-bold text-gray-700 dark:text-white mb-6 flex items-center gap-2">
+                <Target className="w-6 h-6 text-indigo-600" />
+                Summary
+              </h2>
+
+              <div className="space-y-4">
+                <div className="bg-slate-100 dark:bg-slate-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Operation</p>
+                  <p className="text-lg font-bold text-gray-800 dark:text-white">{operationType.replace(/_/g, " ").toUpperCase()}</p>
+                </div>
+
+                <div className="bg-slate-100 dark:bg-slate-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Questions</p>
+                  <p className="text-lg font-bold text-gray-800 dark:text-white">{numQuestions}</p>
+                </div>
+
+                <div className="bg-slate-100 dark:bg-slate-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Time Per Question</p>
+                  <p className="text-lg font-bold text-gray-800 dark:text-white">{operationType === "add_sub" ? `${addSubRowTime.toFixed(1)}s + 15s` : `${timeLimit}s`}</p>
+                </div>
+
+                <div className="bg-slate-100 dark:bg-slate-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Time</p>
+                  <p className="text-lg font-bold text-gray-800 dark:text-white">
+                    {operationType === "add_sub"
+                      ? `${((addSubRowTime * addSubRows + addSubAnswerTime) * numQuestions / 60).toFixed(1)} min`
+                      : `${(timeLimit * numQuestions / 60).toFixed(1)} min`}
+                  </p>
+                </div>
+
+                {/* Start Button */}
+                <div className="col-span-1 lg:col-span-2 pt-6 border-t-2 border-slate-200 dark:border-slate-700">
+                  <div>
+                    <button
+                      onClick={startCountdown}
+                      className="group w-full px-10 py-5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-3 relative overflow-hidden"
+                    >
+                      <span className="absolute inset-0 bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                      <Play className="w-6 h-6 relative z-10 group-hover:scale-110 transition-transform" />
+                      <span className="relative z-10">Start Practice</span>
+                      <Sparkles className="w-5 h-5 relative z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ErrorBoundary>
   );
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getStudentProfile,
@@ -10,12 +11,7 @@ import {
   StudentProfileUpdate,
 } from "../lib/userApi";
 import { formatDateToIST, formatDateOnlyToIST } from "../lib/timezoneUtils";
-import {
-  getAttendanceStats,
-  getAttendanceRecords,
-  AttendanceStats,
-  AttendanceRecord,
-} from "../lib/attendanceApi";
+
 import {
   User,
   Edit2,
@@ -28,9 +24,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 
 const COURSES = ["Abacus", "Vedic Maths", "Handwriting"];
@@ -39,7 +32,8 @@ const BRANCHES = ["Rohini-16", "Rohini-11", "Gurgaon", "Online"];
 const STATUSES = ["active", "inactive", "closed"];
 
 export default function StudentProfile() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, refreshUser } = useAuth();
+  const queryClient = useQueryClient();
   const [profile, setProfile] = useState<StudentProfileType | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -49,12 +43,7 @@ export default function StudentProfile() {
   const [validLevels, setValidLevels] = useState<string[]>([]);
   const [loadingLevels, setLoadingLevels] = useState(false);
   const [formData, setFormData] = useState<StudentProfileUpdate>({});
-  const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null);
-  const [showAttendance, setShowAttendance] = useState(false);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [loadingRecords, setLoadingRecords] = useState(false);
-  const [attendanceViewMode, setAttendanceViewMode] = useState<"overall" | "monthly">("overall");
-  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+
   
   // Get user_id from URL params if admin viewing another student
   const urlParams = new URLSearchParams(window.location.search);
@@ -83,18 +72,7 @@ export default function StudentProfile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.course, formData.level_type, editing]);
 
-  useEffect(() => {
-    if (profile) {
-      // Load attendance stats for current student or when admin views student
-      loadAttendanceStats();
-    }
-  }, [profile]);
 
-  useEffect(() => {
-    if (showAttendance && profile) {
-      loadAttendanceRecords();
-    }
-  }, [showAttendance, attendanceViewMode, selectedMonth]);
 
   const loadProfile = async () => {
     try {
@@ -158,49 +136,9 @@ export default function StudentProfile() {
     }
   };
 
-  const loadAttendanceStats = async () => {
-    if (!profile) return;
-    try {
-      const stats = await getAttendanceStats(profile.id);
-      setAttendanceStats(stats);
-    } catch (err) {
-      console.error("Failed to load attendance stats:", err);
-    }
-  };
 
-  const loadAttendanceRecords = async () => {
-    if (!profile) return;
-    try {
-      setLoadingRecords(true);
-      let startDate: string | undefined;
-      let endDate: string | undefined;
-      
-      if (attendanceViewMode === "monthly") {
-        const monthStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
-        const monthEnd = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
-        monthEnd.setHours(23, 59, 59, 999);
-        startDate = monthStart.toISOString();
-        endDate = monthEnd.toISOString();
-      }
-      
-      const records = await getAttendanceRecords({ 
-        student_profile_id: profile.id,
-        start_date: startDate,
-        end_date: endDate,
-      });
-      setAttendanceRecords(records);
-    } catch (err) {
-      console.error("Failed to load attendance records:", err);
-    } finally {
-      setLoadingRecords(false);
-    }
-  };
 
-  useEffect(() => {
-    if (showAttendance && profile) {
-      loadAttendanceRecords();
-    }
-  }, [attendanceViewMode, selectedMonth, showAttendance]);
+
 
   const handleEdit = () => {
     setEditing(true);
@@ -343,6 +281,14 @@ export default function StudentProfile() {
         ? await updateStudentProfileById(parseInt(viewUserId), updateData)
         : await updateStudentProfile(updateData);
       setProfile(updated);
+      
+      // ✓ Refresh user data to update display_name everywhere (navbar, dashboard, etc.)
+      await refreshUser();
+      
+      // ✓ Invalidate React Query caches to refresh admin dashboard and student dashboard
+      await queryClient.invalidateQueries({ queryKey: ["adminDashboard"] });
+      await queryClient.invalidateQueries({ queryKey: ["studentDashboard"] });
+      
       setEditing(false);
       setSuccess("Profile updated successfully!");
       setTimeout(() => setSuccess(null), 3000);
@@ -770,173 +716,10 @@ export default function StudentProfile() {
               </div>
             </div>
           </div>
-
+          </div>
+        </div>
       </div>
-
-      {/* Attendance Stats Sidebar */}
-      {attendanceStats && (
-        <div className="lg:col-span-4">
-          <div className="bg-card border border-border rounded-[2.5rem] shadow-xl p-8">
-            <h3 className="text-2xl font-black tracking-tighter uppercase italic text-card-foreground mb-6 flex items-center gap-3">
-              <CalendarIcon className="w-6 h-6 text-primary" />
-              Attendance Stats
-            </h3>
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-3xl font-black italic text-primary mb-1">{attendanceStats.total_sessions}</div>
-                  <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">Total Sessions</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-black italic text-green-600 dark:text-green-400 mb-1">{attendanceStats.present_count}</div>
-                  <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">Present</div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-3xl font-black italic text-red-600 dark:text-red-400 mb-1">{attendanceStats.absent_count}</div>
-                  <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">Absent</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-black italic text-primary mb-1">{attendanceStats.attendance_percentage.toFixed(1)}%</div>
-                  <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">Attendance Rate</div>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowAttendance(!showAttendance)}
-                className="w-full flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:scale-105 transition-all shadow-lg"
-              >
-                <CalendarIcon className="w-4 h-4" />
-                {showAttendance ? "Hide" : "View"} Attendance Records
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
-
-      {/* Attendance Records Modal */}
-      {showAttendance && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAttendance(false)}>
-          <div className="bg-card border border-border rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-border">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-black tracking-tighter uppercase italic text-card-foreground">Attendance Records</h2>
-                <button
-                  onClick={() => setShowAttendance(false)}
-                  className="p-2 hover:bg-secondary rounded-lg transition-colors"
-                >
-                  <X className="w-6 h-6 text-muted-foreground" />
-                </button>
-              </div>
-              
-              {/* View Mode Toggle */}
-              <div className="flex items-center gap-4">
-                <div className="flex gap-2 bg-secondary/50 backdrop-blur-md p-1.5 rounded-full border border-border/50">
-                  <button
-                    onClick={() => setAttendanceViewMode("overall")}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
-                      attendanceViewMode === "overall"
-                        ? "bg-primary text-primary-foreground shadow-lg"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Overall
-                  </button>
-                  <button
-                    onClick={() => setAttendanceViewMode("monthly")}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
-                      attendanceViewMode === "monthly"
-                        ? "bg-primary text-primary-foreground shadow-lg"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Monthly
-                  </button>
-                </div>
-                
-                {/* Month Navigation (only for monthly view) */}
-                {attendanceViewMode === "monthly" && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        const newMonth = new Date(selectedMonth);
-                        newMonth.setMonth(newMonth.getMonth() - 1);
-                        setSelectedMonth(newMonth);
-                      }}
-                      className="p-2 hover:bg-secondary rounded-lg transition-colors"
-                    >
-                      <ChevronLeft className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                    <span className="text-sm font-bold text-card-foreground min-w-[120px] text-center">
-                      {selectedMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                    </span>
-                    <button
-                      onClick={() => {
-                        const newMonth = new Date(selectedMonth);
-                        newMonth.setMonth(newMonth.getMonth() + 1);
-                        setSelectedMonth(newMonth);
-                      }}
-                      className="p-2 hover:bg-secondary rounded-lg transition-colors"
-                    >
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-6 scrollbar-premium">
-              {loadingRecords ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                </div>
-              ) : attendanceRecords.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  No attendance records found
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {attendanceRecords.map((record) => {
-                    const sessionDate = record.session?.session_date 
-                      ? formatDateToIST(record.session.session_date)
-                      : "—";
-                    const statusColor = record.status === "present" 
-                      ? "bg-green-500" 
-                      : record.status === "absent"
-                      ? "bg-red-500"
-                      : record.status === "on_break"
-                      ? "bg-orange-500"
-                      : "bg-gray-500";
-                    
-                    return (
-                      <div key={record.id} className="flex items-center justify-between p-4 bg-secondary/50 rounded-xl border border-border">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-3 h-3 rounded-full ${statusColor}`} />
-                          <div>
-                            <div className="font-bold text-card-foreground">{sessionDate}</div>
-                            <div className="text-sm text-muted-foreground capitalize">
-                              {record.status === "on_break" ? "On Break" : record.status}
-                              {record.t_shirt_worn && (
-                                <span className="ml-2 text-orange-600 dark:text-orange-400">• T-shirt Worn</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        {record.session?.course && (
-                          <span className="text-sm font-medium text-muted-foreground">{record.session.course}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  </div>
   );
 }
 

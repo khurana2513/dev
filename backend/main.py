@@ -1,20 +1,26 @@
 """FastAPI main application."""
-from fastapi import FastAPI, Depends, HTTPException, status, Request, Query, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import List
-from datetime import datetime
-from timezone_utils import get_ist_now, IST_TIMEZONE
+from typing import List, Callable, Awaitable, Dict, Any, Optional
+from datetime import datetime, timezone
+from timezone_utils import get_ist_now, get_utc_now, IST_TIMEZONE, utc_to_ist
 import json
 import hashlib
 import random
 import time
+import logging
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-from models import Paper, PaperAttempt, get_db, init_db, FeePlan, PointsLog, FeeAssignment, FeeTransaction, VacantId  # Import models to register them with Base.metadata
+from models import Paper, PaperAttempt, get_db, init_db, PointsLog, VacantId  # Import models to register them with Base.metadata
 from schemas import (
     PaperCreate, PaperResponse, PaperConfig, PreviewResponse,
     GeneratedBlock, BlockConfig
@@ -22,86 +28,89 @@ from schemas import (
 from user_schemas import PaperAttemptCreate, PaperAttemptResponse, PaperAttemptDetailResponse, PaperAttemptSubmit
 from auth import get_current_user
 from models import User
-from gamification import calculate_points, check_and_award_badges, update_streak, check_and_award_super_rewards
-from leaderboard_service import update_leaderboard, update_weekly_leaderboard
+from gamification import calculate_points
 from math_generator import generate_block
-from pdf_generator import generate_pdf
-from pdf_generator_v2 import generate_pdf_v2
 from pdf_generator_playwright import generate_pdf_playwright
 from presets import get_preset_blocks
+from exceptions import ErrorHandler, DatabaseError, ExternalServiceError
+from config import get_config
+
+APP_CONFIG = get_config()
+
+LOG_FORMAT = "%(levelname)s %(name)s %(message)s"
+logging.basicConfig(level=APP_CONFIG.log_level, format=LOG_FORMAT)
+logger = logging.getLogger(__name__)
+error_handler = ErrorHandler()
 
 # Lazy import of user_routes to prevent startup failures
 user_router = None
 try:
     from user_routes import router as user_router
-    print("✅ [IMPORT] User router imported successfully")
+    logger.info("[IMPORT] user_routes loaded")
 except Exception as e:
     import traceback
-    print(f"❌ [IMPORT] Failed to import user router: {str(e)}")
-    print(traceback.format_exc())
+    logger.exception("[IMPORT] user_routes failed: %s", str(e))
+    logger.debug(traceback.format_exc())
     # Continue without user routes - other endpoints will still work
 
-# Lazy import of attendance_routes
 attendance_router = None
 try:
     from attendance_routes import router as attendance_router
-    print("✅ [IMPORT] Attendance router imported successfully")
+    logger.info("[IMPORT] attendance_routes loaded")
 except Exception as e:
     import traceback
-    print(f"❌ [IMPORT] Failed to import attendance router: {str(e)}")
-    print(traceback.format_exc())
-
-# Lazy import of fee_routes
-fee_router = None
-try:
-    from fee_routes import router as fee_router
-    print("✅ [IMPORT] Fee router imported successfully")
-except Exception as e:
-    import traceback
-    print(f"❌ [IMPORT] Failed to import fee router: {str(e)}")
-    print(traceback.format_exc())
+    logger.exception("[IMPORT] attendance_routes failed: %s", str(e))
+    logger.debug(traceback.format_exc())
 
 app = FastAPI(title="Abacus Paper Generator", version="3.0.0")
+app_start_time = time.monotonic()
+
+# ✓ Thread pool for non-blocking PDF generation (prevents event loop blocking)
+# Allows async event loop to process other requests while PDF is being generated in thread
+_pdf_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pdf-gen")
 
 # Timeout for incomplete paper attempts (1 hour)
 INCOMPLETE_ATTEMPT_TIMEOUT_SECONDS = 3600  # 1 hour
 
-# CORS middleware
-# When allow_credentials=True, cannot use allow_origins=["*"]
-# Must specify explicit origins
+# Security: CORS configuration from environment with fallback for development
+# Set ALLOWED_ORIGINS env var with comma-separated list of allowed origins
+ALLOWED_ORIGINS = APP_CONFIG.allowed_origins
+if ALLOWED_ORIGINS:
+    logger.info("[SECURITY] CORS origins configured: %s", len(ALLOWED_ORIGINS))
+else:
+    logger.warning("[SECURITY] No CORS origins configured (ALLOWED_ORIGINS empty)")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://talenthub.blackmonkey.in",
-        "https://hi-test.vercel.app",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "https://th.blackmonkey.in",
-        "http://127.0.0.1:3000",
-        # Add production origins here when deploying
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
 
+# Security: Rate limiting to prevent abuse and DDoS attacks
+# Configure rate limits based on environment
+limiter = Limiter(key_func=get_remote_address, default_limits=[APP_CONFIG.rate_limit_default])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+logger.info("[SECURITY] Rate limiting enabled: %s", APP_CONFIG.rate_limit_default)
+
 # Add request timing middleware
 @app.middleware("http")
-async def timing_middleware(request: Request, call_next):
+async def timing_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """Log request timing for diagnostics."""
     start_time = time.time()
     response = await call_next(request)
     elapsed = time.time() - start_time
     # Only log slow requests (>1s) or important endpoints
-    if elapsed > 1.0 or request.url.path in ["/users/stats", "/users/leaderboard/overall", "/users/me", "/papers/attempt"]:
-        print(f"⏱ [TIMING] {request.method} {request.url.path} took {elapsed:.2f}s")
+    if elapsed > 1.0 or request.url.path in ["/users/stats", "/users/me", "/papers/attempt"]:
+        logger.info("[TIMING] method=%s path=%s duration_s=%.2f", request.method, request.url.path, elapsed)
     return response
 
 # Add response headers middleware for COOP and security
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+async def add_security_headers(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """Add security headers including COOP for Google OAuth compatibility."""
     response = await call_next(request)
     
@@ -121,28 +130,39 @@ async def add_security_headers(request: Request, call_next):
 # Define health endpoint FIRST (before router inclusion)
 # This ensures health check works even if other routes fail
 @app.get("/health")
-async def health_check():
+async def health_check() -> Dict[str, Any]:
     """Health check endpoint - should never fail."""
     try:
-        # Check database connection
+        # Check database connection and latency
+        db_start = time.perf_counter()
         db = next(get_db())
         db.execute(text("SELECT 1"))
         db.close()
+        db_latency_ms = round((time.perf_counter() - db_start) * 1000, 2)
         return {
             "status": "ok", 
             "message": "Server is running",
-            "database": "connected"
+            "database": "connected",
+            "db_latency_ms": db_latency_ms,
+            "uptime_seconds": round(time.monotonic() - app_start_time, 2),
+            "env": APP_CONFIG.env,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "version": app.version,
         }
     except Exception as e:
         return {
             "status": "degraded",
             "message": "Server is running but database connection failed",
             "database": "disconnected",
-            "error": str(e)[:100]
+            "error": str(e)[:100],
+            "uptime_seconds": round(time.monotonic() - app_start_time, 2),
+            "env": APP_CONFIG.env,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "version": app.version,
         }
 
 @app.get("/")
-async def root():
+async def root() -> Dict[str, str]:
     """Root endpoint."""
     return {"message": "Abacus Paper Generator API", "version": "2.0.0"}
 
@@ -150,83 +170,72 @@ async def root():
 if user_router:
     try:
         app.include_router(user_router)
-        print("✅ [STARTUP] User router included")
+        logger.info("[STARTUP] user_router included")
     except Exception as e:
         import traceback
-        print(f"❌ [STARTUP] Failed to include user router: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception("[STARTUP] user_router include failed: %s", str(e))
+        logger.debug(traceback.format_exc())
 else:
-    print("⚠️ [STARTUP] User router not available (import failed)")
+    logger.warning("[STARTUP] user_router not available")
 
 if attendance_router:
     try:
         app.include_router(attendance_router)
-        print("✅ [STARTUP] Attendance router included")
+        logger.info("[STARTUP] attendance_router included")
     except Exception as e:
         import traceback
-        print(f"❌ [STARTUP] Failed to include attendance router: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception("[STARTUP] attendance_router include failed: %s", str(e))
+        logger.debug(traceback.format_exc())
 else:
-    print("⚠️ [STARTUP] Attendance router not available (import failed)")
-
-if fee_router:
-    try:
-        app.include_router(fee_router)
-        print("✅ [STARTUP] Fee router included")
-    except Exception as e:
-        import traceback
-        print(f"❌ [STARTUP] Failed to include fee router: {str(e)}")
-        print(traceback.format_exc())
-else:
-    print("⚠️ [STARTUP] Fee router not available (import failed)")
+    logger.warning("[STARTUP] attendance_router not available")
 
 # Initialize database on startup
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     try:
-        print("🟢 [STARTUP] Initializing database...")
+        logger.info("[STARTUP] initializing database")
         init_db()
-        print("✅ [STARTUP] Database initialized successfully")
+        logger.info("[STARTUP] database initialized")
         
         # Clean up stale incomplete attempts on startup
         try:
             db = next(get_db())
             cleaned_count = cleanup_stale_incomplete_attempts(db)
             if cleaned_count > 0:
-                print(f"✅ [STARTUP] Cleaned up {cleaned_count} stale incomplete attempts")
+                logger.info("[STARTUP] cleaned stale attempts: %s", cleaned_count)
             db.close()
         except Exception as cleanup_error:
-            print(f"⚠️ [STARTUP] Failed to clean up stale attempts on startup: {cleanup_error}")
+            logger.warning("[STARTUP] cleanup stale attempts failed: %s", cleanup_error)
             # Don't fail startup if cleanup fails
     except Exception as e:
         import traceback
-        print(f"❌ [STARTUP] Database initialization failed: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception("[STARTUP] database initialization failed: %s", str(e))
+        logger.debug(traceback.format_exc())
         # Don't crash the app, but log the error
 
 
 # Handle validation errors (specific handler - must come before global handler)
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     # Log the validation error details for debugging
     error_details = exc.errors()
-    print(f"❌ [VALIDATION] Validation error on {request.method} {request.url.path}")
-    print(f"❌ [VALIDATION] Errors: {error_details}")
+    logger.warning("[VALIDATION] method=%s path=%s", request.method, request.url.path)
+    logger.warning("[VALIDATION] errors=%s", error_details)
     
     # Try to log the request body if available
     try:
         body = await request.body()
         if body:
             body_str = body.decode('utf-8')[:500]  # Limit to first 500 chars
-            print(f"❌ [VALIDATION] Request body: {body_str}")
+            logger.warning("[VALIDATION] body=%s", body_str)
         else:
-            print(f"❌ [VALIDATION] Request body is empty")
+            logger.warning("[VALIDATION] body=empty")
     except Exception as e:
-        print(f"❌ [VALIDATION] Could not read request body: {str(e)}")
+        logger.warning("[VALIDATION] body_read_failed=%s", str(e))
     
     # Log headers that might affect parsing
     content_type = request.headers.get("content-type", "not set")
-    print(f"❌ [VALIDATION] Content-Type: {content_type}")
+    logger.warning("[VALIDATION] content_type=%s", content_type)
     
     return JSONResponse(
         status_code=422,
@@ -239,7 +248,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Global exception handler - ensures ALL errors return JSON (must come last)
 # This prevents hard socket drops and ERR_EMPTY_RESPONSE errors
 @app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler to ensure all errors return JSON and prevent socket drops."""
     import traceback
     
@@ -268,10 +277,8 @@ async def global_exception_handler(request: Request, exc: Exception):
     traceback_str = traceback.format_exc()
     
     # Enhanced error logging to help diagnose issues
-    print("🔥 UNHANDLED ERROR:", exc)
-    print(f"🔥 [GLOBAL_ERROR] Path: {request.url.path}")
-    print(f"🔥 [GLOBAL_ERROR] Method: {request.method}")
-    traceback.print_exc()
+    logger.exception("[GLOBAL_ERROR] path=%s method=%s error=%s", request.url.path, request.method, exc)
+    logger.debug(traceback_str)
     
     # Return JSON error response - this prevents socket drops
     return JSONResponse(
@@ -291,15 +298,15 @@ async def list_papers(db: Session = Depends(get_db)):
 
 
 # IMPORTANT: This route must come BEFORE /papers/{paper_id} to avoid route conflicts
-def cleanup_stale_incomplete_attempts(db: Session, user_id: int = None):
+def cleanup_stale_incomplete_attempts(db: Session, user_id: Optional[int] = None) -> int:
     """Clean up incomplete attempts that are older than the timeout."""
     try:
-        ist_now = get_ist_now()
-        timeout_threshold = ist_now - timedelta(seconds=INCOMPLETE_ATTEMPT_TIMEOUT_SECONDS)
+        utc_now = get_utc_now()
+        timeout_threshold = utc_now - timedelta(seconds=INCOMPLETE_ATTEMPT_TIMEOUT_SECONDS)
         
         query = db.query(PaperAttempt).filter(
             PaperAttempt.completed_at.is_(None),  # Only incomplete attempts
-            PaperAttempt.started_at < timeout_threshold.replace(tzinfo=None)  # Older than timeout
+            PaperAttempt.started_at < timeout_threshold.replace(tzinfo=None)  # Older than timeout (UTC)
         )
         
         if user_id:
@@ -308,25 +315,25 @@ def cleanup_stale_incomplete_attempts(db: Session, user_id: int = None):
         stale_attempts = query.all()
         
         if stale_attempts:
-            print(f"🧹 [CLEANUP] Found {len(stale_attempts)} stale incomplete attempts to clean up")
+            logger.info("[CLEANUP] stale_attempts=%s", len(stale_attempts))
             for attempt in stale_attempts:
                 # Mark as completed with zero score (abandoned)
-                attempt.completed_at = ist_now.replace(tzinfo=None)
+                attempt.completed_at = utc_now.replace(tzinfo=None)
                 attempt.correct_answers = 0
                 attempt.wrong_answers = 0
                 attempt.accuracy = 0.0
                 attempt.score = 0
                 attempt.points_earned = 0
-                print(f"🧹 [CLEANUP] Marked attempt {attempt.id} as abandoned")
+                logger.debug("[CLEANUP] marked_attempt=%s", attempt.id)
             
             db.commit()
-            print(f"✅ [CLEANUP] Cleaned up {len(stale_attempts)} stale attempts")
+            logger.info("[CLEANUP] cleaned=%s", len(stale_attempts))
         
         return len(stale_attempts)
     except Exception as e:
-        print(f"❌ [CLEANUP] Error cleaning up stale attempts: {e}")
+        logger.exception("[CLEANUP] error=%s", e)
         import traceback
-        traceback.print_exc()
+        logger.debug(traceback.format_exc())
         db.rollback()
         return 0
 
@@ -346,7 +353,7 @@ async def get_paper_attempts(
             PaperAttempt.user_id == current_user.id
         ).order_by(PaperAttempt.started_at.desc()).limit(limit).all()
         
-        print(f"✅ [PAPER_ATTEMPTS] Found {len(attempts)} attempts for user {current_user.id}")
+        logger.info("[PAPER_ATTEMPTS] user_id=%s count=%s", current_user.id, len(attempts))
         
         # Validate and convert each attempt
         result = []
@@ -355,18 +362,14 @@ async def get_paper_attempts(
                 validated = PaperAttemptResponse.model_validate(attempt)
                 result.append(validated)
             except Exception as e:
-                print(f"❌ [PAPER_ATTEMPTS] Error validating attempt {attempt.id}: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.exception("[PAPER_ATTEMPTS] validation_failed attempt_id=%s error=%s", attempt.id, e)
                 # Skip invalid attempts but continue processing others
                 continue
         
-        print(f"✅ [PAPER_ATTEMPTS] Returning {len(result)} validated attempts")
+        logger.info("[PAPER_ATTEMPTS] validated_count=%s", len(result))
         return result
     except Exception as e:
-        print(f"❌ [PAPER_ATTEMPTS] Error in get_paper_attempts: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("[PAPER_ATTEMPTS] error=%s", e)
         raise HTTPException(status_code=500, detail=f"Failed to get paper attempts: {str(e)}")
 
 
@@ -409,8 +412,8 @@ async def get_preset_blocks(level: str):
     except Exception as e:
         import traceback
         error_msg = f"Failed to get preset blocks for {level}: {str(e)}"
-        print(f"❌ [PRESETS] {error_msg}")
-        print(traceback.format_exc())
+        logger.exception("[PRESETS] %s", error_msg)
+        logger.debug(traceback.format_exc())
         raise HTTPException(status_code=500, detail=error_msg)
 
 
@@ -435,7 +438,7 @@ def get_level_display_name(level: str) -> str:
 async def preview_paper(config: PaperConfig):
     """Generate preview of questions."""
     try:
-        print(f"Received preview request: level={config.level}, title={config.title}, blocks={len(config.blocks)}")
+        logger.info("[PREVIEW] level=%s title=%s blocks=%s", config.level, config.title, len(config.blocks))
 
         # Resolve blocks (Preset vs Custom)
         blocks = config.blocks
@@ -451,9 +454,16 @@ async def preview_paper(config: PaperConfig):
         if not blocks or len(blocks) == 0:
             raise HTTPException(status_code=400, detail="At least one question block is required")
 
-        print(f"Using {len(blocks)} blocks")
+        logger.info("[PREVIEW] resolved_blocks=%s", len(blocks))
         for i, block in enumerate(blocks):
-            print(f"Block {i}: id={block.id}, type={block.type}, count={block.count}, constraints={block.constraints}")
+            logger.debug(
+                "[PREVIEW] block_index=%s id=%s type=%s count=%s constraints=%s",
+                i,
+                block.id,
+                block.type,
+                block.count,
+                block.constraints,
+            )
 
         # Generate a random seed for preview to ensure different questions each time
         # The seed will be returned and can be used for PDF generation to get the same questions
@@ -461,36 +471,36 @@ async def preview_paper(config: PaperConfig):
         seed = int((time.time() * 1000) % (2**31)) + random.randint(1, 1000000)
         seed = seed % (2**31)  # Keep it within int32 range
 
-        print(f"Using seed: {seed}")
+        logger.debug("[PREVIEW] seed=%s", seed)
 
         question_id_counter = 1
         generated_blocks = []
 
         for block in blocks:
             try:
-                print(f"Generating block: {block.id}, type: {block.type}, count: {block.count}")
+                logger.debug("[PREVIEW] generating block_id=%s type=%s count=%s", block.id, block.type, block.count)
                 gen_block = generate_block(block, question_id_counter, seed)
-                print(f"Generated {len(gen_block.questions)} questions for block {block.id}")
+                logger.debug("[PREVIEW] generated block_id=%s questions=%s", block.id, len(gen_block.questions))
                 generated_blocks.append(gen_block)
                 question_id_counter += block.count
             except Exception as e:
                 import traceback
                 error_detail = f"Failed to generate block '{block.id}': {str(e)}"
-                print(f"ERROR: {error_detail}")
-                print(traceback.format_exc())
+                logger.exception("[PREVIEW] %s", error_detail)
+                logger.debug(traceback.format_exc())
                 raise HTTPException(
                     status_code=500,
                     detail=error_detail
                 )
 
-        print(f"Successfully generated {len(generated_blocks)} blocks")
+        logger.info("[PREVIEW] generated_blocks=%s", len(generated_blocks))
         return PreviewResponse(blocks=generated_blocks, seed=seed)
     except HTTPException:
         raise
     except ValueError as e:
         # Pydantic validation errors
         error_msg = f"Validation error: {str(e)}"
-        print(f"Validation error: {error_msg}")
+        logger.warning("[PREVIEW] validation_error=%s", error_msg)
         raise HTTPException(
             status_code=422,
             detail=error_msg
@@ -499,7 +509,8 @@ async def preview_paper(config: PaperConfig):
         import traceback
         error_msg = str(e)
         traceback_str = traceback.format_exc()
-        print(f"Preview error: {error_msg}\n{traceback_str}")  # Log to console
+        logger.error("[PREVIEW] error=%s", error_msg)
+        logger.debug(traceback_str)
         # Write to file for debugging
         with open("/tmp/preview_error.log", "w") as f:
             f.write(f"Error: {error_msg}\n{traceback_str}")
@@ -514,6 +525,9 @@ async def generate_pdf_endpoint(
     request_data: dict
 ):
     """Generate PDF from config.
+    
+    ✓ Non-blocking: Uses thread pool to prevent event loop blocking
+    ✓ Fast response: Returns PDF while maintaining other requests
     
     Parameters:
     - withAnswers: Include answers in questions
@@ -556,10 +570,17 @@ async def generate_pdf_endpoint(
             final_blocks.append(gen_block)
             question_id_counter += block.count
     
-    # Generate PDF using Playwright (pixel-perfect). If Playwright fails (common on machines without browser deps),
-    # fall back to ReportLab (generate_pdf_v2) so PDF download still works.
+    # ✓ Non-blocking PDF generation using thread pool
+    # Playwright PDF generation (5-10 seconds) runs in thread, not blocking event loop
     try:
-        pdf_buffer = await generate_pdf_playwright(config, final_blocks, with_answers, answers_only, include_separate_answer_key)
+        pdf_buffer = await _generate_pdf_buffer_async(
+            config,
+            final_blocks,
+            with_answers,
+            answers_only,
+            include_separate_answer_key,
+        )
+        
         if answers_only:
             filename = f"{config.title.replace(' ', '_')}_answers_only.pdf"
         elif with_answers:
@@ -574,30 +595,96 @@ async def generate_pdf_endpoint(
             media_type="application/pdf",
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        import traceback
-        error_msg = str(e)
-        traceback_str = traceback.format_exc()
-        print(f"PDF generation error (Playwright): {error_msg}\n{traceback_str}")
-        try:
-            # Fallback: ReportLab generator (no separate answer-key support in v2)
-            if include_separate_answer_key:
-                raise HTTPException(status_code=500, detail="Failed to generate PDF (Playwright). Separate answer key requires Playwright.")
-            pdf_buffer = generate_pdf_v2(config, final_blocks, with_answers=with_answers, answers_only=answers_only)
-            filename = (
-                f"{config.title.replace(' ', '_')}_answers_only.pdf" if answers_only
-                else f"{config.title.replace(' ', '_')}_answer_key.pdf" if with_answers
-                else f"{config.title.replace(' ', '_')}.pdf"
+        logger.exception("[PDF] generation_failed error=%s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+
+
+async def _generate_pdf_buffer_async(
+    paper_config: PaperConfig,
+    final_blocks: List[GeneratedBlock],
+    with_answers: bool,
+    answers_only: bool,
+    include_separate_answer_key: bool,
+):
+    """Generate PDF using Playwright (headless Chromium).
+    
+    ✓ Non-blocking: Runs in thread pool to prevent event loop blocking
+    ✓ Professional: Pixel-perfect output, matches preview exactly
+    ✓ Scalable: Handles concurrent requests with thread pool executor
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        _pdf_executor,
+        lambda: _generate_pdf_sync(
+            paper_config,
+            final_blocks,
+            with_answers,
+            answers_only,
+            include_separate_answer_key,
+        ),
+    )
+
+
+def _generate_pdf_sync(paper_config, final_blocks, with_answers, answers_only, include_separate_answer_key):
+    """Synchronous PDF generation using Playwright (runs in thread pool, non-blocking).
+    
+    This is the only PDF generator in the system - professional, scalable, and feature-complete.
+    """
+    try:
+        import inspect
+        if inspect.iscoroutinefunction(generate_pdf_playwright):
+            import asyncio
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                logger.info("[PDF] Generating with Playwright")
+                pdf_buffer = new_loop.run_until_complete(
+                    generate_pdf_playwright(
+                        paper_config,
+                        final_blocks,
+                        with_answers,
+                        answers_only,
+                        include_separate_answer_key,
+                    )
+                )
+                logger.info("[PDF] Generation successful")
+                return pdf_buffer
+            finally:
+                new_loop.close()
+        else:
+            # Sync version (if playwright doesn't use async)
+            logger.info("[PDF] Generating with Playwright (sync mode)")
+            return generate_pdf_playwright(
+                paper_config,
+                final_blocks,
+                with_answers,
+                answers_only,
+                include_separate_answer_key,
             )
-            return StreamingResponse(
-                pdf_buffer,
-                media_type="application/pdf",
-                headers={"Content-Disposition": f"attachment; filename={filename}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[PDF] Generation failed: %s", str(e))
+        # Provide helpful error message with solution
+        error_msg = str(e).lower()
+        if "chromium" in error_msg or "browser" in error_msg:
+            raise HTTPException(
+                status_code=503,
+                detail="PDF generation service temporarily unavailable. Chromium browser not found. System will recover automatically.",
             )
-        except HTTPException:
-            raise
-        except Exception as fallback_e:
-            raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {error_msg} (fallback also failed: {fallback_e})")
+        elif "timeout" in error_msg:
+            raise HTTPException(
+                status_code=504,
+                detail="PDF generation timed out. The paper may be too complex. Try reducing question count.",
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"PDF generation failed: {str(e)}",
+            )
 
 
 @app.post("/papers/{paper_id}/download")
@@ -606,7 +693,11 @@ async def download_paper_pdf(
     with_answers: bool = False,
     db: Session = Depends(get_db)
 ):
-    """Download PDF for a saved paper."""
+    """Download PDF for a saved paper using Playwright.
+    
+    Parameters:
+    - with_answers: Include answers in questions
+    """
     paper = db.query(Paper).filter(Paper.id == paper_id).first()
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
@@ -627,17 +718,23 @@ async def download_paper_pdf(
         generated_blocks.append(gen_block)
         question_id_counter += block_config.count
     
-    # Generate PDF using Playwright (industry standard - pixel perfect)
     try:
-        pdf_buffer = await generate_pdf_playwright(config, generated_blocks, with_answers, False)
+        pdf_buffer = await _generate_pdf_buffer_async(
+            config,
+            generated_blocks,
+            with_answers,
+            False,
+            False,
+        )
         filename = f"{paper.title.replace(' ', '_')}{'_answers' if with_answers else ''}.pdf"
-        
+
         return StreamingResponse(
             pdf_buffer,
             media_type="application/pdf",
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
     except Exception as e:
+        logger.exception("[PDF] download_failed paper_id=%s error=%s", paper_id, e)
         raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
 
 
@@ -702,75 +799,10 @@ async def start_paper_attempt(
     
     return PaperAttemptResponse.model_validate(paper_attempt)
 
-
-def process_paper_attempt_async(attempt_id: int, user_id: int, correct_count: int, wrong_count: int, 
-                                total: int, accuracy: float, score: int, time_taken: float, 
-                                attempted_questions: int):
-    """Background task to process paper attempt - updates stats, badges, leaderboards.
-    Note: Points are already updated in main request, so we don't update them here."""
-    from models import get_db, User, StudentProfile, PracticeSession
-    from reward_system import update_user_question_count
-    from gamification import update_streak, check_and_award_super_rewards, check_and_award_badges
-    from leaderboard_service import update_leaderboard, update_weekly_leaderboard
-    
-    start_time = time.time()
-    db = next(get_db())
-    try:
-        # Get fresh user from DB
-        user = db.query(User).filter(User.id == user_id).first()
-        
-        if not user:
-            print(f"⚠️ [BG_TASK] User not found for user_id={user_id}")
-            return
-        
-        # Update question count (points already updated in main request)
-        update_user_question_count(db, user, attempted_questions)
-        
-        # Update streak for Vedic Maths students (only papers count)
-        profile = db.query(StudentProfile).filter(StudentProfile.user_id == user.id).first()
-        if profile and profile.course == "Vedic Maths":
-            update_streak(db, user, questions_practiced_today=attempted_questions)
-        
-        # Check for SUPER badge rewards
-        check_and_award_super_rewards(db, user)
-        
-        # Check for lifetime badges (new reward system)
-        from reward_system import check_and_award_lifetime_badges
-        check_and_award_lifetime_badges(db, user)
-        
-        # Note: Monthly badges (accuracy_ace, perfect_precision, comeback_kid) are evaluated
-        # at end of month via monthly_badge_evaluation.py, not per-attempt
-        
-        db.commit()
-        db.refresh(user)
-        
-        # Update leaderboards (these have their own commits)
-        try:
-            update_leaderboard(db)
-        except Exception as e:
-            print(f"⚠️ [BG_TASK] Error updating leaderboard: {e}")
-        
-        try:
-            update_weekly_leaderboard(db)
-        except Exception as e:
-            print(f"⚠️ [BG_TASK] Error updating weekly leaderboard: {e}")
-        
-        elapsed = time.time() - start_time
-        print(f"✅ [BG_TASK] Processed attempt {attempt_id} in {elapsed:.2f}s")
-    except Exception as e:
-        db.rollback()
-        import traceback
-        print(f"❌ [BG_TASK] Error processing attempt {attempt_id}: {e}")
-        print(traceback.format_exc())
-    finally:
-        db.close()
-
-
 @app.put("/papers/attempt/{attempt_id}", response_model=PaperAttemptResponse)
 async def submit_paper_attempt(
     attempt_id: int,
     submit_data: PaperAttemptSubmit,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -787,20 +819,27 @@ async def submit_paper_attempt(
         if not paper_attempt:
             raise HTTPException(status_code=404, detail="Paper attempt not found")
         
-        print(f"🟡 [SUBMIT] Attempt {attempt_id} found: completed_at = {paper_attempt.completed_at}, user_id = {paper_attempt.user_id}")
+        logger.debug(
+            "[SUBMIT] attempt_id=%s completed_at=%s user_id=%s",
+            attempt_id,
+            paper_attempt.completed_at,
+            paper_attempt.user_id,
+        )
         
         # Check if attempt is already completed - but allow if it was just created (within last second)
         # This handles race conditions where the same attempt might be submitted twice
         if paper_attempt.completed_at:
             # Check if it was completed very recently (within 2 seconds) - might be a duplicate submission
-            time_since_completion = (get_ist_now() - paper_attempt.completed_at).total_seconds()
-            print(f"🟡 [SUBMIT] Attempt {attempt_id} was completed {time_since_completion:.2f}s ago")
+            _comp = paper_attempt.completed_at
+            _comp_utc = _comp if _comp.tzinfo is not None else _comp.replace(tzinfo=timezone.utc)
+            time_since_completion = (get_utc_now() - _comp_utc).total_seconds()
+            logger.info("[SUBMIT] attempt_id=%s completed_age_s=%.2f", attempt_id, time_since_completion)
             if time_since_completion > 2:
-                print(f"❌ [SUBMIT] Attempt {attempt_id} was completed too long ago, rejecting submission")
+                logger.warning("[SUBMIT] attempt_id=%s rejected_duplicate=true", attempt_id)
                 raise HTTPException(status_code=400, detail="Attempt already completed")
             else:
                 # Very recent completion - return the existing result instead of error
-                print(f"⚠️ [SUBMIT] Attempt {attempt_id} was completed {time_since_completion:.2f}s ago, returning existing result")
+                logger.info("[SUBMIT] attempt_id=%s returning_existing=true", attempt_id)
                 return PaperAttemptResponse.model_validate(paper_attempt)
         
         # Calculate results
@@ -818,10 +857,16 @@ async def submit_paper_attempt(
         for question in all_questions:
             try:
                 question_id = question.get("id")
-                user_answer = answers.get(str(question_id)) or answers.get(question_id)
+                # Use explicit None check instead of `or` - 0 is a valid answer and must not be treated as falsy
+                _str_key = answers.get(str(question_id))
+                _int_key = answers.get(question_id)
+                user_answer = _str_key if _str_key is not None else _int_key
                 correct_answer = question.get("answer")
                 
-                if user_answer is not None and correct_answer is not None:
+                # Treat empty string as unattempted, but 0 is a valid answer
+                user_answered = user_answer is not None and str(user_answer).strip() != ""
+                
+                if user_answered and correct_answer is not None:
                     # Compare answers - handle large integers as strings to avoid precision loss
                     try:
                         user_answer_str = str(user_answer).strip()
@@ -842,11 +887,11 @@ async def submit_paper_attempt(
                             else:
                                 wrong_count += 1
                     except (ValueError, TypeError) as e:
-                        print(f"⚠️ [SUBMIT] Error comparing answers for question {question_id}: {e}")
+                        logger.warning("[SUBMIT] compare_failed question_id=%s error=%s", question_id, e)
                         wrong_count += 1
                 # Unattempted questions are not counted as wrong - they are separate
             except Exception as e:
-                print(f"⚠️ [SUBMIT] Error processing question: {e}")
+                logger.warning("[SUBMIT] process_question_failed error=%s", e)
                 # Count as wrong if we can't process it
                 wrong_count += 1
                 continue
@@ -878,8 +923,8 @@ async def submit_paper_attempt(
         paper_attempt.score = score
         paper_attempt.time_taken = time_taken
         paper_attempt.points_earned = points_earned
-        # Store completed_at as naive datetime (database requirement) - it's IST time
-        paper_attempt.completed_at = get_ist_now().replace(tzinfo=None)
+        # Store completed_at as naive UTC datetime
+        paper_attempt.completed_at = datetime.utcnow()
         
         # Update user points immediately (needed for response)
         current_user.total_points += points_earned
@@ -904,29 +949,12 @@ async def submit_paper_attempt(
             }
         )
         
-        from reward_system import update_user_question_count
-        update_user_question_count(db, current_user, attempted_questions)
-        
         db.commit()
         db.refresh(paper_attempt)
         db.refresh(current_user)
         
-        # Schedule heavy operations in background (points already updated above)
-        background_tasks.add_task(
-            process_paper_attempt_async,
-            attempt_id=attempt_id,
-            user_id=current_user.id,
-            correct_count=correct_count,
-            wrong_count=wrong_count,
-            total=total,
-            accuracy=accuracy,
-            score=score,
-            time_taken=time_taken,
-            attempted_questions=attempted_questions
-        )
-        
         elapsed = time.time() - request_start
-        print(f"⏱ [SUBMIT] PUT /papers/attempt/{attempt_id} took {elapsed:.2f}s (fast path)")
+        logger.info("[SUBMIT] path=/papers/attempt/%s duration_s=%.2f", attempt_id, elapsed)
         
         return PaperAttemptResponse.model_validate(paper_attempt)
     except HTTPException:
@@ -938,8 +966,8 @@ async def submit_paper_attempt(
         import traceback
         error_msg = str(e)
         traceback_str = traceback.format_exc()
-        print(f"❌ [PAPER ATTEMPT] Error submitting paper attempt: {error_msg}")
-        print(traceback_str)
+        logger.error("[PAPER_ATTEMPT] submit_failed error=%s", error_msg)
+        logger.debug(traceback_str)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to submit paper attempt: {error_msg}"
@@ -963,15 +991,15 @@ async def get_paper_attempt(
     
     # If attempt is incomplete and stale, mark it as abandoned
     if not paper_attempt.completed_at:
-        ist_now = get_ist_now()
+        utc_now = get_utc_now()
         started_at = paper_attempt.started_at
         if started_at.tzinfo is None:
-            started_at = started_at.replace(tzinfo=IST_TIMEZONE)
+            started_at = started_at.replace(tzinfo=timezone.utc)
         
-        time_elapsed = (ist_now - started_at).total_seconds()
+        time_elapsed = (utc_now - started_at).total_seconds()
         if time_elapsed > INCOMPLETE_ATTEMPT_TIMEOUT_SECONDS:
             # Mark as abandoned
-            paper_attempt.completed_at = ist_now.replace(tzinfo=None)
+            paper_attempt.completed_at = utc_now.replace(tzinfo=None)
             paper_attempt.correct_answers = 0
             paper_attempt.wrong_answers = 0
             paper_attempt.accuracy = 0.0
@@ -979,7 +1007,7 @@ async def get_paper_attempt(
             paper_attempt.points_earned = 0
             db.commit()
             db.refresh(paper_attempt)
-            print(f"🧹 [CLEANUP] Marked stale attempt {attempt_id} as abandoned when accessed")
+            logger.info("[CLEANUP] marked_stale_attempt=%s", attempt_id)
     
     return PaperAttemptDetailResponse.model_validate(paper_attempt)
 
@@ -1018,13 +1046,13 @@ async def validate_paper_attempt(
         }
     
     # Check if attempt is stale (older than timeout)
-    ist_now = get_ist_now()
-    # Convert started_at to timezone-aware if it's naive
+    utc_now = get_utc_now()
+    # Convert started_at to timezone-aware if it's naive (treat naive as UTC)
     started_at = paper_attempt.started_at
     if started_at.tzinfo is None:
-        started_at = started_at.replace(tzinfo=IST_TIMEZONE)
+        started_at = started_at.replace(tzinfo=timezone.utc)
     
-    time_elapsed = (ist_now - started_at).total_seconds()
+    time_elapsed = (utc_now - started_at).total_seconds()
     
     if time_elapsed > INCOMPLETE_ATTEMPT_TIMEOUT_SECONDS:
         return {

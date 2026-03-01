@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { User, loginWithGoogle, getCurrentUser, removeAuthToken, setAuthToken } from "../lib/userApi";
+import { User, loginWithGoogle, getCurrentUser, removeAuthToken, setAuthToken, refreshAccessToken } from "../lib/userApi";
 import { setAuthReady, setAuthToken as setApiAuthToken } from "../lib/apiClient";
 
 interface AuthContextType {
@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAuthReady(true);
           setApiAuthToken(token);
         })
-        .catch((error: any) => {
+        .catch(async (error: any) => {
           console.error("❌ [AUTH] Failed to restore user:", error);
           console.error("❌ [AUTH] Error message:", error?.message);
           console.error("❌ [AUTH] Error type:", error?.name);
@@ -52,7 +52,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                                 errorMsg.includes("Please log in again");
           
           if (isUnauthorized) {
-            console.log("🔄 [AUTH] Token expired/invalid (401), checking for stored user data...");
+            console.log("🔄 [AUTH] Token expired/invalid (401), attempting refresh...");
+            
+            // Try to refresh the token first
+            const refreshToken = localStorage.getItem("refresh_token");
+            if (refreshToken) {
+              try {
+                console.log("🔄 [AUTH] Attempting token refresh with refresh token");
+                const refreshResponse = await refreshAccessToken(refreshToken);
+                console.log("✅ [AUTH] Token refreshed successfully");
+                setAuthToken(refreshResponse.access_token);
+                setApiAuthToken(refreshResponse.access_token);
+                
+                // Retry getting current user with new token
+                const userData = await getCurrentUser();
+                console.log("✅ [AUTH] User restored after token refresh:", userData.email);
+                setUser(userData);
+                localStorage.setItem("user_data", JSON.stringify(userData));
+                setAuthReady(true);
+                setLoading(false);
+                return;
+              } catch (refreshError) {
+                console.error("❌ [AUTH] Token refresh failed:", refreshError);
+                // Fall through to check stored user data
+              }
+            }
+            
             // Check if we have stored user data - use it temporarily to prevent immediate logout
             // This helps if SECRET_KEY changed or token format issue (user can still use app)
             const storedUser = localStorage.getItem("user_data");

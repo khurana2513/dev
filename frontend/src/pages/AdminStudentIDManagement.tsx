@@ -11,6 +11,7 @@ import {
   generateNextStudentId
 } from "../lib/userApi";
 import { User, Edit2, Save, X, AlertCircle, CheckCircle2, Loader2, Search, RefreshCw, Users, IdCard, Plus, Eye, Archive } from "lucide-react";
+import Skeleton from "../components/Skeleton";
 import { useLocation } from "wouter";
 
 export default function AdminStudentIDManagement() {
@@ -182,6 +183,15 @@ export default function AdminStudentIDManagement() {
     // Format the ID with TH- prefix
     const formattedId = formatPublicId(newPublicId);
 
+    const previousStudents = students;
+
+    // Optimistic update for immediate UI feedback
+    setStudents(prev => prev.map(student =>
+      student.id === editingStudent
+        ? { ...student, public_id: formattedId }
+        : student
+    ));
+
     try {
       setUpdating(true);
       setError(null);
@@ -192,7 +202,7 @@ export default function AdminStudentIDManagement() {
 
       setSuccess(result.message);
 
-      // Update the student in the list
+      // Confirm with server response (in case it normalizes the ID)
       setStudents(prev => prev.map(student =>
         student.id === editingStudent
           ? { ...student, public_id: result.new_public_id }
@@ -209,6 +219,8 @@ export default function AdminStudentIDManagement() {
       setTimeout(() => setSuccess(null), 3000);
 
     } catch (err: any) {
+      // Roll back optimistic update on error
+      setStudents(previousStudents);
       setError(err.message || "Failed to update public ID");
     } finally {
       setUpdating(false);
@@ -247,10 +259,23 @@ export default function AdminStudentIDManagement() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-400 mx-auto mb-4" />
-          <p className="text-white">Loading student ID management...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <div className="container mx-auto pt-32 pb-20 px-6">
+          <div className="mb-10 space-y-4">
+            <Skeleton className="h-10 w-80" />
+            <Skeleton className="h-5 w-96" />
+          </div>
+          <div className="flex gap-4 mb-8">
+            <Skeleton className="h-12 w-full max-w-md rounded-xl" />
+            <Skeleton className="h-12 w-40 rounded-xl" />
+          </div>
+          <div className="bg-card border border-border rounded-[2.5rem] p-6">
+            <div className="space-y-4">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <Skeleton key={`student-row-skeleton-${index}`} className="h-12 rounded-xl" />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );

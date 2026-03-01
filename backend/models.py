@@ -2,11 +2,11 @@
 from sqlalchemy import Column, Integer, String, JSON, DateTime, Date, Float, Boolean, ForeignKey, Text, create_engine, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import uuid
 from dotenv import load_dotenv
-from timezone_utils import get_ist_now
+from timezone_utils import get_ist_now, get_utc_now
 
 load_dotenv()
 
@@ -21,7 +21,7 @@ class Paper(Base):
     title = Column(String, nullable=False)
     level = Column(String, nullable=False)
     config = Column(JSON, nullable=False)  # Stores the full paper configuration
-    created_at = Column(DateTime, default=get_ist_now)
+    created_at = Column(DateTime, default=get_utc_now)
 
 
 class User(Base):
@@ -43,8 +43,8 @@ class User(Base):
     last_grace_skip_date = Column(DateTime, nullable=True)  # Last time grace skip was used
     grace_skip_week_start = Column(DateTime, nullable=True)  # Week start for grace skip tracking
     last_daily_login_bonus_date = Column(Date, nullable=True)  # Last date daily login bonus was given
-    created_at = Column(DateTime, default=get_ist_now)
-    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
     
     # Relationships
     practice_sessions = relationship("PracticeSession", back_populates="user", cascade="all, delete-orphan")
@@ -59,8 +59,8 @@ class PracticeSession(Base):
     __tablename__ = "practice_sessions"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    operation_type = Column(String, nullable=False)  # e.g., "add_sub", "multiplication"
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    operation_type = Column(String, nullable=False, index=True)  # e.g., "add_sub", "multiplication" - indexed for analytics
     difficulty_mode = Column(String, nullable=False)  # "custom", "easy", "medium", "hard"
     total_questions = Column(Integer, nullable=False)
     correct_answers = Column(Integer, default=0, nullable=False)
@@ -69,10 +69,10 @@ class PracticeSession(Base):
     score = Column(Integer, default=0, nullable=False)
     time_taken = Column(Float, nullable=False)  # in seconds
     points_earned = Column(Integer, default=0, nullable=False)
-    # SQLAlchemy DateTime stores naive datetimes (no timezone)
-    # We store IST time but as naive datetime, then treat as IST when retrieving
-    started_at = Column(DateTime, default=lambda: get_ist_now().replace(tzinfo=None))
-    completed_at = Column(DateTime, nullable=True)
+    # Store all datetimes in UTC for database consistency
+    # Conversion to IST happens in API response serializers
+    started_at = Column(DateTime(timezone=True), default=lambda: datetime.utcnow().replace(tzinfo=timezone.utc))
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relationships
     user = relationship("User", back_populates="practice_sessions")
@@ -88,14 +88,14 @@ class Attempt(Base):
     __tablename__ = "attempts"
     
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("practice_sessions.id"), nullable=False, index=True)
+    session_id = Column(Integer, ForeignKey("practice_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     question_data = Column(JSON, nullable=False)  # Stores question details
     user_answer = Column(Float, nullable=True)
     correct_answer = Column(Float, nullable=False)
     is_correct = Column(Boolean, default=False, nullable=False)
     time_taken = Column(Float, nullable=False)  # Time to answer in seconds
     question_number = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=get_ist_now)
+    created_at = Column(DateTime, default=get_utc_now)
     
     # Relationships
     session = relationship("PracticeSession", back_populates="attempts")
@@ -106,13 +106,13 @@ class Reward(Base):
     __tablename__ = "rewards"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     badge_type = Column(String, nullable=False)  # e.g., "accuracy_ace", "perfect_precision", "monthly_streak"
     badge_name = Column(String, nullable=False)
     badge_category = Column(String, default="general", nullable=False)  # "monthly", "lifetime", "super", "attendance", "leaderboard"
     is_lifetime = Column(Boolean, default=False, nullable=False)  # True for lifetime badges
-    month_earned = Column(String, nullable=True)  # "YYYY-MM" format for monthly badges
-    earned_at = Column(DateTime, default=get_ist_now)
+    month_earned = Column(String, nullable=True, index=True)  # "YYYY-MM" format for monthly badges - indexed for performance
+    earned_at = Column(DateTime, default=get_utc_now)
     
     # Relationships
     user = relationship("User", back_populates="rewards")
@@ -127,9 +127,9 @@ class PaperAttempt(Base):
     __tablename__ = "paper_attempts"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     paper_title = Column(String, nullable=False)
-    paper_level = Column(String, nullable=False)
+    paper_level = Column(String, nullable=False, index=True)  # Indexed for filtering by level
     paper_config = Column(JSON, nullable=False)  # Stores the full paper configuration
     generated_blocks = Column(JSON, nullable=False)  # Stores the generated questions
     seed = Column(Integer, nullable=False)  # Seed used for generation
@@ -141,10 +141,10 @@ class PaperAttempt(Base):
     time_taken = Column(Float, nullable=True)  # in seconds, null if not completed
     points_earned = Column(Integer, default=0, nullable=False)
     answers = Column(JSON, nullable=True)  # Stores user answers: {question_id: answer}
-    # SQLAlchemy DateTime stores naive datetimes (no timezone)
-    # We store IST time but as naive datetime, then treat as IST when retrieving
-    started_at = Column(DateTime, default=lambda: get_ist_now().replace(tzinfo=None))
-    completed_at = Column(DateTime, nullable=True)
+    # Store all datetimes in UTC for database consistency
+    # Conversion to IST happens in API response serializers
+    started_at = Column(DateTime(timezone=True), default=lambda: datetime.utcnow().replace(tzinfo=timezone.utc))
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relationships
     user = relationship("User", back_populates="paper_attempts")
@@ -159,12 +159,15 @@ class Leaderboard(Base):
     __tablename__ = "leaderboard"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
     total_points = Column(Integer, default=0, nullable=False)
     rank = Column(Integer, nullable=True)  # Updated periodically
     weekly_points = Column(Integer, default=0, nullable=False)
     weekly_rank = Column(Integer, nullable=True)
-    last_updated = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
+    last_updated = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+    
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
     
     __table_args__ = (
         Index('idx_points_rank', 'total_points', 'rank'),
@@ -177,7 +180,7 @@ class PointsLog(Base):
     __tablename__ = "points_logs"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Transaction details
     points = Column(Integer, nullable=False)  # Can be positive (earned) or negative (spent)
@@ -189,7 +192,7 @@ class PointsLog(Base):
     extra_data = Column(JSON, nullable=True)  # Store additional context (e.g., operation_type, difficulty, streak_days)
     
     # Timestamps
-    created_at = Column(DateTime, default=get_ist_now, nullable=False, index=True)
+    created_at = Column(DateTime, default=get_utc_now, nullable=False, index=True)
     
     # Relationships
     user = relationship("User", back_populates="points_logs")
@@ -205,7 +208,7 @@ class StudentProfile(Base):
     __tablename__ = "student_profiles"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
     
     # Public ID (TH-0001, TH-0002, etc.) and UUID
     public_id = Column(String, unique=True, nullable=True, index=True)  # TH-0001 format
@@ -233,8 +236,8 @@ class StudentProfile(Base):
     parent_contact_number = Column(String, nullable=True)
     
     # Timestamps
-    created_at = Column(DateTime, default=get_ist_now)
-    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
     
     # Relationships
     user = relationship("User", back_populates="student_profile")
@@ -255,8 +258,8 @@ class ProfileAuditLog(Base):
     __tablename__ = "profile_audit_logs"
     
     id = Column(Integer, primary_key=True, index=True)
-    profile_id = Column(Integer, ForeignKey("student_profiles.id"), nullable=False, index=True)
-    changed_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    profile_id = Column(Integer, ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    changed_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     
     # Change details
     field_name = Column(String, nullable=False)  # Field that was changed
@@ -265,7 +268,7 @@ class ProfileAuditLog(Base):
     
     # Metadata
     change_reason = Column(Text, nullable=True)  # Optional reason for change
-    created_at = Column(DateTime, default=get_ist_now)
+    created_at = Column(DateTime, default=get_utc_now)
     
     # Relationships
     profile = relationship("StudentProfile", back_populates="audit_logs")
@@ -298,9 +301,9 @@ class ClassSchedule(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     
     # Metadata
-    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=get_ist_now)
-    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
     
     # Relationships
     created_by = relationship("User")
@@ -316,7 +319,7 @@ class ClassSession(Base):
     __tablename__ = "class_sessions"
     
     id = Column(Integer, primary_key=True, index=True)
-    schedule_id = Column(Integer, ForeignKey("class_schedules.id"), nullable=True, index=True)
+    schedule_id = Column(Integer, ForeignKey("class_schedules.id", ondelete="SET NULL"), nullable=True, index=True)
     
     # Session details
     session_date = Column(DateTime, nullable=False, index=True)  # Date of the class
@@ -328,14 +331,14 @@ class ClassSession(Base):
     # Session metadata
     topic = Column(String, nullable=True)  # Optional topic/lesson name
     teacher_remarks = Column(Text, nullable=True)  # General remarks for the session
-    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     
     # Status
     is_completed = Column(Boolean, default=False, nullable=False)  # Whether attendance was taken
     
     # Timestamps
-    created_at = Column(DateTime, default=get_ist_now)
-    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
     
     # Relationships
     schedule = relationship("ClassSchedule", back_populates="sessions")
@@ -353,8 +356,8 @@ class AttendanceRecord(Base):
     __tablename__ = "attendance_records"
     
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("class_sessions.id"), nullable=False, index=True)
-    student_profile_id = Column(Integer, ForeignKey("student_profiles.id"), nullable=False, index=True)
+    session_id = Column(Integer, ForeignKey("class_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    student_profile_id = Column(Integer, ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Attendance status: "present", "absent", "on_break", "leave"
     status = Column(String, nullable=False, default="present", index=True)
@@ -366,11 +369,11 @@ class AttendanceRecord(Base):
     remarks = Column(Text, nullable=True)
     
     # Marked by
-    marked_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    marked_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     
     # Timestamps
-    created_at = Column(DateTime, default=get_ist_now)
-    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
     
     # Relationships
     session = relationship("ClassSession", back_populates="attendance_records")
@@ -389,7 +392,7 @@ class Certificate(Base):
     __tablename__ = "certificates"
     
     id = Column(Integer, primary_key=True, index=True)
-    student_profile_id = Column(Integer, ForeignKey("student_profiles.id"), nullable=False, index=True)
+    student_profile_id = Column(Integer, ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Certificate details
     title = Column(String, nullable=False)  # e.g., "Level 1 Completion", "Best Performer"
@@ -398,13 +401,13 @@ class Certificate(Base):
     
     # Additional details
     description = Column(Text, nullable=True)
-    issued_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    issued_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     
     # File reference (if certificate PDF is stored)
     certificate_file_url = Column(String, nullable=True)
     
     # Timestamps
-    created_at = Column(DateTime, default=get_ist_now)
+    created_at = Column(DateTime, default=get_utc_now)
     
     # Relationships
     student_profile = relationship("StudentProfile", back_populates="certificates")
@@ -424,11 +427,11 @@ class VacantId(Base):
     
     # Metadata about when it became vacant
     original_student_name = Column(String, nullable=True)  # Name of student whose account was deleted
-    deleted_at = Column(DateTime, nullable=False, default=get_ist_now, index=True)  # When account was deleted
-    deleted_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Admin who deleted the account
+    deleted_at = Column(DateTime, nullable=False, default=get_utc_now, index=True)  # When account was deleted
+    deleted_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # Admin who deleted the account
     
     # Timestamps
-    created_at = Column(DateTime, default=get_ist_now)
+    created_at = Column(DateTime, default=get_utc_now)
     
     # Relationships
     deleted_by = relationship("User")
@@ -462,9 +465,9 @@ class FeePlan(Base):
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     
     # Metadata
-    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=get_ist_now)
-    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
     
     # Relationships
     created_by = relationship("User")
@@ -481,8 +484,8 @@ class FeeAssignment(Base):
     __tablename__ = "fee_assignments"
     
     id = Column(Integer, primary_key=True, index=True)
-    student_profile_id = Column(Integer, ForeignKey("student_profiles.id"), nullable=False, index=True)
-    fee_plan_id = Column(Integer, ForeignKey("fee_plans.id"), nullable=False, index=True)
+    student_profile_id = Column(Integer, ForeignKey("student_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    fee_plan_id = Column(Integer, ForeignKey("fee_plans.id", ondelete="RESTRICT"), nullable=False, index=True)
     
     # Customized fee amount (overrides plan amount if set)
     custom_fee_amount = Column(Float, nullable=True)
@@ -502,10 +505,10 @@ class FeeAssignment(Base):
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     
     # Metadata
-    assigned_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assigned_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     remarks = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=get_ist_now)
-    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
     
     # Relationships
     student_profile = relationship("StudentProfile", back_populates="fee_assignments")
@@ -524,7 +527,7 @@ class FeeTransaction(Base):
     __tablename__ = "fee_transactions"
     
     id = Column(Integer, primary_key=True, index=True)
-    assignment_id = Column(Integer, ForeignKey("fee_assignments.id"), nullable=False, index=True)
+    assignment_id = Column(Integer, ForeignKey("fee_assignments.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Transaction details
     transaction_type = Column(String, nullable=False, index=True)  # "payment", "adjustment", "refund"
@@ -544,9 +547,9 @@ class FeeTransaction(Base):
     is_partial = Column(Boolean, default=False, nullable=False)  # True for partial payments
     
     # Metadata
-    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=get_ist_now, onupdate=get_ist_now)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=get_utc_now, index=True)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
     
     # Relationships
     assignment = relationship("FeeAssignment", back_populates="transactions")
@@ -581,9 +584,11 @@ if DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgres
     # Create engine with connection pooling for PostgreSQL
     engine = create_engine(
         DATABASE_URL,
-        pool_size=5,
-        max_overflow=10,
+        pool_size=20,  # Increased from 5 for production load
+        max_overflow=30,  # Increased from 10 for burst traffic
         pool_pre_ping=True,  # Verify connections before using
+        pool_recycle=3600,  # Recycle connections after 1 hour to prevent stale connections
+        pool_timeout=30,  # Timeout for getting connection from pool
         echo=False  # Set to True for SQL query logging
     )
 else:

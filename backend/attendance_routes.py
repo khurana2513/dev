@@ -3,9 +3,41 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_, or_
 from typing import List, Optional
-from datetime import datetime, timedelta, date
-from timezone_utils import get_ist_now
+from datetime import datetime, timedelta, date, timezone as _tz
+from timezone_utils import get_ist_now, utc_to_ist, IST_OFFSET
 from calendar import monthrange
+
+
+def _dt_to_ist_iso(dt) -> Optional[str]:
+    """Convert a naive-UTC (or tz-aware) datetime to an IST ISO string.
+
+    Used for timestamps that are stored as naive UTC in the database
+    (created_at / updated_at) so the frontend always receives a proper
+    IST-annotated string instead of a bare UTC value that JavaScript
+    would misinterpret as local time.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_tz.utc)
+    return utc_to_ist(dt).isoformat()
+
+
+def _normalize_session_date(raw: datetime) -> datetime:
+    """Normalise a session_date from client to midnight IST (stored as naive).
+
+    The date-picker on the frontend sends a date the user perceives as IST.
+    We convert any timezone-aware value to IST first, then strip the time
+    component so we always store plain midnight (the semantically correct
+    calendar date without a UTC offset artefact).
+    """
+    if raw.tzinfo is not None:
+        # tz-aware → convert to IST, take date component
+        ist = utc_to_ist(raw)
+        return datetime(ist.year, ist.month, ist.day, 0, 0, 0)
+    else:
+        # naive → take the date component as-is (already the user's intent)
+        return datetime(raw.year, raw.month, raw.day, 0, 0, 0)
 
 from models import (
     User, StudentProfile, ClassSchedule, ClassSession, AttendanceRecord,
@@ -242,7 +274,7 @@ async def create_class_session(
     """Create a new class session."""
     session = ClassSession(
         schedule_id=session_data.schedule_id,
-        session_date=session_data.session_date,
+        session_date=_normalize_session_date(session_data.session_date),
         branch=session_data.branch,
         course=session_data.course,
         level=session_data.level,
@@ -778,6 +810,305 @@ async def delete_certificate(
     db.delete(certificate)
     db.commit()
     return {"message": "Certificate deleted successfully"}
+
+
+# ──────────────────────────────────────────────────────────────────
+# ATTENDANCE SHEET — returns a session with ALL relevant students
+# and their current attendance status (or null if unmarked)
+# ──────────────────────────────────────────────────────────────────
+
+@router.get("/session/{session_id}/sheet")
+async def get_attendance_sheet(
+    session_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns the attendance sheet for a session:
+    - Full session details
+    - All active students in the session's branch (+ course filter if set)
+    - Each student's current attendance record (or null if not yet marked)
+    - Aggregate counts for the header summary bar
+    """
+    session = db.query(ClassSession).filter(ClassSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Fetch all active students for this branch (course-filtered if session has a course)
+    query = db.query(StudentProfile, User).join(User).filter(
+        User.role == "student",
+        StudentProfile.status == "active",
+        StudentProfile.branch == session.branch,
+    )
+    if session.course:
+        query = query.filter(StudentProfile.course == session.course)
+
+    # Order by public_id numerically (TH-0001, TH-0002, …), nulls last
+    students_rows = query.all()
+    students_rows.sort(key=lambda row: (
+        row[0].public_id is None,
+        int(row[0].public_id.split("-")[1]) if row[0].public_id and "-" in row[0].public_id else 9999
+    ))
+
+    # Fetch all existing attendance records for this session in one query
+    existing_records = {
+        r.student_profile_id: r
+        for r in db.query(AttendanceRecord).filter(AttendanceRecord.session_id == session_id).all()
+    }
+
+    student_entries = []
+    present_count = absent_count = on_break_count = leave_count = unmarked_count = tshirt_count = 0
+
+    for profile, user in students_rows:
+        rec = existing_records.get(profile.id)
+        entry = {
+            "student_profile_id": profile.id,
+            "user_id": profile.user_id,
+            "public_id": profile.public_id,
+            "name": profile.full_name or profile.display_name or user.name or "Unknown",
+            "display_name": profile.display_name,
+            "class_name": profile.class_name,
+            "course": profile.course,
+            "level": profile.level,
+            "branch": profile.branch,
+            "attendance_record_id": rec.id if rec else None,
+            "status": rec.status if rec else None,
+            "t_shirt_worn": rec.t_shirt_worn if rec else False,
+            "remarks": rec.remarks if rec else None,
+            "marked_at": _dt_to_ist_iso(rec.created_at) if rec else None,
+        }
+        student_entries.append(entry)
+        if rec:
+            if rec.status == "present":
+                present_count += 1
+                if rec.t_shirt_worn:
+                    tshirt_count += 1
+            elif rec.status == "absent":
+                absent_count += 1
+            elif rec.status == "on_break":
+                on_break_count += 1
+            elif rec.status == "leave":
+                leave_count += 1
+        else:
+            unmarked_count += 1
+
+    return {
+        "session": ClassSessionResponse.model_validate(session).model_dump(),
+        "students": student_entries,
+        "summary": {
+            "total": len(student_entries),
+            "marked": len(student_entries) - unmarked_count,
+            "unmarked": unmarked_count,
+            "present": present_count,
+            "absent": absent_count,
+            "on_break": on_break_count,
+            "leave": leave_count,
+            "tshirt": tshirt_count,
+        }
+    }
+
+
+# ──────────────────────────────────────────────────────────────────
+# UPDATE SESSION (edit topic, remarks, date, etc.)
+# ──────────────────────────────────────────────────────────────────
+
+@router.put("/sessions/{session_id}", response_model=ClassSessionResponse)
+async def update_class_session(
+    session_id: int,
+    session_data: ClassSessionCreate,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update a class session's details."""
+    session = db.query(ClassSession).filter(ClassSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    try:
+        session.session_date = _normalize_session_date(session_data.session_date)
+        session.branch = session_data.branch
+        session.course = session_data.course
+        session.level = session_data.level
+        session.batch_name = session_data.batch_name
+        session.topic = session_data.topic
+        session.teacher_remarks = session_data.teacher_remarks
+        session.updated_at = get_ist_now()
+        db.commit()
+        db.refresh(session)
+        return ClassSessionResponse.model_validate(session)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update session: {str(e)}")
+
+
+# ──────────────────────────────────────────────────────────────────
+# UPDATE ATTENDANCE RECORD BY ID
+# ──────────────────────────────────────────────────────────────────
+
+@router.put("/record/{record_id}", response_model=AttendanceRecordResponse)
+async def update_attendance_record(
+    record_id: int,
+    update_data: AttendanceRecordUpdate,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update a specific attendance record by its ID."""
+    record = db.query(AttendanceRecord).filter(AttendanceRecord.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    try:
+        if update_data.status is not None:
+            record.status = update_data.status
+            # Clear t_shirt_worn when status is not present
+            if update_data.status != "present":
+                record.t_shirt_worn = False
+        if update_data.t_shirt_worn is not None and record.status == "present":
+            record.t_shirt_worn = update_data.t_shirt_worn
+        if update_data.remarks is not None:
+            record.remarks = update_data.remarks
+        record.marked_by_user_id = admin.id
+        record.updated_at = get_ist_now()
+        db.commit()
+        db.refresh(record)
+
+        profile = db.query(StudentProfile).filter(StudentProfile.id == record.student_profile_id).first()
+        response = AttendanceRecordResponse.model_validate(record)
+        if profile:
+            response.student_name = profile.full_name or profile.display_name
+            response.student_public_id = profile.public_id
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update record: {str(e)}")
+
+
+# ──────────────────────────────────────────────────────────────────
+# STUDENT MONTHLY VIEW
+# Returns all sessions for a student's branch/course in a given
+# month, with the student's attendance status per session.
+# Students can see their own data; admins can see any student.
+# ──────────────────────────────────────────────────────────────────
+
+@router.get("/student/monthly")
+async def get_student_monthly_attendance(
+    month: int = Query(..., ge=1, le=12),
+    year: int = Query(..., ge=2020),
+    student_profile_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a student's attendance for a specific month."""
+    # Resolve which profile to query
+    if current_user.role == "admin":
+        if student_profile_id is None:
+            raise HTTPException(status_code=400, detail="student_profile_id required for admin")
+        profile = db.query(StudentProfile).filter(StudentProfile.id == student_profile_id).first()
+    else:
+        profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    # Enforce student can only see own data
+    if current_user.role != "admin" and profile.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Calculate month range in IST-aware UTC bounds.
+    # Session dates may be stored as either:
+    #   (a) naive midnight IST  e.g. 2026-02-26 00:00:00  (new sessions)
+    #   (b) naive midnight-IST-shifted-to-UTC e.g. 2026-02-25 18:30:00  (old sessions)
+    # Subtracting IST_OFFSET (5h30m) from the calendar boundaries captures both:
+    #   - New sessions: 2026-02-01 00:00:00 >= 2026-01-31 18:30:00 ✓
+    #   - Old sessions: 2026-01-31 18:30:00 >= 2026-01-31 18:30:00 ✓
+    from calendar import monthrange
+    _, last_day = monthrange(year, month)
+    month_start = datetime(year, month, 1, 0, 0, 0) - IST_OFFSET
+    month_end   = datetime(year, month, last_day, 23, 59, 59) - IST_OFFSET
+
+    # Fetch sessions for this student's branch (+ course if set)
+    session_query = db.query(ClassSession).filter(
+        ClassSession.session_date >= month_start,
+        ClassSession.session_date <= month_end,
+        ClassSession.branch == profile.branch,
+    )
+    if profile.course:
+        session_query = session_query.filter(
+            or_(ClassSession.course == profile.course, ClassSession.course == None)
+        )
+    sessions = session_query.order_by(ClassSession.session_date).all()
+
+    # Fetch all attendance records for this student in these sessions
+    session_ids = [s.id for s in sessions]
+    records_map: dict = {}
+    if session_ids:
+        for rec in db.query(AttendanceRecord).filter(
+            AttendanceRecord.student_profile_id == profile.id,
+            AttendanceRecord.session_id.in_(session_ids)
+        ).all():
+            records_map[rec.session_id] = rec
+
+    # Build response
+    entries = []
+    present_count = absent_count = on_break_count = leave_count = tshirt_count = 0
+    for s in sessions:
+        rec = records_map.get(s.id)
+        if rec:
+            if rec.status == "present":
+                present_count += 1
+                if rec.t_shirt_worn:
+                    tshirt_count += 1
+            elif rec.status == "absent":
+                absent_count += 1
+            elif rec.status == "on_break":
+                on_break_count += 1
+            elif rec.status == "leave":
+                leave_count += 1
+        entries.append({
+            "session_id": s.id,
+            # Always return an IST-annotated string so JS can safely parse the
+            # correct calendar date regardless of how the date was stored.
+            "session_date": _dt_to_ist_iso(s.session_date),
+            "branch": s.branch,
+            "course": s.course,
+            "level": s.level,
+            "batch_name": s.batch_name,
+            "topic": s.topic,
+            "is_completed": s.is_completed,
+            "status": rec.status if rec else None,
+            "t_shirt_worn": rec.t_shirt_worn if rec else False,
+            "remarks": rec.remarks if rec else None,
+            "marked_at": _dt_to_ist_iso(rec.created_at) if rec else None,
+        })
+
+    total_held = present_count + absent_count + on_break_count + leave_count
+    attendance_pct = round(present_count / total_held * 100, 1) if total_held > 0 else 0.0
+    tshirt_pct = round(tshirt_count / present_count * 100, 1) if present_count > 0 else 0.0
+
+    return {
+        "student": {
+            "id": profile.id,
+            "public_id": profile.public_id,
+            "name": profile.full_name or profile.display_name,
+            "branch": profile.branch,
+            "course": profile.course,
+            "level": profile.level,
+        },
+        "month": month,
+        "year": year,
+        "sessions": entries,
+        "summary": {
+            "total_sessions": len(sessions),
+            "total_held": total_held,
+            "present": present_count,
+            "absent": absent_count,
+            "on_break": on_break_count,
+            "leave": leave_count,
+            "tshirt_worn": tshirt_count,
+            "attendance_percentage": attendance_pct,
+            "tshirt_percentage": tshirt_pct,
+        }
+    }
 
 
 # Helper endpoint to get students for a branch (for admin dashboard)

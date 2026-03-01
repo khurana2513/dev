@@ -42,21 +42,21 @@ The platform enables students to:
 └─────────────────────────────────────┘
 ```
 
-### 1.3 Tech Stack
+    ### 1.3 Tech Stack
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Frontend** | React 18.3 + TypeScript | UI components, state management |
-| **Routing** | Wouter 3.3 | Client-side routing |
-| **State Management** | TanStack React Query | API caching, sync |
-| **Styling** | Tailwind CSS 3.4 | Utility-first CSS |
-| **Form Handling** | React Hook Form + Zod | Form validation |
-| **Animation** | Framer Motion 11.18 | Page transitions |
-| **Backend Framework** | FastAPI 0.100+ | REST API server |
-| **Database ORM** | SQLAlchemy 2.0+ | Database abstraction |
-| **Database** | PostgreSQL 12+ | Persistent data store |
-| **Authentication** | Google OAuth 2.0 | User login/registration |
-| **Document Generation** | ReportLab 4.0 + Playwright | PDF generation |
+    | Layer | Technology | Purpose |
+    |-------|-----------|---------|
+    | **Frontend** | React 18.3 + TypeScript | UI components, state management |
+    | **Routing** | Wouter 3.3 | Client-side routing |
+    | **State Management** | TanStack React Query | API caching, sync |
+    | **Styling** | Tailwind CSS 3.4 | Utility-first CSS |
+    | **Form Handling** | React Hook Form + Zod | Form validation |
+    | **Animation** | Framer Motion 11.18 | Page transitions |
+    | **Backend Framework** | FastAPI 0.100+ | REST API server |
+    | **Database ORM** | SQLAlchemy 2.0+ | Database abstraction |
+    | **Database** | PostgreSQL 12+ | Persistent data store |
+    | **Authentication** | Google OAuth 2.0 | User login/registration |
+    | **Document Generation** | ReportLab 4.0 + Playwright | PDF generation |
 
 ### 1.4 High-Level Data Flow
 

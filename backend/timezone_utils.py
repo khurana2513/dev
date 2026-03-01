@@ -10,9 +10,19 @@ IST_TIMEZONE = timezone(IST_OFFSET)
 def get_ist_now() -> datetime:
     """
     Get current time in IST (India Standard Time, UTC+5:30).
-    Returns a timezone-aware datetime object.
+    Returns a timezone-aware datetime object in IST.
+    NOTE: Use this for business logic, but store UTC in database.
     """
-    return datetime.now(IST_TIMEZONE)
+    return datetime.now(timezone.utc).astimezone(IST_TIMEZONE)
+
+
+def get_utc_now() -> datetime:
+    """
+    Get current time in UTC.
+    Returns a timezone-aware datetime object in UTC.
+    Use this for storing timestamps in the database.
+    """
+    return datetime.now(timezone.utc)
 
 
 def utc_to_ist(utc_dt: datetime) -> datetime:

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Plus, Trash2, Eye, EyeOff, FileDown, XCircle, GripVertical, Copy, ChevronUp, ChevronDown, Play, ChevronDown as ChevronDownIcon, Hash, Edit3 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Eye, EyeOff, FileDown, XCircle, GripVertical, Copy, ChevronUp, ChevronDown, Play, ChevronDown as ChevronDownIcon } from "lucide-react";
 import { previewPaper, generatePdf, PaperConfig, BlockConfig, GeneratedBlock } from "@/lib/api";
 import MathQuestion from "@/components/MathQuestion";
 
@@ -900,25 +900,10 @@ export default function PaperCreate() {
     setBlocks(newBlocks);
   };
 
-  const handleEditBlock = (index: number) => {
-    // Scroll to the block and focus on the first input
-    const blockElement = document.querySelector(`[data-block-index="${index}"]`);
-    if (blockElement) {
-      blockElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Focus on the type select after a short delay
-      setTimeout(() => {
-        const select = blockElement.querySelector('select') as HTMLSelectElement;
-        if (select) {
-          select.focus();
-        }
-      }, 300);
-    }
-  };
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   const handleDeleteBlock = (index: number) => {
-    if (window.confirm("Are you sure you want to delete this block?")) {
-      removeBlock(index);
-    }
+    removeBlock(index);
   };
 
   const handleDuplicateBlock = (index: number) => {
@@ -1325,7 +1310,7 @@ export default function PaperCreate() {
                           ? "Create math papers with Vedic Maths Level 3 operations: Multiplication by 111-999, fraction operations, squares, cubes, and advanced techniques"
                           : level === "Vedic-Level-4"
                             ? "Create math papers with Vedic Maths Level 4 operations: Advanced multiplication, LCM, divisibility checks, square roots, cube roots, and complex calculations"
-                            : `Create math papers with ${level === "Vedic-Level-2" ? "Vedic Maths Level 2" : level === "Vedic-Level-3" ? "Vedic Maths Level 3" : "Vedic Maths Level 4"} operations`
+                            : "Create math papers with Vedic Maths operations"
                   }
                 </p>
               </div>
@@ -1440,7 +1425,26 @@ export default function PaperCreate() {
                   <div
                     key={block.id}
                     data-block-index={index}
-                    className="group relative bg-gradient-to-br from-white via-white/95 to-white/90 dark:from-slate-800/95 dark:via-slate-800/90 dark:to-slate-900/95 backdrop-blur-xl border-2 border-slate-200/60 dark:border-slate-700/60 rounded-3xl shadow-xl dark:shadow-2xl p-8 transition-all duration-300 hover:shadow-2xl hover:border-primary/30 dark:hover:border-primary/40 hover:scale-[1.01]"
+                    draggable
+                    onDragStart={() => setDraggedIndex(index)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (draggedIndex !== null && draggedIndex !== index) {
+                        const newBlocks = [...blocks];
+                        const [dragged] = newBlocks.splice(draggedIndex, 1);
+                        newBlocks.splice(index, 0, dragged);
+                        setBlocks(newBlocks);
+                      }
+                      setDraggedIndex(null);
+                    }}
+                    onDragEnd={() => setDraggedIndex(null)}
+                    className={`group relative bg-gradient-to-br from-white via-white/95 to-white/90 dark:from-slate-800/95 dark:via-slate-800/90 dark:to-slate-900/95 backdrop-blur-xl border-2 rounded-3xl shadow-xl dark:shadow-2xl p-8 transition-all duration-300 hover:shadow-2xl hover:scale-[1.01] ${
+                      draggedIndex === index
+                        ? 'opacity-40 scale-95 border-primary/60 dark:border-primary/60'
+                        : draggedIndex !== null
+                        ? 'border-primary/40 dark:border-primary/40'
+                        : 'border-slate-200/60 dark:border-slate-700/60 hover:border-primary/30 dark:hover:border-primary/40'
+                    }`}
                   >
                     {/* Premium gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 dark:from-primary/10 dark:via-transparent dark:to-primary/10 rounded-3xl pointer-events-none" />
@@ -1450,15 +1454,12 @@ export default function PaperCreate() {
                       <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-4">
                           <div className="w-14 h-14 rounded-2xl premium-gradient flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
-                            <Hash className="w-7 h-7 text-white" />
+                            <span className="text-2xl font-black text-white">{index + 1}</span>
                           </div>
                           <div>
                             <h3 className="text-2xl font-black text-gray-900 dark:text-white group-hover:text-primary transition-colors duration-300">
-                              Block {index + 1}
+                              {generateSectionName(block)}
                             </h3>
-                            <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mt-1 uppercase tracking-wide">
-                              {block.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                            </p>
                           </div>
                         </div>
 
@@ -1480,14 +1481,6 @@ export default function PaperCreate() {
                             title="Move Down"
                           >
                             <ChevronDown className="w-5 h-5" />
-                          </button>
-                          {/* Edit Button */}
-                          <button
-                            onClick={() => handleEditBlock(index)}
-                            className="p-2.5 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-500 hover:text-white transition-all duration-200 shadow-sm hover:shadow-md"
-                            title="Edit Block"
-                          >
-                            <Edit3 className="w-5 h-5" />
                           </button>
                           {/* Duplicate Button */}
                           <button
@@ -1854,6 +1847,7 @@ export default function PaperCreate() {
                         </select>
                       </div>
 
+                      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 mt-2">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                           {block.type === "vedic_tables" || block.type === "vedic_tables_large" ? "Rows" : "Questions (1-200)"}
@@ -3386,7 +3380,6 @@ export default function PaperCreate() {
                             <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">Divisor (2,3,4,5,6,8,9,10, optional)</label>
                             <select
                               value={block.constraints.divisorCheck === undefined ? "" : String(block.constraints.divisorCheck)}
-                              placeholder="2-10 (optional)"
                               onChange={(e) => {
                                 const val = e.target.value;
                                 updateBlock(index, { constraints: { ...block.constraints, divisorCheck: val === "" ? undefined : parseInt(val) } });
@@ -4028,9 +4021,11 @@ export default function PaperCreate() {
                           </div>
                         </>
                       )}
+                      </div>{/* end inputs grid */}
+
                       {/* Drag Handle */}
-                      <div className="flex items-center justify-center pt-4 border-t border-white/20 dark:border-slate-700/50">
-                        <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-400 transition-colors duration-300">
+                      <div className="flex items-center justify-center pt-4 mt-4 border-t border-slate-200/50 dark:border-slate-700/50 cursor-grab active:cursor-grabbing">
+                        <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-400 transition-colors duration-300 select-none">
                           <GripVertical className="w-5 h-5" />
                           <span className="text-sm font-medium">Drag to reorder</span>
                           <GripVertical className="w-5 h-5" />
@@ -4249,7 +4244,7 @@ export default function PaperCreate() {
                        block.config.type === "subtraction" || 
                        block.config.type === "add_sub" ||
                        block.config.type === "integer_add_sub" ||
-                       block.config.type === "decimal_add_sub" ||
+                      //  block.config.type === "decimal_add_sub" ||
                        block.config.type === "direct_add_sub" ||
                        block.config.type === "small_friends_add_sub" ||
                        block.config.type === "big_friends_add_sub");
@@ -4421,6 +4416,7 @@ export default function PaperCreate() {
                     <p className="text-sm text-blue-100 mt-1">Choose your preferred format</p>
                   </div>
 
+                  {/* Modal Content */}
                   {/* Options */}
                   <div className="p-4 space-y-2">
                     <button

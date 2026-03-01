@@ -1,20 +1,19 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
-import { getStudentStats, getOverallLeaderboard, getWeeklyLeaderboard, getPracticeSessionDetail, StudentStats, LeaderboardEntry, PracticeSessionDetail, getStudentProfile, getPointsLogs, PointsSummaryResponse } from "../lib/userApi";
-import { getPaperAttempts, PaperAttempt, getPaperAttempt, PaperAttemptDetail, getPaperAttemptCount } from "../lib/api";
-import { getAttendanceRecords, getAttendanceStats, getClassSessions, getClassSchedules, AttendanceRecord, AttendanceStats, ClassSession, ClassSchedule } from "../lib/attendanceApi";
-import { Trophy, Target, Zap, Award, CheckCircle2, XCircle, BarChart3, History, X, Eye, ChevronDown, ChevronUp, Gift, RotateCcw, Calendar, Clock, Loader2, Flame } from "lucide-react";
-import AttendanceCalendar from "../components/AttendanceCalendar";
+import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, getPointsLogs, PointsSummaryResponse, StudentDashboardData } from "../lib/userApi";
+import { PaperAttempt, getPaperAttempt, PaperAttemptDetail, getPaperAttemptCount } from "../lib/api";
+import { Trophy, Target, Zap, CheckCircle2, XCircle, BarChart3, History, X, Eye, ChevronDown, ChevronUp, RotateCcw, Clock, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import RewardsExplanation from "../components/RewardsExplanation";
-import { formatDateToIST, formatDateOnlyToIST } from "../lib/timezoneUtils";
+import { formatDateToIST } from "../lib/timezoneUtils";
 import MathQuestion from "../components/MathQuestion";
+import Skeleton from "../components/Skeleton";
 
-type SessionFilter = "overall" | "mental_math" | "practice_paper";
+type SessionFilter = "overall" | "mental_math" | "practice_paper" | "burst_mode";
 
 interface UnifiedSession {
   id: number;
-  type: "mental_math" | "practice_paper";
+  type: "mental_math" | "practice_paper" | "burst_mode";
   title: string;
   subtitle: string;
   started_at: string;
@@ -41,11 +40,7 @@ export default function StudentDashboard() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const [stats, setStats] = useState<StudentStats | null>(null);
-  const [overallLeaderboard, setOverallLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [weeklyLeaderboard, setWeeklyLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [showFullLeaderboard, setShowFullLeaderboard] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overall" | "weekly">("overall");
   const [selectedSession, setSelectedSession] = useState<PracticeSessionDetail | null>(null);
   const [expandedSession, setExpandedSession] = useState<number | null>(null);
   const [showAllSessions, setShowAllSessions] = useState(false);
@@ -53,244 +48,81 @@ export default function StudentDashboard() {
   const [selectedPaperAttempt, setSelectedPaperAttempt] = useState<PaperAttempt | null>(null);
   const [selectedPaperAttemptDetail, setSelectedPaperAttemptDetail] = useState<PaperAttemptDetail | null>(null);
   const [loadingPaperDetail, setLoadingPaperDetail] = useState(false);
-  const [showRewardsExplanation, setShowRewardsExplanation] = useState(false);
   const [sessionFilter, setSessionFilter] = useState<SessionFilter>("overall");
   const [unifiedSessions, setUnifiedSessions] = useState<UnifiedSession[]>([]);
   const [reAttempting, setReAttempting] = useState<number | null>(null);
   const [attemptCounts, setAttemptCounts] = useState<{ [key: string]: { count: number; can_reattempt: boolean } }>({});
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [attendanceStats, setAttendanceStats] = useState<AttendanceStats | null>(null);
-  const [studentProfileId, setStudentProfileId] = useState<number | null>(null);
-  const [calendarSessions, setCalendarSessions] = useState<any[]>([]);
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | null>(null);
-  const [classSchedules, setClassSchedules] = useState<ClassSchedule[]>([]);
   const [showPointsLog, setShowPointsLog] = useState(false);
   const [pointsLogData, setPointsLogData] = useState<PointsSummaryResponse | null>(null);
   const [loadingPointsLog, setLoadingPointsLog] = useState(false);
 
-  const loadData = async (isInitialLoad: boolean = false) => {
-    // Only show loading screen on initial load, not on refreshes
-    if (isInitialLoad) {
+
+  // ─── Combined Dashboard Query (replaces 5+ separate API calls) ────────────
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery<StudentDashboardData>({
+    queryKey: ["studentDashboard"],
+    queryFn: getStudentDashboardData,
+    staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh, no refetch
+    refetchOnMount: false,     // Prevent duplicate fetch in React StrictMode
+    refetchOnWindowFocus: false,
+    retry: 2,
+  });
+
+  // Derive state from the combined query result
+  useEffect(() => {
+    if (!dashboardData) return;
+
+    setStats(dashboardData.stats);
+
+    // Process paper attempts
+    const paperAttemptsData = dashboardData.paper_attempts || [];
+    setPaperAttempts(paperAttemptsData);
+    
+    if (paperAttemptsData.length > 0) {
+      // Load attempt counts for each unique paper in parallel
+      const uniquePapers = new Map<string, { seed: number; title: string }>();
+      paperAttemptsData.forEach(attempt => {
+        if (attempt.seed !== undefined && attempt.seed !== null) {
+          const key = `${attempt.seed}_${attempt.paper_title}`;
+          if (!uniquePapers.has(key)) {
+            uniquePapers.set(key, { seed: attempt.seed, title: attempt.paper_title });
+          }
+        }
+      });
+      
+      if (uniquePapers.size > 0) {
+        const countPromises = Array.from(uniquePapers.entries()).map(([key, paper]) =>
+          (paper.seed !== undefined && paper.seed !== null)
+            ? getPaperAttemptCount(paper.seed, paper.title)
+                .then(countData => [key, { count: countData.count, can_reattempt: countData.can_reattempt }])
+                .catch(err => {
+                  console.error(`Failed to get attempt count for paper ${key}:`, err);
+                  return [key, { count: 0, can_reattempt: false }];
+                })
+            : Promise.resolve(null)
+        );
+        
+        Promise.all(countPromises).then(results => {
+          const countsMap: { [key: string]: { count: number; can_reattempt: boolean } } = {};
+          results.forEach(result => {
+            if (result) {
+              const [key, countData] = result as [string, { count: number; can_reattempt: boolean }];
+              countsMap[key] = countData;
+            }
+          });
+          setAttemptCounts(countsMap);
+        });
+      }
+    }
+
+    setLoading(false);
+  }, [dashboardData]);
+
+  // Handle loading state from React Query
+  useEffect(() => {
+    if (dashboardLoading) {
       setLoading(true);
     }
-    
-    try {
-      console.log("🟡 [DASHBOARD] Loading dashboard data...");
-      console.log("🟡 [DASHBOARD] User:", user?.email);
-      
-      // Load API calls sequentially to avoid API storm and stabilize backend
-      try {
-        const statsData = await getStudentStats();
-        console.log("✅ [DASHBOARD] Stats loaded successfully!");
-        setStats(statsData);
-      } catch (error) {
-        console.error("❌ [DASHBOARD] Failed to load stats:", error);
-        if (isInitialLoad && !stats) {
-          const emptyStats: StudentStats = {
-            total_sessions: 0,
-            total_questions: 0,
-            total_correct: 0,
-            total_wrong: 0,
-            overall_accuracy: 0,
-            total_points: 0,
-            current_streak: 0,
-            longest_streak: 0,
-            badges: [],
-            recent_sessions: [],
-          };
-          setStats(emptyStats);
-        }
-      }
-      
-      // Load leaderboards sequentially
-      try {
-        const overallLeaderboardData = await getOverallLeaderboard();
-        setOverallLeaderboard(overallLeaderboardData);
-      } catch (error) {
-        console.error("❌ [DASHBOARD] Failed to load overall leaderboard:", error);
-      }
-      
-      try {
-        const weeklyLeaderboardData = await getWeeklyLeaderboard();
-        setWeeklyLeaderboard(weeklyLeaderboardData);
-      } catch (error) {
-        console.error("❌ [DASHBOARD] Failed to load weekly leaderboard:", error);
-        if (isInitialLoad) {
-          setWeeklyLeaderboard([]);
-        }
-      }
-      
-      // Load paper attempts
-      // Note: Unified sessions will be created automatically by useEffect when stats or paperAttempts change
-      try {
-        const attempts = await getPaperAttempts();
-        console.log("✅ [DASHBOARD] Paper attempts loaded:", attempts.length, "attempts");
-        console.log("✅ [DASHBOARD] Paper attempts data:", JSON.stringify(attempts, null, 2));
-        if (attempts.length > 0) {
-          console.log("✅ [DASHBOARD] First attempt sample:", {
-            id: attempts[0].id,
-            paper_title: attempts[0].paper_title,
-            completed_at: attempts[0].completed_at,
-            points_earned: attempts[0].points_earned
-          });
-        }
-        setPaperAttempts(attempts);
-        
-        // Load attempt counts for each unique paper (seed + title combination)
-        // Only process attempts that have a valid seed
-        const attemptCountsMap: { [key: string]: { count: number; can_reattempt: boolean } } = {};
-        const uniquePapers = new Map<string, { seed: number; title: string }>();
-        
-        attempts.forEach(attempt => {
-          // Only process attempts that have a valid seed
-          if (attempt.seed !== undefined && attempt.seed !== null) {
-            const key = `${attempt.seed}_${attempt.paper_title}`;
-            if (!uniquePapers.has(key)) {
-              uniquePapers.set(key, { seed: attempt.seed, title: attempt.paper_title });
-            }
-          }
-        });
-        
-        // Fetch attempt counts for each unique paper
-        for (const [key, paper] of uniquePapers.entries()) {
-          try {
-            if (paper.seed !== undefined && paper.seed !== null) {
-              const countData = await getPaperAttemptCount(paper.seed, paper.title);
-              attemptCountsMap[key] = { count: countData.count, can_reattempt: countData.can_reattempt };
-            }
-          } catch (err) {
-            console.error(`Failed to get attempt count for paper ${key}:`, err);
-          }
-        }
-        setAttemptCounts(attemptCountsMap);
-      } catch (attemptsError: any) {
-        console.error("❌ [DASHBOARD] Failed to load paper attempts:", attemptsError);
-        console.error("❌ [DASHBOARD] Error details:", attemptsError.message, attemptsError.stack);
-        if (isInitialLoad) {
-          setPaperAttempts([]);
-        }
-      }
-      
-      // Load student profile and attendance data in parallel for better performance
-      try {
-        const profile = await getStudentProfile();
-        setStudentProfileId(profile.id);
-        
-        // Load attendance data sequentially to avoid API storm
-        const today = new Date();
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-        
-        try {
-          const records = await getAttendanceRecords({
-            student_profile_id: profile.id,
-            start_date: new Date(new Date().getFullYear(), new Date().getMonth() - 2, 1).toISOString(),
-            end_date: new Date().toISOString(),
-          });
-          setAttendanceRecords(records);
-        } catch (err) {
-          console.error("Failed to load attendance records:", err);
-        }
-        
-        try {
-          const attendanceStatsData = await getAttendanceStats(profile.id);
-          setAttendanceStats(attendanceStatsData);
-        } catch (err) {
-          console.error("Failed to load attendance stats:", err);
-        }
-        
-        try {
-          const calendarSessionsData = await getClassSessions({
-            branch: profile.branch || undefined,
-            course: profile.course || undefined,
-            start_date: startOfMonth.toISOString(),
-            end_date: endOfMonth.toISOString(),
-          });
-          
-          // Also load class schedules to show scheduled classes
-          try {
-            const schedules = await getClassSchedules(profile.branch || undefined, profile.course || undefined);
-            setClassSchedules(schedules);
-            
-            // Generate sessions from schedules for the calendar
-            const generatedSessions: any[] = [];
-            const currentDate = new Date(startOfMonth);
-            const endDate = new Date(endOfMonth);
-            
-            while (currentDate <= endDate) {
-              const dayOfWeek = currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1; // Convert to 0-6 (Mon-Sun)
-              
-              // Find matching schedules
-              schedules.forEach(schedule => {
-                if (schedule.is_active && schedule.schedule_days.includes(dayOfWeek)) {
-                  // Check if schedule matches student's branch and course
-                  const matchesBranch = !schedule.branch || schedule.branch === profile.branch;
-                  const matchesCourse = !schedule.course || schedule.course === profile.course;
-                  
-                  if (matchesBranch && matchesCourse) {
-                    // Check if a session already exists for this date
-                    const existingSession = calendarSessionsData.find(s => {
-                      const sessionDate = new Date(s.session_date);
-                      return sessionDate.toDateString() === currentDate.toDateString();
-                    });
-                    
-                    if (!existingSession) {
-                      // Generate a session from the schedule
-                      const sessionDate = new Date(currentDate);
-                      sessionDate.setHours(10, 0, 0, 0); // Default time
-                      
-                      generatedSessions.push({
-                        id: `schedule-${schedule.id}-${currentDate.getTime()}`,
-                        schedule_id: schedule.id,
-                        session_date: sessionDate.toISOString(),
-                        branch: schedule.branch,
-                        course: schedule.course,
-                        level: schedule.level,
-                        batch_name: schedule.batch_name,
-                        topic: null,
-                        teacher_remarks: null,
-                        is_completed: false,
-                        created_by_user_id: 0,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                        is_scheduled: true, // Flag to indicate this is from schedule
-                      });
-                    }
-                  }
-                }
-              });
-              
-              currentDate.setDate(currentDate.getDate() + 1);
-            }
-            
-            // Combine actual sessions with generated scheduled sessions
-            setCalendarSessions([...calendarSessionsData, ...generatedSessions]);
-          } catch (scheduleErr) {
-            console.error("Failed to load class schedules:", scheduleErr);
-            setCalendarSessions(calendarSessionsData);
-          }
-        } catch (err) {
-          console.error("Failed to load calendar sessions:", err);
-        }
-      } catch (err) {
-        console.error("Failed to load attendance data:", err);
-      }
-      
-    } catch (error: any) {
-      console.error("❌ [DASHBOARD] Unexpected error:", error);
-    } finally {
-      // Only hide loading screen on initial load
-      if (isInitialLoad) {
-        setLoading(false);
-      }
-    }
-  };
-
-  // Load dashboard data ONCE on mount - no polling, no intervals
-  useEffect(() => {
-    loadData(true);
-    // No cleanup needed - we only load once
-  }, []);
+  }, [dashboardLoading]);
 
   const getOperationName = (op: string) => {
     const names: Record<string, string> = {
@@ -304,7 +136,17 @@ export default function StudentDashboard() {
       gcd: "GCD",
       square_root: "Square Root",
       cube_root: "Cube Root",
-      percentage: "Percentage"
+      percentage: "Percentage",
+      burst_tables: "Tables",
+      burst_multiplication: "Multiplication",
+      burst_division: "Division",
+      burst_decimal_multiplication: "Decimal ×",
+      burst_decimal_division: "Decimal ÷",
+      burst_lcm: "LCM",
+      burst_gcd: "GCD",
+      burst_square_root: "√ Root",
+      burst_cube_root: "∛ Root",
+      burst_percentage: "Percentage"
     };
     return names[op] || op;
   };
@@ -318,9 +160,9 @@ export default function StudentDashboard() {
     
     const mentalMathSessions: UnifiedSession[] = (stats?.recent_sessions || []).map((session: any) => ({
       id: session.id,
-      type: "mental_math",
+      type: session.difficulty_mode === "burst_mode" ? "burst_mode" as const : "mental_math" as const,
       title: getOperationName(session.operation_type),
-      subtitle: session.difficulty_mode,
+      subtitle: session.difficulty_mode === "burst_mode" ? "Burst Mode" : session.difficulty_mode,
       started_at: session.started_at,
       completed_at: session.completed_at || null,
       correct_answers: session.correct_answers,
@@ -384,8 +226,23 @@ export default function StudentDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-xl text-white">Loading dashboard...</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <div className="container mx-auto pt-32 pb-20 px-6">
+          <div className="mb-10 space-y-4">
+            <Skeleton className="h-10 w-72" />
+            <Skeleton className="h-5 w-96" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={`stats-skeleton-${index}`} className="h-32 rounded-[2.5rem]" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Skeleton key={`panel-skeleton-${index}`} className="h-48 rounded-[2.5rem]" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -406,9 +263,6 @@ export default function StudentDashboard() {
       </div>
     );
   }
-
-  const userRank = overallLeaderboard.findIndex((entry: LeaderboardEntry) => entry.user_id === user?.id) + 1;
-  const userWeeklyRank = weeklyLeaderboard.findIndex((entry: LeaderboardEntry) => entry.user_id === user?.id) + 1;
 
   const formatDate = (dateString: string) => {
     // Parse the date string - backend sends UTC time
@@ -567,6 +421,7 @@ export default function StudentDashboard() {
     if (sessionFilter === "overall") return true;
     if (sessionFilter === "mental_math") return session.type === "mental_math";
     if (sessionFilter === "practice_paper") return session.type === "practice_paper";
+    if (sessionFilter === "burst_mode") return session.type === "burst_mode";
     return true;
   });
 
@@ -578,7 +433,7 @@ export default function StudentDashboard() {
         {/* Page Header */}
         <header className="mb-12">
           <h1 className="text-5xl font-black tracking-tighter uppercase italic text-foreground mb-2">
-            Welcome Back, {user?.name}!
+            Welcome Back, {user?.display_name || user?.name}!
           </h1>
           <p className="text-muted-foreground text-lg font-medium">
             Track your progress and compete with others
@@ -620,13 +475,13 @@ export default function StudentDashboard() {
             <div className="text-3xl font-black italic text-card-foreground">{stats.overall_accuracy.toFixed(1)}%</div>
           </div>
 
-          {/* Current Streak */}
+          {/* Total Questions */}
           <div className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl hover:border-primary transition-all group">
             <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-all duration-300">
               <Zap className="w-6 h-6 text-primary" />
             </div>
-            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Current Streak</div>
-            <div className="text-3xl font-black italic text-card-foreground">{stats.current_streak} days</div>
+            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Total Questions</div>
+            <div className="text-3xl font-black italic text-card-foreground">{(stats.total_questions || 0).toLocaleString()}</div>
           </div>
 
           {/* Total Sessions */}
@@ -643,65 +498,6 @@ export default function StudentDashboard() {
         <div className="grid lg:grid-cols-12 gap-12">
           {/* Main Content */}
           <div className="lg:col-span-8 space-y-12">
-            {/* Your Progress Card */}
-            <div className="glass-morphism rounded-[3rem] p-10 shadow-xl border border-border/50 relative overflow-hidden">
-              <div className="premium-gradient absolute inset-0 opacity-10"></div>
-              <div className="relative z-10">
-                <div className="flex items-center justify-between flex-wrap gap-6 mb-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-primary/20 backdrop-blur-md rounded-3xl flex items-center justify-center shadow-xl border border-primary/30">
-                      <Target className="w-8 h-8 text-primary" />
-                    </div>
-                    <div>
-                      <h2 className="text-3xl font-black tracking-tighter uppercase italic text-foreground mb-2">
-                        Your Progress
-                      </h2>
-                      <p className="text-muted-foreground font-medium">
-                        Track your achievements and unlock amazing rewards!
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowRewardsExplanation(true)}
-                    className="group inline-flex items-center justify-center px-8 py-4 text-lg font-black uppercase tracking-widest text-foreground bg-card rounded-full shadow-2xl hover:scale-105 transition-all duration-300 border border-border"
-                  >
-                    Learn More
-                    <Gift className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white">
-                    <div className="flex items-center justify-between mb-2">
-                      <Zap className="w-6 h-6" />
-                      <span className="text-xs opacity-90">Points</span>
-                    </div>
-                    <div className="text-3xl font-black">{stats.total_points.toLocaleString()}</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl p-6 text-white">
-                    <div className="flex items-center justify-between mb-2">
-                      <Flame className="w-6 h-6" />
-                      <span className="text-xs opacity-90">Streak</span>
-                    </div>
-                    <div className="text-3xl font-black">{stats.current_streak} days</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white">
-                    <div className="flex items-center justify-between mb-2">
-                      <Calendar className="w-6 h-6" />
-                      <span className="text-xs opacity-90">Attendance</span>
-                    </div>
-                    <div className="text-3xl font-black">{stats.total_sessions > 0 ? "100.0" : "0.0"}%</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-6 text-white">
-                    <div className="flex items-center justify-between mb-2">
-                      <Target className="w-6 h-6" />
-                      <span className="text-xs opacity-90">Questions</span>
-                    </div>
-                    <div className="text-3xl font-black">{(stats.total_questions || 0).toLocaleString()}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Recent Practice Sessions */}
             <div className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl">
               <div className="flex items-center justify-between mb-6">
@@ -741,6 +537,16 @@ export default function StudentDashboard() {
                   >
                     Practice Papers
                   </button>
+                  <button
+                    onClick={() => setSessionFilter("burst_mode")}
+                    className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
+                      sessionFilter === "burst_mode"
+                        ? "bg-amber-500 text-white shadow-lg shadow-amber-500/25"
+                        : "text-muted-foreground hover:text-amber-400"
+                    }`}
+                  >
+                    ⚡ Burst Mode
+                  </button>
                 </div>
               </div>
               <div className="mb-6 p-4 bg-primary/5 rounded-2xl border border-primary/20">
@@ -756,7 +562,7 @@ export default function StudentDashboard() {
                   key={`${session.type}-${session.id}`}
                   className="bg-card border border-border rounded-2xl p-6 shadow-xl hover:border-primary transition-all cursor-pointer group"
                   onClick={() => {
-                    if (session.type === "mental_math") {
+                    if (session.type === "mental_math" || session.type === "burst_mode") {
                       setExpandedSession(expandedSession === session.id ? null : session.id);
                     } else {
                       setSelectedPaperAttempt(selectedPaperAttempt?.id === session.id ? null : paperAttempts.find(p => p.id === session.id) || null);
@@ -767,11 +573,11 @@ export default function StudentDashboard() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-3">
                         <span className="font-bold text-card-foreground text-lg">{session.title}</span>
-                        <span className={session.type === "mental_math" ? "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-primary/10 text-primary border border-primary/20" : "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-accent text-accent-foreground border border-accent"}>
+                        <span className={session.type === "burst_mode" ? "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20" : session.type === "mental_math" ? "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-primary/10 text-primary border border-primary/20" : "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-accent text-accent-foreground border border-accent"}>
                           {session.subtitle}
                         </span>
-                        <span className={session.type === "mental_math" ? "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-secondary text-secondary-foreground" : "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-primary text-primary-foreground"}>
-                          {session.type === "mental_math" ? "Mental Math" : "Practice Paper"}
+                        <span className={session.type === "burst_mode" ? "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-amber-500 text-white" : session.type === "mental_math" ? "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-secondary text-secondary-foreground" : "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-primary text-primary-foreground"}>
+                          {session.type === "burst_mode" ? "⚡ Burst Mode" : session.type === "mental_math" ? "Mental Math" : "Practice Paper"}
                         </span>
                       </div>
                       <div className="flex items-center gap-6 text-sm flex-wrap">
@@ -799,7 +605,7 @@ export default function StudentDashboard() {
                       <button
                         onClick={async (e) => {
                           e.stopPropagation();
-                          if (session.type === "mental_math") {
+                          if (session.type === "mental_math" || session.type === "burst_mode") {
                             handleViewSession(session.id);
                           } else {
                             const attemptId = session.id;
@@ -895,128 +701,6 @@ export default function StudentDashboard() {
 
         {/* Sidebar */}
         <div className="lg:col-span-4 space-y-8">
-          {/* Attendance Calendar */}
-          <AttendanceCalendar
-            sessions={calendarSessions}
-            attendanceRecords={attendanceRecords}
-            onDateClick={(date) => setSelectedCalendarDate(date)}
-            selectedDate={selectedCalendarDate}
-            isStudentView={true}
-          />
-
-          {/* Leaderboard */}
-          <div className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl">
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-              <h2 className="text-2xl font-black tracking-tighter uppercase italic text-card-foreground flex items-center gap-3">
-                <Trophy className="w-6 h-6 text-primary" />
-                Leaderboard
-              </h2>
-              <div className="flex gap-2 bg-secondary/50 backdrop-blur-md p-1.5 rounded-full border border-border/50 shrink-0">
-                <button
-                  onClick={() => setActiveTab("overall")}
-                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                    activeTab === "overall"
-                      ? "bg-primary text-primary-foreground shadow-lg"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Overall
-                </button>
-                <button
-                  onClick={() => setActiveTab("weekly")}
-                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                    activeTab === "weekly"
-                      ? "bg-primary text-primary-foreground shadow-lg"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Weekly
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-3 overflow-hidden">
-              {(activeTab === "overall" ? overallLeaderboard : weeklyLeaderboard).slice(0, showFullLeaderboard ? undefined : 5).map((entry, index) => {
-                const isCurrentUser = entry.user_id === user?.id;
-                const rank = (activeTab === "overall" ? overallLeaderboard : weeklyLeaderboard).findIndex(e => e.user_id === entry.user_id) + 1;
-                
-                // Determine badge color based on rank
-                let rankBadgeClass = "bg-primary/10 text-primary"; // Default for rank 4+
-                if (rank === 1) {
-                  rankBadgeClass = "badge-gold text-white";
-                } else if (rank === 2) {
-                  rankBadgeClass = "badge-silver text-white";
-                } else if (rank === 3) {
-                  rankBadgeClass = "badge-bronze text-white";
-                }
-                
-                return (
-                  <div
-                    key={entry.user_id}
-                    className={isCurrentUser ? "flex items-center gap-3 p-4 rounded-2xl transition-all bg-primary/10 border border-primary/30 shadow-lg overflow-hidden" : "flex items-center gap-3 p-4 rounded-2xl transition-all bg-secondary/50 hover:bg-secondary overflow-hidden"}
-                  >
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${rankBadgeClass} shrink-0`}>
-                      {rank}
-                    </div>
-                    {entry.avatar_url ? (
-                      <img src={entry.avatar_url} alt={entry.name} className="w-10 h-10 rounded-full shrink-0" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold shrink-0">
-                        {entry.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-card-foreground truncate">{entry.name}</div>
-                      <div className="text-sm text-muted-foreground truncate">
-                        {activeTab === "overall" ? `${entry.total_points} points` : `${entry.weekly_points} points`}
-                      </div>
-                    </div>
-                    {isCurrentUser && (
-                      <span className="text-xs font-black uppercase tracking-widest bg-primary text-primary-foreground px-3 py-1 rounded-full shrink-0">You</span>
-                    )}
-                  </div>
-                );
-              })}
-              {(activeTab === "overall" ? overallLeaderboard : weeklyLeaderboard).length > 5 && (
-                <button
-                  onClick={() => setShowFullLeaderboard(!showFullLeaderboard)}
-                  className="w-full p-3 text-primary hover:bg-primary/10 rounded-xl transition-colors font-bold"
-                >
-                  {showFullLeaderboard ? "Show Less" : `View All (${(activeTab === "overall" ? overallLeaderboard : weeklyLeaderboard).length - 5} more)`}
-                </button>
-              )}
-            </div>
-
-            <div className="mt-6 p-4 bg-primary/5 rounded-2xl border border-primary/20">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-muted-foreground">Your Rank</span>
-                <span className="text-2xl font-black italic text-primary">
-                  #{activeTab === "overall" ? (userRank || "—") : (userWeeklyRank || "—")}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Badges */}
-          <div className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl">
-            <h2 className="text-2xl font-black tracking-tighter uppercase italic text-card-foreground mb-6 flex items-center gap-3">
-              <Award className="w-6 h-6 text-primary" />
-              Badges
-            </h2>
-            {stats.badges.length > 0 ? (
-              <div className="space-y-3">
-                {stats.badges.map((badge, index) => (
-                  <div key={index} className="flex items-center gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
-                    <Award className="w-6 h-6 text-primary" />
-                    <span className="font-bold text-card-foreground">{badge}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground font-medium">No badges yet. Keep practicing!</p>
-            )}
-          </div>
-
           {/* Quick Stats */}
           <div className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl">
             <h2 className="text-2xl font-black tracking-tighter uppercase italic text-card-foreground mb-6">
@@ -1041,10 +725,7 @@ export default function StudentDashboard() {
                   {stats.total_wrong}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-muted-foreground">Longest Streak</span>
-                <span className="font-black text-orange-600">{stats.longest_streak} days</span>
-              </div>
+
             </div>
           </div>
 
@@ -1063,14 +744,7 @@ export default function StudentDashboard() {
 
 
 
-      {/* Rewards Explanation Modal */}
-      <RewardsExplanation
-        isOpen={showRewardsExplanation}
-        onClose={() => setShowRewardsExplanation(false)}
-        currentPoints={stats?.total_points || 0}
-      />
-
-      {/* Points Log Modal */}
+{/* Points Log Modal */}
       {showPointsLog && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowPointsLog(false)}>
           <div className="bg-card border border-border rounded-[2.5rem] shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col transition-all duration-300" onClick={(e) => e.stopPropagation()}>
@@ -1236,7 +910,7 @@ export default function StudentDashboard() {
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Questions & Answers</h3>
                 <div className="space-y-3">
-                  {selectedSession.attempts.map((attempt, index) => (
+                  {selectedSession.attempts.map((attempt) => (
                     <div
                       key={attempt.id}
                       className={`rounded-lg p-4 border-2 transition-all duration-300 ${

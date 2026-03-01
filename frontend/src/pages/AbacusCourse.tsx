@@ -4,6 +4,7 @@ import {
   Brain, Play, X,
   Activity, ShieldCheck, CheckCircle2, Clock
 } from "lucide-react";
+import OptimizedImage from "../components/OptimizedImage";
 
 export default function AbacusCourse() {
   const [showDemo, setShowDemo] = useState(false);
@@ -71,10 +72,11 @@ export default function AbacusCourse() {
               className="lg:w-2/5 relative"
             >
               <div className="relative aspect-[4/5] rounded-[4rem] overflow-hidden border border-white/10 shadow-3xl">
-                <img 
+                <OptimizedImage
                   src="/abacus.png" 
                   alt="Abacus Master" 
                   className="w-full h-full object-cover grayscale transition-all duration-700"
+                  loading="lazy"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-60" />
               </div>

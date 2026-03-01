@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "../contexts/AuthContext";
 import { 
@@ -12,40 +12,62 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
+
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [shuffledImages, setShuffledImages] = useState<string[]>([]);
 
-  // All images from homepage folder and root imagesproject folder for slideshow (33 images)
-  const carouselImages = [
-    // Homepage folder images
-    "homepage/abacus.png", "homepage/Vedic-Maths.png", "homepage/handwriting.png", "homepage/stem.png",
-    "homepage/olympiads.jpeg", "homepage/medals_certificates.jpeg", "homepage/monthly_tests.jpeg", "homepage/fun_activities.jpeg",
-    // Root imagesproject folder images
-    "1.jpg", "4.jpg", "6.jpg", "7.jpg", "8.jpg", "9.jpg", "10.jpg", "11.jpg", "12.jpg", "13.jpg", "14.jpg",
-    "0O9A8432.JPG", "0O9A8434.JPG", "0O9A8502.JPG", "0O9A8564.JPG", "0O9A8654.JPG", "0O9A8660.JPG", "0O9A8663.JPG",
-    "0O9A8664.JPG", "0O9A8666.JPG", "0O9A8670.JPG", "0O9A8671.JPG", "0O9A8673.JPG", "2G4A0012.JPG", "2G4A0026.JPG",
-    "2G4A0060.JPG", "2G4A0559.JPG", "2G4A0567.JPG", "2G4A0742.JPG", "773A1293.JPG", "773A1317.JPG", "773A1605.JPG", "773A1606.JPG"
-  ];
+  // Static image list (never changes)
+  const carouselImages = useMemo(() => [
+    "1.jpg","4.jpg","6.jpg","7.jpg","8.jpg","9.jpg","10.jpg","11.jpg","12.jpg","13.jpg","14.jpg",
+    "0O9A8432.JPG","0O9A8434.JPG","0O9A8502.JPG","0O9A8564.JPG","0O9A8654.JPG","0O9A8660.JPG","0O9A8663.JPG",
+    "0O9A8664.JPG","0O9A8666.JPG","0O9A8670.JPG","0O9A8671.JPG","0O9A8673.JPG","2G4A0012.JPG","2G4A0026.JPG",
+    "2G4A0060.JPG","2G4A0559.JPG","2G4A0567.JPG","2G4A0742.JPG","773A1293.JPG","773A1317.JPG","773A1605.JPG","773A1606.JPG"
+  ], []);
 
-  // Preload next image for smooth transitions
+  // Fisher-Yates shuffle (industry standard)
+  const shuffleArray = (array: string[]) => {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+
+  // ⭐ Shuffle once on load
   useEffect(() => {
-    const preloadImage = (src: string) => {
+    setShuffledImages(shuffleArray(carouselImages));
+  }, [carouselImages]);
+
+  // ⭐ Preload next images (optimized & correct)
+// ⭐ Preload next images (optimized & correct)
+  useEffect(() => {
+    if (!shuffledImages.length) return;
+
+    const preload = (src: string) => {
       const img = new Image();
       img.src = `/imagesproject/${src}`;
     };
 
-    // Preload next 2 images
-    const nextIndex = (currentImageIndex + 1) % carouselImages.length;
-    const nextNextIndex = (currentImageIndex + 2) % carouselImages.length;
-    preloadImage(carouselImages[nextIndex]);
-    preloadImage(carouselImages[nextNextIndex]);
-  }, [currentImageIndex, carouselImages]);
+    const next1 = (currentImageIndex + 1) % shuffledImages.length;
+    const next2 = (currentImageIndex + 2) % shuffledImages.length;
 
+    preload(shuffledImages[next1]);
+    preload(shuffledImages[next2]);
+  }, [currentImageIndex, shuffledImages.length]);
+
+  // ⭐ Slideshow timer
   useEffect(() => {
+    if (!shuffledImages.length) return ;
+
     const timer = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % carouselImages.length);
+      setCurrentImageIndex(prev => (prev + 1) % shuffledImages.length);
     }, 5000);
+
     return () => clearInterval(timer);
-  }, [carouselImages.length]);
+  }, [shuffledImages]);
+
+
 
   const reviews = [
     { name: "Shikha Khandelwal", role: "Parent", text: "Very good institute for Abacus and vedic maths. My son's numeracy skills have considerably developed under the guidance of Ms. Sunita Khurana.", rating: 5 },
@@ -86,20 +108,12 @@ export default function Home() {
       color: "emerald"
     },
     { 
-      title: "Streaks, Points & Rewards", 
-      desc: "Earn points for every practice session. Maintain daily streaks and unlock rewards as you progress.", 
+      title: "Points & Progress", 
+      desc: "Earn points for every practice session. Track your improvement and see how your hard work pays off.", 
       icon: Flame, 
-      action: "See rewards", 
+      action: "View dashboard", 
       path: "/dashboard",
       color: "orange"
-    },
-    { 
-      title: "Leaderboards & Competition", 
-      desc: "Compete with peers nationally. Climb rankings, see where you stand, and push yourself to improve.", 
-      icon: Trophy, 
-      action: "View leaderboard", 
-      path: "/leaderboard",
-      color: "indigo"
     },
     { 
       title: "Speed & Accuracy", 
@@ -136,8 +150,8 @@ export default function Home() {
       icon: Heart,
       image: "/imagesproject/homepage/fun_activities.jpeg"
     }
-  ];
-
+  ]; 
+  if (!shuffledImages.length) return null;
   return (
     <div className="min-h-screen bg-background text-left">
       {/* Dynamic Hero Section */}
@@ -196,12 +210,12 @@ export default function Home() {
                 className="absolute inset-0"
               >
                 <img
-                  src={`/imagesproject/${carouselImages[currentImageIndex]}`}
+                  src={`/imagesproject/${shuffledImages[currentImageIndex]}`}
                   className="w-full h-full object-cover"
                   alt="Talent Hub Excellence"
                   loading={currentImageIndex === 0 ? "eager" : "lazy"}
                   decoding="async"
-                  fetchPriority={currentImageIndex === 0 ? "high" : "auto"}
+                  {...(currentImageIndex === 0 ? { fetchpriority: "high" as const } : {})}
                 />
               </motion.div>
             </AnimatePresence>

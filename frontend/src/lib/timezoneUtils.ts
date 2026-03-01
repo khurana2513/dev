@@ -1,20 +1,21 @@
 /**
  * Timezone utility functions for converting UTC to IST (India Standard Time, UTC+5:30)
  * 
- * Note: Backend now stores timestamps in IST, but JavaScript Date objects interpret
- * ISO strings without timezone info as local time. We use toLocaleString with 
- * timeZone: "Asia/Kolkata" to ensure correct display.
+ * Note: Backend now stores timestamps in UTC for consistency.
+ * Responses include IST timezone info (+05:30) via the serializer.
+ * JavaScript Date() parses these correctly and we use toLocaleString with 
+ * timeZone: "Asia/Kolkata" to ensure correct IST display.
  */
 
 /**
- * Convert datetime string (IST or UTC) to IST and format for display
- * Backend stores timestamps in IST, so we display them directly in IST timezone
+ * Convert datetime string (UTC or with timezone info) to IST and format for display
+ * Backend returns timestamps as UTC and we convert them to IST for display
  */
 export function formatDateToIST(dateString: string | null | undefined): string {
   if (!dateString) return "—";
   
   try {
-    // Backend sends ISO strings with IST timezone (e.g., "2024-01-15T14:30:00+05:30")
+    // Backend sends ISO strings with timezone info (e.g., "2024-01-15T12:00:00+00:00" or "2024-01-15T17:30:00+05:30")
     // JavaScript Date() parses these correctly
     const date = new Date(dateString);
     
@@ -24,9 +25,8 @@ export function formatDateToIST(dateString: string | null | undefined): string {
       return "Invalid date";
     }
     
-    // If the date string includes timezone info, Date() will parse it correctly
-    // If it doesn't, we need to treat it as IST (since backend stores IST)
-    // Use toLocaleString with timeZone to ensure correct display
+    // Use toLocaleString with timeZone: "Asia/Kolkata" to display in IST
+    // This works correctly whether the input is UTC or already has timezone info
     return date.toLocaleString("en-IN", {
       timeZone: "Asia/Kolkata",
       month: "short",

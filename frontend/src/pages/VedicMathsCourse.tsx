@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { 
   Brain, CheckCircle2, ShieldCheck, Play, Sparkles
 } from "lucide-react";
+import OptimizedImage from "../components/OptimizedImage";
 
 export default function VedicMathsCourse() {
   const [activeSutra, setActiveSutra] = useState(0);
@@ -47,10 +48,11 @@ export default function VedicMathsCourse() {
               className="lg:w-2/5 relative"
             >
               <div className="relative aspect-[4/5] rounded-[4rem] overflow-hidden border border-white/10 shadow-3xl bg-slate-900">
-                <img 
+                <OptimizedImage
                   src="/Vedic-Maths.png" 
                   alt="Vedic Geometry" 
                   className="w-full h-full object-cover opacity-60 grayscale transition-all duration-700"
+                  loading="lazy"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent" />
               </div>

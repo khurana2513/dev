@@ -14,10 +14,12 @@ export interface User {
   current_streak: number;
   longest_streak: number;
   created_at: string;
+  public_id?: string;
 }
 
 export interface LoginResponse {
   access_token: string;
+  refresh_token: string;
   token_type: string;
   user: User;
 }
@@ -85,6 +87,7 @@ export interface PaperAttempt {
   points_earned: number;
   started_at: string;
   completed_at: string | null;
+  seed: number; // Seed used for paper generation (needed for re-attempt limit checking)
 }
 
 export interface StudentStats {
@@ -99,6 +102,11 @@ export interface StudentStats {
   badges: string[];
   recent_sessions: PracticeSession[];
   recent_paper_attempts?: PaperAttempt[];
+  total_paper_attempts?: number;
+  paper_total_questions?: number;
+  paper_total_correct?: number;
+  paper_total_wrong?: number;
+  paper_overall_accuracy?: number;
 }
 
 export interface AdminStats {
@@ -106,15 +114,30 @@ export interface AdminStats {
   total_sessions: number;
   total_questions: number;
   average_accuracy: number;
+  active_students_today: number;
+  top_students: Array<{
+    rank: number;
+    user_id: number;
+    name: string;
+    display_name?: string;
+    avatar_url?: string;
+    total_points: number;
+  }>;
 }
 
-export interface LeaderboardEntry {
-  rank: number;
-  user_id: number;
-  name: string;
-  avatar_url?: string;
-  total_points?: number;
-  weekly_points?: number;
+// ─── Combined Dashboard Interfaces ──────────────────────────────────────────
+// Single-call endpoints that replace 5+ separate API calls per dashboard load
+
+export interface StudentDashboardData {
+  stats: StudentStats;
+  profile: StudentProfile | null;
+  paper_attempts: PaperAttempt[];
+}
+
+export interface AdminDashboardData {
+  stats: AdminStats;
+  students: User[];
+  database_stats: DatabaseStats;
 }
 
 // Set auth token
@@ -124,8 +147,7 @@ export function setAuthToken(token: string): void {
 
 // Remove auth token
 export function removeAuthToken(): void {
-  localStorage.removeItem("auth_token");
-}
+  localStorage.removeItem("auth_token");  localStorage.removeItem("refresh_token");}
 
 // Login with Google OAuth token - Uses centralized API client
 export async function loginWithGoogle(token: string): Promise<LoginResponse> {
@@ -139,14 +161,36 @@ export async function loginWithGoogle(token: string): Promise<LoginResponse> {
       throw new Error("No access token in response");
     }
     
-    console.log("✅ [LOGIN] Login successful!");
+    console.log("✅ [LOGIN] Login successful, received access_token and refresh_token!");
     setAuthToken(data.access_token);
+    // Store refresh token
+    if (data.refresh_token) {
+      localStorage.setItem("refresh_token", data.refresh_token);
+      console.log("✅ [LOGIN] Refresh token stored");
+    }
     return data;
   } catch (error: any) {
     console.error("❌ [LOGIN] Login failed:", error);
     throw error instanceof Error ? error : new Error(`Login failed: ${error?.toString() || 'Unknown error'}`);
   }
 }
+
+export async function refreshAccessToken(refreshToken: string): Promise<{ access_token: string }> {
+  console.log("🔄 [REFRESH] Attempting to refresh access token");
+  try {
+    const response = await apiClient.post<{ access_token: string; token_type: string }>(
+      "/users/auth/refresh", 
+      { refresh_token: refreshToken },
+      { requireAuth: false }
+    );
+    console.log("✅ [REFRESH] Token refreshed successfully");
+    return response;
+  } catch (error) {
+    console.error("❌ [REFRESH] Token refresh failed:", error);
+    throw error;
+  }
+}
+
 
 // Update display name
 export async function updateDisplayName(displayName: string | null): Promise<User> {
@@ -221,14 +265,39 @@ export async function getStudentStats(): Promise<StudentStats> {
   }
 }
 
-// Get overall leaderboard
-export async function getOverallLeaderboard(): Promise<LeaderboardEntry[]> {
-  return apiClient.get<LeaderboardEntry[]>("/users/leaderboard/overall");
+// ─── Combined Dashboard API Functions ───────────────────────────────────────
+// Single call replaces 5+ separate requests per dashboard load
+
+/** Student: Get all dashboard data in one call */
+export async function getStudentDashboardData(): Promise<StudentDashboardData> {
+  console.log("🟡 [API] getStudentDashboardData called (combined endpoint)");
+  try {
+    const data = await apiClient.get<StudentDashboardData>("/users/dashboard-data");
+    console.log("✅ [API] Dashboard data loaded:", {
+      total_points: data?.stats?.total_points,
+      paper_attempts: data?.paper_attempts?.length || 0,
+    });
+    return data;
+  } catch (error) {
+    console.error("❌ [API] Dashboard data failed:", error);
+    throw error;
+  }
 }
 
-// Get weekly leaderboard
-export async function getWeeklyLeaderboard(): Promise<LeaderboardEntry[]> {
-  return apiClient.get<LeaderboardEntry[]>("/users/leaderboard/weekly");
+/** Admin: Get all dashboard data in one call */
+export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+  console.log("🟡 [API] getAdminDashboardData called (combined endpoint)");
+  try {
+    const data = await apiClient.get<AdminDashboardData>("/users/admin/dashboard-data", { timeout: 20000 });
+    console.log("✅ [API] Admin dashboard data loaded:", {
+      students: data?.students?.length || 0,
+      total_sessions: data?.stats?.total_sessions,
+    });
+    return data;
+  } catch (error) {
+    console.error("❌ [API] Admin dashboard data failed:", error);
+    throw error;
+  }
 }
 
 // Admin: Get all students
@@ -254,11 +323,6 @@ export async function deleteStudent(studentId: number): Promise<{ message: strin
 // Admin: Update student points
 export async function updateStudentPoints(studentId: number, points: number): Promise<{ message: string; old_points: number; new_points: number }> {
   return apiClient.put<{ message: string; old_points: number; new_points: number }>(`/users/admin/students/${studentId}/points`, { points });
-}
-
-// Admin: Refresh leaderboard
-export async function refreshLeaderboard(): Promise<{ message: string }> {
-  return apiClient.post<{ message: string }>("/users/admin/leaderboard/refresh");
 }
 
 // Admin: Get database stats
@@ -446,4 +510,28 @@ export interface PointsSummaryResponse {
 
 export async function getPointsLogs(limit: number = 100, offset: number = 0): Promise<PointsSummaryResponse> {
   return apiClient.get(`/users/points/logs?limit=${limit}&offset=${offset}`);
+}
+
+// ─── Leaderboard ──────────────────────────────────────────────────────────────
+
+export interface LeaderboardEntry {
+  rank: number;
+  user_id: number;
+  name: string;
+  avatar_url: string | null;
+  total_points: number;
+  weekly_points: number;
+  // Student profile enrichment
+  public_id: string | null;
+  level: string | null;
+  course: string | null;
+  branch: string | null;
+}
+
+export async function getOverallLeaderboard(limit = 100): Promise<LeaderboardEntry[]> {
+  return apiClient.get<LeaderboardEntry[]>(`/users/leaderboard/overall?limit=${limit}`);
+}
+
+export async function getWeeklyLeaderboard(limit = 100): Promise<LeaderboardEntry[]> {
+  return apiClient.get<LeaderboardEntry[]>(`/users/leaderboard/weekly?limit=${limit}`);
 }

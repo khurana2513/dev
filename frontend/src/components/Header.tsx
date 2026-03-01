@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { ChevronDown, LogOut, BarChart3, Shield, GraduationCap, Calculator, BookOpen, PenTool, Rocket, Menu, X, Brain, FileText, Sparkles, Trophy, User, Calendar, Moon, Sun, ArrowRight, DollarSign, Lock } from "lucide-react";
+import { ChevronDown, LogOut, BarChart3, Shield, GraduationCap, Calculator, BookOpen, PenTool, Rocket, Menu, X, Brain, FileText, Sparkles, Trophy, User, Moon, Sun, ArrowRight, Lock, Zap, Calendar } from "lucide-react";
 import { useAuthSafe } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -312,6 +312,22 @@ export default function Header() {
                 Mental Math
               </button>
             </Link>
+
+            {/* Burst Mode Button */}
+            <Link href="/burst">
+              <button className={`flex items-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest rounded-full transition-all duration-200 relative ${
+                isActive("/burst")
+                  ? "text-amber-600 dark:text-amber-400 bg-card/70 shadow-sm"
+                  : "text-foreground/70 hover:text-amber-500 hover:bg-card/60"
+              }`}>
+                <Zap className="w-4 h-4" />
+                Burst
+                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500"></span>
+                </span>
+              </button>
+            </Link>
           </nav>
 
           {/* Right Side */}
@@ -373,9 +389,6 @@ export default function Header() {
                         <div className="text-xs text-muted-foreground">{user.email}</div>
                         <div className="mt-2 flex items-center gap-2">
                           <span className="text-xs font-medium text-primary">{user.total_points} points</span>
-                          {user.current_streak > 0 && (
-                            <span className="text-xs font-medium text-orange-600">🔥 {user.current_streak} day streak</span>
-                          )}
                         </div>
                       </div>
                       
@@ -393,6 +406,13 @@ export default function Header() {
                             Student Profile
                           </div>
                         </Link>
+
+                        <Link href="/attendance">
+                          <div className="px-4 py-3 text-sm font-medium text-card-foreground hover:bg-primary/10 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
+                            <Calendar className="w-4 h-4" />
+                            My Attendance
+                          </div>
+                        </Link>
                         
                         {isAdmin && (
                           <>
@@ -403,15 +423,9 @@ export default function Header() {
                               </div>
                             </Link>
                             <Link href="/admin/attendance">
-                              <div className="px-4 py-3 text-sm font-medium text-card-foreground hover:bg-primary/10 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
+                              <div className="px-4 py-3 text-sm font-medium text-card-foreground hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
                                 <Calendar className="w-4 h-4" />
                                 Attendance
-                              </div>
-                            </Link>
-                            <Link href="/admin/fees">
-                              <div className="px-4 py-3 text-sm font-medium text-card-foreground hover:bg-green-50 dark:hover:bg-green-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
-                                <DollarSign className="w-4 h-4" />
-                                Fee Management
                               </div>
                             </Link>
                           </>
@@ -516,8 +530,19 @@ export default function Header() {
                 </Link>
               </div>
               <Link href="/mental" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg transition-colors">
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg transition-colors flex items-center gap-3">
+                  <Brain className="w-4 h-4" />
                   Mental Math
+                </div>
+              </Link>
+              <Link href="/burst" onClick={() => setMobileMenuOpen(false)}>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg transition-colors flex items-center gap-3">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <span>Burst Mode</span>
+                  <span className="ml-auto relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                  </span>
                 </div>
               </Link>
               {!isAuthenticated && (

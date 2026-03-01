@@ -9,21 +9,23 @@ import Home from "./pages/Home";
 import PaperCreate from "./pages/PaperCreate";
 import PaperAttempt from "./pages/PaperAttempt";
 import Mental from "./pages/Mental";
+import BurstMode from "./pages/BurstMode";
 import NotFound from "./pages/NotFound";
 import Login from "./components/Login";
 import StudentDashboard from "./pages/StudentDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import StudentProfile from "./pages/StudentProfile";
-import AdminAttendance from "./pages/AdminAttendance";
-import AdminFeeManagement from "./pages/AdminFeeManagement";
-import AdminUnifiedManagement from "./pages/AdminUnifiedManagement";
 import AdminStudentIDManagement from "./pages/AdminStudentIDManagement";
+import AdminAttendance from "./pages/AdminAttendance";
+import StudentAttendance from "./pages/StudentAttendance";
 import AbacusCourse from "./pages/AbacusCourse";
 import VedicMathsCourse from "./pages/VedicMathsCourse";
 import HandwritingCourse from "./pages/HandwritingCourse";
 import STEMCourse from "./pages/STEMCourse";
 import { ReactNode } from "react";
 import { useScrollRestoration } from "./hooks/useScrollRestoration";
+import { useInactivityDetection } from "./hooks/useInactivityDetection";
+import InactivityWarningModal from "./components/InactivityWarningModal";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
 
@@ -87,9 +89,16 @@ function AdminRoute({ children }: { children: ReactNode }) {
 function AppContent() {
   // Handle scroll restoration based on page type
   useScrollRestoration();
+  
+  // Track user inactivity (30 minute warning)
+  const { showInactivityWarning, dismissWarning } = useInactivityDetection();
 
   return (
     <ErrorBoundary>
+      <InactivityWarningModal 
+        isOpen={showInactivityWarning} 
+        onDismiss={dismissWarning} 
+      />
       <div className="flex flex-col min-h-screen bg-white dark:bg-slate-950 transition-colors duration-300">
         <Header />
         <main className="flex-grow">
@@ -108,6 +117,11 @@ function AppContent() {
               <Route path="/mental">
                 <ProtectedRoute>
                   <Mental />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/burst">
+                <ProtectedRoute>
+                  <BurstMode />
                 </ProtectedRoute>
               </Route>
               <Route path="/paper/attempt">
@@ -132,25 +146,20 @@ function AppContent() {
                   <AdminDashboard />
                 </AdminRoute>
               </Route>
+              <Route path="/admin/student-ids">
+                <AdminRoute>
+                  <AdminStudentIDManagement />
+                </AdminRoute>
+              </Route>
               <Route path="/admin/attendance">
                 <AdminRoute>
                   <AdminAttendance />
                 </AdminRoute>
               </Route>
-              <Route path="/admin/fees">
-                <AdminRoute>
-                  <AdminFeeManagement />
-                </AdminRoute>
-              </Route>
-              <Route path="/admin/unified">
-                <AdminRoute>
-                  <AdminUnifiedManagement />
-                </AdminRoute>
-              </Route>
-              <Route path="/admin/student-ids">
-                <AdminRoute>
-                  <AdminStudentIDManagement />
-                </AdminRoute>
+              <Route path="/attendance">
+                <ProtectedRoute>
+                  <StudentAttendance />
+                </ProtectedRoute>
               </Route>
               <Route path="/courses/abacus" component={AbacusCourse} />
               <Route path="/courses/vedic-maths" component={VedicMathsCourse} />
