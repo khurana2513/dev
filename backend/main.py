@@ -80,6 +80,10 @@ if ALLOWED_ORIGINS:
 else:
     logger.warning("[SECURITY] No CORS origins configured (ALLOWED_ORIGINS empty)")
 
+origins = [
+    "https://th.blackmonkey.in"  # IMPORTANT
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
