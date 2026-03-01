@@ -9,7 +9,7 @@ from timezone_utils import get_ist_now, get_utc_now
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from models import User, PracticeSession, Attempt, PaperAttempt, Paper, StudentProfile, ProfileAuditLog, VacantId, PointsLog, get_db
+from models import User, PracticeSession, Attempt, PaperAttempt, Paper, StudentProfile, ProfileAuditLog, VacantId, PointsLog, Certificate, get_db
 from auth import get_current_user, get_current_admin, verify_google_token, create_access_token
 from token_manager import create_token_pair, refresh_access_token, verify_refresh_token
 from user_schemas import (
@@ -23,6 +23,7 @@ from user_schemas import (
     RefreshTokenRequest, RefreshTokenResponse,
     StudentDashboardData, AdminDashboardData, DatabaseStatsSchema,
     AdminCreateStudentRequest, AdminUpdateStudentRequest, AdminStudentResponse,
+    CertificateCreate, CertificateUpdate, CertificateResponse,
 )
 from student_profile_utils import (
     validate_level, validate_course, validate_branch, validate_status,
@@ -1073,6 +1074,9 @@ async def update_student_info_admin(
         finish_date=profile.finish_date,
         parent_contact_number=profile.parent_contact_number,
     )
+
+
+@router.get("/admin/students/{student_id}/stats", response_model=StudentStats)
 async def get_student_stats_admin(
     student_id: int,
     admin: User = Depends(get_current_admin),
@@ -1177,39 +1181,128 @@ async def delete_student(
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """Delete a student account and all associated data. If student has a public_id, save it to vacant_ids."""
-    from models import VacantId
+    """Delete a student account and all associated data.
     
+    Deletion order is explicit to be robust against any DB-level FK constraint
+    configurations (some tables lack ORM-side cascade on User, e.g. Leaderboard).
+    """
+    from models import (
+        VacantId, Leaderboard, PointsLog, Reward,
+        PaperAttempt, PracticeSession, StudentProfile,
+        ProfileAuditLog, AttendanceRecord, Certificate,
+        FeeAssignment, FeeTransaction,
+    )
+
     student = db.query(User).filter(
         User.id == student_id,
         User.role == "student"
     ).first()
-    
+
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
-    
-    # Get student profile to check for public_id
-    profile = db.query(StudentProfile).filter(StudentProfile.user_id == student_id).first()
-    
-    # If student has a public_id, save it to vacant_ids before deletion
-    if profile and profile.public_id:
-        # Check if this ID is already in vacant_ids (shouldn't happen, but be safe)
-        existing_vacant = db.query(VacantId).filter(VacantId.public_id == profile.public_id).first()
-        if not existing_vacant:
-            vacant_id = VacantId(
-                public_id=profile.public_id,
-                original_student_name=student.name,
-                deleted_at=datetime.utcnow().replace(tzinfo=timezone.utc),
-                deleted_by_user_id=admin.id
-            )
-            db.add(vacant_id)
-            db.flush()  # Flush to ensure vacant_id is saved before deletion
-    
-    # Delete student (cascade will handle sessions, attempts, rewards, paper_attempts, and student_profile)
+
     student_name = student.name
-    db.delete(student)
-    db.commit()
-    
+
+    try:
+        # ── Step 1: Preserve public_id in vacant_ids before any deletion ──────
+        profile = db.query(StudentProfile).filter(
+            StudentProfile.user_id == student_id
+        ).first()
+
+        if profile and profile.public_id:
+            existing_vacant = db.query(VacantId).filter(
+                VacantId.public_id == profile.public_id
+            ).first()
+            if not existing_vacant:
+                vacant_id = VacantId(
+                    public_id=profile.public_id,
+                    original_student_name=student.name,
+                    deleted_at=datetime.utcnow().replace(tzinfo=timezone.utc),
+                    deleted_by_user_id=admin.id,
+                )
+                db.add(vacant_id)
+                db.flush()
+
+        # ── Step 2: Delete fee transactions → fee assignments (profile chain) ──
+        if profile:
+            assignment_ids = [
+                a.id for a in db.query(FeeAssignment.id).filter(
+                    FeeAssignment.student_profile_id == profile.id
+                ).all()
+            ]
+            if assignment_ids:
+                db.query(FeeTransaction).filter(
+                    FeeTransaction.assignment_id.in_(assignment_ids)
+                ).delete(synchronize_session=False)
+            db.query(FeeAssignment).filter(
+                FeeAssignment.student_profile_id == profile.id
+            ).delete(synchronize_session=False)
+
+            # ── Step 3: Delete attendance records ────────────────────────────
+            db.query(AttendanceRecord).filter(
+                AttendanceRecord.student_profile_id == profile.id
+            ).delete(synchronize_session=False)
+
+            # ── Step 4: Delete certificates ──────────────────────────────────
+            db.query(Certificate).filter(
+                Certificate.student_profile_id == profile.id
+            ).delete(synchronize_session=False)
+
+            # ── Step 5: Delete profile audit logs ────────────────────────────
+            db.query(ProfileAuditLog).filter(
+                ProfileAuditLog.profile_id == profile.id
+            ).delete(synchronize_session=False)
+
+            # ── Step 6: Delete the profile itself ────────────────────────────
+            db.delete(profile)
+            db.flush()
+
+        # ── Step 7: Delete leaderboard entry (NOT in User ORM cascade) ───────
+        db.query(Leaderboard).filter(
+            Leaderboard.user_id == student_id
+        ).delete(synchronize_session=False)
+
+        # ── Step 8: Delete practice sessions + their individual attempts ──────
+        session_ids = [
+            s.id for s in db.query(PracticeSession.id).filter(
+                PracticeSession.user_id == student_id
+            ).all()
+        ]
+        if session_ids:
+            from models import Attempt
+            db.query(Attempt).filter(
+                Attempt.session_id.in_(session_ids)
+            ).delete(synchronize_session=False)
+        db.query(PracticeSession).filter(
+            PracticeSession.user_id == student_id
+        ).delete(synchronize_session=False)
+
+        # ── Step 9: Delete paper attempts ────────────────────────────────────
+        db.query(PaperAttempt).filter(
+            PaperAttempt.user_id == student_id
+        ).delete(synchronize_session=False)
+
+        # ── Step 10: Delete rewards ──────────────────────────────────────────
+        db.query(Reward).filter(
+            Reward.user_id == student_id
+        ).delete(synchronize_session=False)
+
+        # ── Step 11: Delete points logs ──────────────────────────────────────
+        db.query(PointsLog).filter(
+            PointsLog.user_id == student_id
+        ).delete(synchronize_session=False)
+
+        # ── Step 12: Finally delete the user ─────────────────────────────────
+        db.delete(student)
+        db.commit()
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete student '{student_name}': {str(e)}"
+        )
+
     return {"message": f"Student {student_name} deleted successfully"}
 
 
@@ -2088,6 +2181,21 @@ async def get_vacant_ids(
     }
 
 
+@router.delete("/admin/vacant-ids/{vacant_id_id}")
+async def delete_vacant_id(
+    vacant_id_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete a specific vacant ID (admin only)."""
+    vacant = db.query(VacantId).filter(VacantId.id == vacant_id_id).first()
+    if not vacant:
+        raise HTTPException(status_code=404, detail="Vacant ID not found")
+    db.delete(vacant)
+    db.commit()
+    return {"message": f"Vacant ID {vacant.public_id} deleted successfully"}
+
+
 @router.post("/admin/generate-student-id")
 async def generate_next_student_id(
     branch: Optional[str] = Query(None),
@@ -2242,6 +2350,153 @@ async def get_weekly_leaderboard_endpoint(
             "branch":        p.branch    if p else None,
         })
     return result
+
+
+# ─── Certificate Routes ─────────────────────────────────────────────────────
+
+@router.get("/my-certificates", response_model=List[CertificateResponse])
+async def get_my_certificates(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all certificates issued to the currently authenticated student."""
+    profile = db.query(StudentProfile).filter(
+        StudentProfile.user_id == current_user.id
+    ).first()
+    if not profile:
+        return []
+    certs = (
+        db.query(Certificate)
+        .filter(Certificate.student_profile_id == profile.id)
+        .order_by(desc(Certificate.date_issued))
+        .all()
+    )
+    return [CertificateResponse.model_validate(c) for c in certs]
+
+
+@router.get("/admin/students/{student_id}/certificates", response_model=List[CertificateResponse])
+async def get_student_certificates_admin(
+    student_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """List all certificates for a specific student (admin only)."""
+    student = db.query(User).filter(
+        User.id == student_id, User.role == "student"
+    ).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    profile = db.query(StudentProfile).filter(
+        StudentProfile.user_id == student_id
+    ).first()
+    if not profile:
+        return []
+    certs = (
+        db.query(Certificate)
+        .filter(Certificate.student_profile_id == profile.id)
+        .order_by(desc(Certificate.date_issued))
+        .all()
+    )
+    return [CertificateResponse.model_validate(c) for c in certs]
+
+
+@router.post("/admin/students/{student_id}/certificates", response_model=CertificateResponse, status_code=201)
+async def create_student_certificate(
+    student_id: int,
+    payload: CertificateCreate,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Issue a new certificate to a student (admin only)."""
+    student = db.query(User).filter(
+        User.id == student_id, User.role == "student"
+    ).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    profile = db.query(StudentProfile).filter(
+        StudentProfile.user_id == student_id
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    try:
+        date_issued_dt = datetime.fromisoformat(payload.date_issued).replace(
+            tzinfo=timezone.utc
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date_issued format. Use YYYY-MM-DD.")
+    cert = Certificate(
+        student_profile_id=profile.id,
+        title=payload.title.strip(),
+        marks=payload.marks,
+        date_issued=date_issued_dt,
+        description=payload.description.strip() if payload.description else None,
+        issued_by_user_id=admin.id,
+    )
+    db.add(cert)
+    db.commit()
+    db.refresh(cert)
+    return CertificateResponse.model_validate(cert)
+
+
+@router.put("/admin/students/{student_id}/certificates/{cert_id}", response_model=CertificateResponse)
+async def update_student_certificate(
+    student_id: int,
+    cert_id: int,
+    payload: CertificateUpdate,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update a certificate record (admin only)."""
+    profile = db.query(StudentProfile).filter(
+        StudentProfile.user_id == student_id
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    cert = db.query(Certificate).filter(
+        Certificate.id == cert_id,
+        Certificate.student_profile_id == profile.id
+    ).first()
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    if payload.title is not None:
+        cert.title = payload.title.strip()
+    if payload.marks is not None:
+        cert.marks = payload.marks
+    if payload.date_issued is not None:
+        try:
+            cert.date_issued = datetime.fromisoformat(payload.date_issued).replace(
+                tzinfo=timezone.utc
+            )
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date_issued format. Use YYYY-MM-DD.")
+    if payload.description is not None:
+        cert.description = payload.description.strip() if payload.description else None
+    db.commit()
+    db.refresh(cert)
+    return CertificateResponse.model_validate(cert)
+
+
+@router.delete("/admin/students/{student_id}/certificates/{cert_id}", status_code=204)
+async def delete_student_certificate(
+    student_id: int,
+    cert_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete a certificate record (admin only)."""
+    profile = db.query(StudentProfile).filter(
+        StudentProfile.user_id == student_id
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    cert = db.query(Certificate).filter(
+        Certificate.id == cert_id,
+        Certificate.student_profile_id == profile.id
+    ).first()
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    db.delete(cert)
+    db.commit()
 
 
 @router.get("/points/logs", response_model=PointsSummaryResponse)

@@ -404,6 +404,7 @@ export default function Mental() {
   const [addSubCurrentItem, setAddSubCurrentItem] = useState<string>(""); // Current item being shown in big text
   const [addSubDisplayedItems, setAddSubDisplayedItems] = useState<string[]>([]); // Items that have been shown (for side view)
   const [isShowingAnswerTime, setIsShowingAnswerTime] = useState(false);
+  const isShowingAnswerTimeRef = useRef(false); // mirror for stale-closure-safe reads inside timer callbacks
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
@@ -540,6 +541,7 @@ export default function Mental() {
       setAddSubDisplayIndex(state.addSubDisplayIndex || 0);
       setAddSubCurrentItem(state.addSubCurrentItem || "");
       setAddSubDisplayedItems(state.addSubDisplayedItems || []);
+      isShowingAnswerTimeRef.current = state.isShowingAnswerTime || false;
       setIsShowingAnswerTime(state.isShowingAnswerTime || false);
       
       // Restore settings
@@ -981,6 +983,7 @@ export default function Mental() {
     setAddSubDisplayIndex(0);
     setAddSubCurrentItem("");
     setAddSubDisplayedItems([]);
+    isShowingAnswerTimeRef.current = false;
     setIsShowingAnswerTime(false);
     
     // Clear any existing timers
@@ -1049,7 +1052,7 @@ export default function Mental() {
     let effectiveTimeLimit: number;
     if (customTimeLimit !== undefined) {
       effectiveTimeLimit = customTimeLimit;
-    } else if ((operationType === "add_sub" || operationType === "integer_add_sub") && isShowingAnswerTime) {
+    } else if ((operationType === "add_sub" || operationType === "integer_add_sub") && isShowingAnswerTimeRef.current) {
       // For add/sub answer time, always use 15s
       effectiveTimeLimit = addSubAnswerTime;
     } else {
@@ -1115,6 +1118,7 @@ export default function Mental() {
     
     // Reset state
     setAddSubDisplayIndex(0);
+    isShowingAnswerTimeRef.current = false;
     setIsShowingAnswerTime(false);
     setTimeRemaining(0);
     setAddSubCurrentItem("");
@@ -1147,6 +1151,7 @@ export default function Mental() {
     if (items.length === 1) {
       // Track start time when answer time begins
       attemptTimesRef.current.set(questionIndex, Date.now());
+      isShowingAnswerTimeRef.current = true;
       setIsShowingAnswerTime(true);
       setTimeRemaining(addSubAnswerTime);
       startTimer(addSubAnswerTime); // Pass addSubAnswerTime explicitly
@@ -1172,6 +1177,7 @@ export default function Mental() {
         // All items shown, transition to answer time
         // Track start time when answer time begins (this is when timing starts for add/sub)
         attemptTimesRef.current.set(questionIndexAtStart, Date.now());
+        isShowingAnswerTimeRef.current = true;
         setIsShowingAnswerTime(true);
         setTimeRemaining(addSubAnswerTime);
         startTimer(addSubAnswerTime); // Pass addSubAnswerTime explicitly (always 15s)
@@ -1201,7 +1207,7 @@ export default function Mental() {
     isProcessingSubmissionRef.current = true;
     
     // Check if we can submit (for add/sub operations)
-    if ((operationType === "add_sub" || operationType === "integer_add_sub") && !isShowingAnswerTime) {
+    if ((operationType === "add_sub" || operationType === "integer_add_sub") && !isShowingAnswerTimeRef.current) {
       // Can't submit during row display phase
       isProcessingSubmissionRef.current = false;
       return;
@@ -1299,6 +1305,7 @@ export default function Mental() {
       setCurrentAnswer("");
       setAddSubDisplayIndex(0);
       setAddSubDisplayedNumbers("");
+      isShowingAnswerTimeRef.current = false;
       setIsShowingAnswerTime(false);
       // Reset timer to 0 to ensure it doesn't carry over from previous question
       setTimeRemaining(0);
@@ -1588,6 +1595,7 @@ export default function Mental() {
     setAddSubDisplayIndex(0);
     setAddSubCurrentItem("");
     setAddSubDisplayedItems([]);
+    isShowingAnswerTimeRef.current = false;
     setIsShowingAnswerTime(false);
     sessionStartTimeRef.current = 0;
     setSessionElapsedTime(0);
@@ -1608,6 +1616,7 @@ export default function Mental() {
     setAddSubDisplayIndex(0);
     setAddSubCurrentItem("");
     setAddSubDisplayedItems([]);
+    isShowingAnswerTimeRef.current = false;
     setIsShowingAnswerTime(false);
     if (timerRef.current) {
       clearInterval(timerRef.current);

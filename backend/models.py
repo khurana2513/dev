@@ -193,7 +193,11 @@ class PointsLog(Base):
     extra_data = Column(JSON, nullable=True)  # Store additional context (e.g., operation_type, difficulty, streak_days)
     
     # Timestamps
-    created_at = Column(DateTime, default=get_utc_now, nullable=False, index=True)
+    # ⚠️  Must be DateTime(timezone=True) → stores as TIMESTAMPTZ in PostgreSQL.
+    # Using plain DateTime (TIMESTAMP WITHOUT TIME ZONE) caused psycopg2 to return
+    # Python `date` objects when the column was accidentally created as DATE,
+    # which Pydantic converts to midnight, which always showed as 05:30 IST.
+    created_at = Column(DateTime(timezone=True), default=get_utc_now, nullable=False, index=True)
     
     # Relationships
     user = relationship("User", back_populates="points_logs")

@@ -10,6 +10,11 @@ import {
   getValidLevels,
   User,
   AdminCreateStudentRequest,
+  getStudentCertificatesAdmin,
+  createCertificateAdmin,
+  updateCertificateAdmin,
+  deleteCertificateAdmin,
+  CertificateRecord,
 } from "../lib/userApi";
 import {
   Users,
@@ -24,6 +29,10 @@ import {
   Loader2,
   Filter,
   ArrowLeft,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+  Award,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -78,10 +87,12 @@ function StudentRow({
   student,
   onEdit,
   onDelete,
+  onCertificates,
 }: {
   student: User;
   onEdit: (s: User) => void;
   onDelete: (s: User) => void;
+  onCertificates: (s: User) => void;
 }) {
   return (
     <tr className="border-b border-border hover:bg-primary/5 transition-colors">
@@ -125,6 +136,13 @@ function StudentRow({
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => onCertificates(student)}
+            className="p-1.5 rounded-lg hover:bg-amber-500/10 transition-colors"
+            title="Manage certificates"
+          >
+            <Award className="w-4 h-4 text-amber-500" />
+          </button>
           <button
             onClick={() => onEdit(student)}
             className="p-1.5 rounded-lg hover:bg-primary/10 transition-colors"
@@ -398,7 +416,337 @@ function StudentFormModal({
     </div>
   );
 }
+// ─── Certificate Manager Modal ─────────────────────────────────────────────────────
+function CertificateManagerModal({
+  student,
+  onClose,
+}: {
+  student: User;
+  onClose: () => void;
+}) {
+  const inputCls =
+    "w-full px-3 py-2 bg-background dark:bg-slate-800 border border-border dark:border-slate-600 rounded-lg text-foreground dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all";
 
+  const [certs, setCerts] = useState<CertificateRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [editing, setEditing] = useState<CertificateRecord | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [form, setForm] = useState({ title: "", marks: "", date_issued: "", description: "" });
+
+  useEffect(() => { loadCerts(); }, []);
+
+  const loadCerts = async () => {
+    setLoading(true);
+    try {
+      const data = await getStudentCertificatesAdmin(student.id);
+      setCerts(data);
+    } catch {
+      setError("Failed to load certificates");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const flash = (msg: string) => {
+    setSuccess(msg);
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  const handleAdd = async () => {
+    if (!form.title.trim()) { setError("Certificate name is required"); return; }
+    if (!form.date_issued)  { setError("Date of issue is required"); return; }
+    setSaving(true); setError(null);
+    try {
+      const newCert = await createCertificateAdmin(student.id, {
+        title: form.title.trim(),
+        marks: form.marks ? parseFloat(form.marks) : null,
+        date_issued: form.date_issued,
+        description: form.description.trim() || null,
+      });
+      setCerts([newCert, ...certs]);
+      setForm({ title: "", marks: "", date_issued: "", description: "" });
+      flash("Certificate issued!");
+    } catch {
+      setError("Failed to issue certificate");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editing) return;
+    if (!form.title.trim()) { setError("Certificate name is required"); return; }
+    if (!form.date_issued)  { setError("Date of issue is required"); return; }
+    setSaving(true); setError(null);
+    try {
+      const updated = await updateCertificateAdmin(student.id, editing.id, {
+        title: form.title.trim(),
+        marks: form.marks ? parseFloat(form.marks) : null,
+        date_issued: form.date_issued,
+        description: form.description.trim() || null,
+      });
+      setCerts(certs.map(c => c.id === updated.id ? updated : c));
+      setEditing(null);
+      setForm({ title: "", marks: "", date_issued: "", description: "" });
+      flash("Certificate updated!");
+    } catch {
+      setError("Failed to update certificate");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (certId: number) => {
+    if (!window.confirm("Delete this certificate? This cannot be undone.")) return;
+    setDeleting(certId);
+    try {
+      await deleteCertificateAdmin(student.id, certId);
+      setCerts(certs.filter(c => c.id !== certId));
+      flash("Certificate deleted");
+    } catch {
+      setError("Failed to delete certificate");
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const startEdit = (cert: CertificateRecord) => {
+    setEditing(cert);
+    setError(null);
+    const rawDate = new Date(cert.date_issued).toLocaleDateString("en-CA", {
+      timeZone: "Asia/Kolkata",
+    });
+    setForm({
+      title: cert.title,
+      marks: cert.marks !== null && cert.marks !== undefined ? String(cert.marks) : "",
+      date_issued: rawDate,
+      description: cert.description || "",
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setError(null);
+    setForm({ title: "", marks: "", date_issued: "", description: "" });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border rounded-[2rem] shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Modal Header */}
+        <div className="px-8 py-6 border-b border-border flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center">
+              <Award className="w-5 h-5 text-amber-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black tracking-tight text-card-foreground">Certificate Records</h2>
+              <p className="text-sm text-muted-foreground">{student.display_name || student.name}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-destructive/10 transition-colors"
+          >
+            <X className="w-4 h-4 text-destructive" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-8 py-6 space-y-6">
+          {/* ── Issue / Edit Form */}
+          <div className="bg-background/60 border border-border rounded-2xl p-6">
+            <div className="text-xs font-black uppercase tracking-widest text-primary mb-4">
+              {editing ? "Edit Certificate" : "Issue New Certificate"}
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-sm text-destructive mb-4">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-xl p-3 text-sm text-green-700 dark:text-green-400 mb-4">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                {success}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                  Certificate Name <span className="text-destructive">*</span>
+                </label>
+                <input
+                  className={inputCls}
+                  placeholder="e.g. Abacus Level 1 Completion"
+                  value={form.title}
+                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                  Marks / Score
+                </label>
+                <input
+                  className={inputCls}
+                  type="number"
+                  step="0.01"
+                  placeholder="(optional)"
+                  value={form.marks}
+                  onChange={e => setForm(f => ({ ...f, marks: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                  Date of Issue <span className="text-destructive">*</span>
+                </label>
+                <input
+                  className={inputCls}
+                  type="date"
+                  value={form.date_issued}
+                  onChange={e => setForm(f => ({ ...f, date_issued: e.target.value }))}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                  Description
+                </label>
+                <input
+                  className={inputCls}
+                  placeholder="(optional) e.g. Scored highest in class"
+                  value={form.description}
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-5">
+              <button
+                onClick={editing ? handleUpdate : handleAdd}
+                disabled={saving}
+                className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition-colors"
+              >
+                {saving
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <CheckCircle2 className="w-4 h-4" />
+                }
+                {saving ? "Saving…" : editing ? "Save Changes" : "Issue Certificate"}
+              </button>
+              {editing && (
+                <button
+                  onClick={cancelEdit}
+                  className="px-4 py-2.5 rounded-xl border border-border text-card-foreground hover:bg-muted font-medium text-sm transition-colors flex items-center gap-2"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Cancel
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ── Certificate List */}
+          <div>
+            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+              <Award className="w-3.5 h-3.5" />
+              Issued Certificates ({certs.length})
+            </div>
+
+            {loading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-16 bg-background/50 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            ) : certs.length === 0 ? (
+              <div className="text-center py-10 border-2 border-dashed border-border rounded-2xl">
+                <Award className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground font-medium">No certificates issued yet</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">Use the form above to issue the first one</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {certs.map((cert, idx) => (
+                  <div
+                    key={cert.id}
+                    className={`border rounded-xl p-4 flex items-start gap-4 transition-all ${
+                      editing?.id === cert.id
+                        ? "bg-primary/5 border-primary/30"
+                        : "bg-background/40 border-border hover:border-border/80"
+                    }`}
+                  >
+                    {/* Row number */}
+                    <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-[11px] font-black text-primary">{idx + 1}</span>
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-card-foreground text-sm">{cert.title}</div>
+                      {cert.description && (
+                        <div className="text-xs text-muted-foreground mt-0.5 truncate">{cert.description}</div>
+                      )}
+                      <div className="flex items-center gap-3 mt-2 flex-wrap">
+                        {cert.marks !== null && cert.marks !== undefined ? (
+                          <span className="px-2 py-0.5 text-xs font-black rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            {cert.marks} marks
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                            No marks
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(cert.date_issued).toLocaleDateString("en-IN", {
+                            timeZone: "Asia/Kolkata",
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => startEdit(cert)}
+                        className="p-1.5 rounded-lg hover:bg-primary/10 transition-colors"
+                        title="Edit"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 text-primary" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(cert.id)}
+                        disabled={deleting === cert.id}
+                        className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                        title="Delete"
+                      >
+                        {deleting === cert.id
+                          ? <Loader2 className="w-3.5 h-3.5 text-destructive animate-spin" />
+                          : <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                        }
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 // ─── Delete Confirmation Modal ────────────────────────────────────────────────
 function DeleteConfirmModal({
   student,
@@ -488,9 +836,26 @@ export default function AdminStudentManagement() {
   const [editSaving, setEditSaving] = useState(false);
   const [editValidLevels, setEditValidLevels] = useState<string[]>([]);
 
+  // Sort
+  type SortKey = "public_id" | "name" | "email" | "class_name" | "course" | "branch" | "status" | "total_points" | "";
+  const [sortKey, setSortKey] = useState<SortKey>("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Certificates modal
+  const [certStudent, setCertStudent] = useState<User | null>(null);
 
   // Success banner
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -530,9 +895,9 @@ export default function AdminStudentManagement() {
     } catch { setter([]); }
   };
 
-  // ── Filtered students ────────────────────────────────────────────────────────
+  // ── Filtered + sorted students ───────────────────────────────────────────────
   const filtered = useMemo(() => {
-    return students.filter((s) => {
+    const result = students.filter((s) => {
       const term = search.toLowerCase();
       const matchSearch =
         !search ||
@@ -547,7 +912,27 @@ export default function AdminStudentManagement() {
 
       return matchSearch && matchStatus && matchBranch && matchCourse;
     });
-  }, [students, search, filterStatus, filterBranch, filterCourse]);
+
+    if (!sortKey) return result;
+
+    return [...result].sort((a, b) => {
+      let aVal: string | number;
+      let bVal: string | number;
+      if (sortKey === "name") {
+        aVal = (a.display_name || a.name).toLowerCase();
+        bVal = (b.display_name || b.name).toLowerCase();
+      } else if (sortKey === "total_points") {
+        aVal = a.total_points;
+        bVal = b.total_points;
+      } else {
+        aVal = ((a[sortKey as keyof User] as string | null | undefined) ?? "").toString().toLowerCase();
+        bVal = ((b[sortKey as keyof User] as string | null | undefined) ?? "").toString().toLowerCase();
+      }
+      if (aVal === bVal) return 0;
+      const cmp = aVal < bVal ? -1 : 1;
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [students, search, filterStatus, filterBranch, filterCourse, sortKey, sortDir]);
 
   // ── Stats ────────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -817,14 +1202,42 @@ export default function AdminStudentManagement() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
-                    {["Public ID", "Name", "Email", "Class", "Course", "Branch", "Status", "Points", "Actions"].map((h) => (
-                      <th
-                        key={h}
-                        className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-muted-foreground"
-                      >
-                        {h}
-                      </th>
-                    ))}
+                    {([
+                      { label: "Public ID", key: "public_id" },
+                      { label: "Name",      key: "name" },
+                      { label: "Email",     key: "email" },
+                      { label: "Class",     key: "class_name" },
+                      { label: "Course",    key: "course" },
+                      { label: "Branch",    key: "branch" },
+                      { label: "Status",    key: "status" },
+                      { label: "Points",    key: "total_points" },
+                    ] as { label: string; key: string }[]).map(({ label, key }) => {
+                      const active = sortKey === key;
+                      return (
+                        <th
+                          key={key}
+                          onClick={() => handleSort(key as Parameters<typeof handleSort>[0])}
+                          className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-muted-foreground cursor-pointer select-none group transition-colors hover:text-foreground"
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            {label}
+                            <span className={`transition-opacity ${
+                              active ? "opacity-100 text-primary" : "opacity-0 group-hover:opacity-50"
+                            }`}>
+                              {active
+                                ? sortDir === "asc"
+                                  ? <ChevronUp className="w-3 h-3" />
+                                  : <ChevronDown className="w-3 h-3" />
+                                : <ChevronsUpDown className="w-3 h-3" />
+                              }
+                            </span>
+                          </span>
+                        </th>
+                      );
+                    })}
+                    <th className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-muted-foreground">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -834,6 +1247,7 @@ export default function AdminStudentManagement() {
                       student={student}
                       onEdit={openEdit}
                       onDelete={(s) => setDeleteTarget(s)}
+                      onCertificates={(s) => setCertStudent(s)}
                     />
                   ))}
                 </tbody>
@@ -888,6 +1302,12 @@ export default function AdminStudentManagement() {
           deleting={deleting}
         />
       )}
-    </div>
+      {/* ── Certificate Manager ──────────────────────────────────── */}
+      {certStudent && (
+        <CertificateManagerModal
+          student={certStudent}
+          onClose={() => setCertStudent(null)}
+        />
+      )}    </div>
   );
 }

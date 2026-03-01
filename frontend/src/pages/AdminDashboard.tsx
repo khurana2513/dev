@@ -9,7 +9,7 @@ import {
   getOverallLeaderboard, getWeeklyLeaderboard, LeaderboardEntry,
 } from "../lib/userApi";
 import { PaperAttemptDetail } from "../lib/api";
-import { Shield, Users, BarChart3, Target, TrendingUp, User as UserIcon, Edit2, RefreshCw, Database, X, Brain, FileText, Clock, Eye, CheckCircle2, XCircle, Trophy } from "lucide-react";
+import { Shield, Users, BarChart3, Target, TrendingUp, User as UserIcon, Edit2, RefreshCw, Database, X, Brain, FileText, Clock, Eye, CheckCircle2, XCircle, Trophy, IdCard } from "lucide-react";
 import Skeleton from "../components/Skeleton";
 import { useLocation } from "wouter";
 import { formatDateToIST, formatDateOnlyToIST } from "../lib/timezoneUtils";
@@ -487,6 +487,13 @@ export default function AdminDashboard() {
                   >
                     <Users className="w-4 h-4" />
                     Manage Students
+                  </button>
+                  <button
+                    onClick={() => setLocation("/student-ids")}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl text-sm font-bold transition-colors"
+                  >
+                    <IdCard className="w-4 h-4" />
+                    Student IDs
                   </button>
                   <select
                     value={sortBy}

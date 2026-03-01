@@ -1,4 +1,4 @@
-"""
+"""hi
 Migration script to delete old badge system badges from database.
 
 Old badges to delete:

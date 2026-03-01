@@ -544,6 +544,10 @@ export async function getVacantIds(): Promise<VacantIdsResponse> {
   return apiClient.get("/users/admin/vacant-ids");
 }
 
+export async function deleteVacantId(vacantIdId: number): Promise<{ message: string }> {
+  return apiClient.delete(`/users/admin/vacant-ids/${vacantIdId}`);
+}
+
 export async function getPointsLogs(limit: number = 100, offset: number = 0): Promise<PointsSummaryResponse> {
   return apiClient.get(`/users/points/logs?limit=${limit}&offset=${offset}`);
 }
@@ -590,3 +594,66 @@ export async function getWeeklyLeaderboard(limit = 100): Promise<LeaderboardEntr
   return apiClient.get<LeaderboardEntry[]>(`/users/leaderboard/weekly?limit=${limit}`);
 }
 
+
+// ─── Certificates ─────────────────────────────────────────────────────────────
+
+export interface CertificateRecord {
+  id: number;
+  title: string;
+  marks: number | null;
+  date_issued: string; // ISO string (IST)
+  description: string | null;
+  created_at: string;
+}
+
+export interface CertificateCreate {
+  title: string;
+  marks: number | null;
+  date_issued: string; // "YYYY-MM-DD"
+  description: string | null;
+}
+
+export interface CertificateUpdate {
+  title?: string | null;
+  marks?: number | null;
+  date_issued?: string | null;
+  description?: string | null;
+}
+
+/** Student: fetch own certificates. */
+export async function getMyCertificates(): Promise<CertificateRecord[]> {
+  return apiClient.get<CertificateRecord[]>("/users/my-certificates");
+}
+
+/** Admin: fetch a specific student's certificates. */
+export async function getStudentCertificatesAdmin(studentId: number): Promise<CertificateRecord[]> {
+  return apiClient.get<CertificateRecord[]>(`/users/admin/students/${studentId}/certificates`);
+}
+
+/** Admin: issue a new certificate to a student. */
+export async function createCertificateAdmin(
+  studentId: number,
+  data: CertificateCreate
+): Promise<CertificateRecord> {
+  return apiClient.post<CertificateRecord>(`/users/admin/students/${studentId}/certificates`, data);
+}
+
+/** Admin: update an existing certificate. */
+export async function updateCertificateAdmin(
+  studentId: number,
+  certId: number,
+  data: CertificateUpdate
+): Promise<CertificateRecord> {
+  return apiClient.put<CertificateRecord>(
+    `/users/admin/students/${studentId}/certificates/${certId}`,
+    data
+  );
+}
+
+/** Admin: delete a certificate. */
+export async function deleteCertificateAdmin(
+  studentId: number,
+  certId: number
+): Promise<void> {
+  return apiClient.delete<void>(`/users/admin/students/${studentId}/certificates/${certId}`);
+}

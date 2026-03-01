@@ -8,7 +8,8 @@ import {
   getVacantIds,
   VacantId,
   updateStudentPublicId,
-  generateNextStudentId
+  generateNextStudentId,
+  deleteVacantId
 } from "../lib/userApi";
 import { User, Edit2, Save, X, AlertCircle, CheckCircle2, Loader2, Search, RefreshCw, Users, IdCard, Plus, Eye, Archive } from "lucide-react";
 import Skeleton from "../components/Skeleton";
@@ -32,6 +33,8 @@ export default function AdminStudentIDManagement() {
   const [vacantIds, setVacantIds] = useState<VacantId[]>([]);
   const [showVacantIds, setShowVacantIds] = useState(false);
   const [loadingVacantIds, setLoadingVacantIds] = useState(false);
+  const [showVacantIdsModal, setShowVacantIdsModal] = useState(false);
+  const [deletingVacantId, setDeletingVacantId] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<"id" | "name" | "not_assigned" | "assigned">("id");
 
   useEffect(() => {
@@ -257,6 +260,18 @@ export default function AdminStudentIDManagement() {
     return student.display_name || student.name || "Unknown";
   };
 
+  const handleDeleteVacantId = async (id: number) => {
+    try {
+      setDeletingVacantId(id);
+      await deleteVacantId(id);
+      setVacantIds(prev => prev.filter(v => v.id !== id));
+    } catch (err: any) {
+      setError(err.message || "Failed to delete vacant ID");
+    } finally {
+      setDeletingVacantId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -282,8 +297,7 @@ export default function AdminStudentIDManagement() {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-32 pb-20 px-6 transition-colors duration-300">
-      <div className="container mx-auto">
+    <div className="min-h-screen bg-background pt-32 pb-20 px-6 transition-colors duration-300">      <div className="container mx-auto">
         {/* Page Header */}
         <header className="mb-12">
           <h1 className="text-5xl font-black tracking-tighter uppercase italic text-foreground mb-2">
@@ -343,12 +357,52 @@ export default function AdminStudentIDManagement() {
           </div>
         )}
 
+        {/* Summary Stats */}
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center gap-3 mb-2">
+              <Users className="w-6 h-6 text-primary" />
+              <h3 className="text-lg font-bold text-card-foreground">Total Students</h3>
+            </div>
+            <div className="text-3xl font-black text-card-foreground">{students.length}</div>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center gap-3 mb-2">
+              <IdCard className="w-6 h-6 text-green-600" />
+              <h3 className="text-lg font-bold text-card-foreground">IDs Assigned</h3>
+            </div>
+            <div className="text-3xl font-black text-green-600">{students.filter(s => s.public_id).length}</div>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center gap-3 mb-2">
+              <AlertCircle className="w-6 h-6 text-yellow-600" />
+              <h3 className="text-lg font-bold text-card-foreground">IDs Missing</h3>
+            </div>
+            <div className="text-3xl font-black text-yellow-600">{students.filter(s => !s.public_id).length}</div>
+          </div>
+
+          <button
+            onClick={() => setShowVacantIdsModal(true)}
+            className="bg-card border border-border rounded-2xl p-6 shadow-lg text-left hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <Archive className="w-6 h-6 text-blue-600 group-hover:scale-110 transition-all" />
+              <h3 className="text-lg font-bold text-card-foreground">Vacant IDs</h3>
+            </div>
+            <div className="text-3xl font-black text-blue-600">{vacantIds.length}</div>
+            <div className="text-xs text-muted-foreground mt-1">Click to manage</div>
+          </button>
+        </div>
+
         {/* Students Table */}
         <div className="bg-card border border-border rounded-[2.5rem] shadow-xl overflow-hidden">
           <div className="overflow-x-auto scrollbar-premium">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
+                  <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-widest text-muted-foreground">S.No.</th>
                   <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-widest text-muted-foreground">Student</th>
                   <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-widest text-muted-foreground">Email</th>
                   <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-widest text-muted-foreground">Public ID</th>
@@ -356,8 +410,9 @@ export default function AdminStudentIDManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredStudents.map((student) => (
+                {filteredStudents.map((student, index) => (
                   <tr key={student.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-6 py-4 text-sm font-mono text-muted-foreground">{index + 1}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground text-sm font-black">
@@ -391,9 +446,7 @@ export default function AdminStudentIDManagement() {
                                   setError(null);
                                 }}
                                 onFocus={() => {
-                                  if (vacantIds.length > 0) {
-                                    setShowVacantIds(true);
-                                  }
+                                  setShowVacantIds(true);
                                 }}
                                 className="w-full px-3 py-2 bg-background dark:bg-slate-800 border border-border rounded-r-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm font-mono"
                                 placeholder="0001"
@@ -421,7 +474,19 @@ export default function AdminStudentIDManagement() {
                                 ))}
                               </div>
                             )}
+                            {showVacantIds && vacantIds.length === 0 && (
+                              <div className="absolute z-10 mt-1 w-full bg-card border border-border rounded-lg shadow-lg px-3 py-2 text-sm text-muted-foreground">
+                                No vacant IDs available
+                              </div>
+                            )}
                           </div>
+                          <button
+                            onClick={() => handleGenerateSuggestedId(student.branch)}
+                            className="p-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                            title="Generate suggested ID (fills the input with next available ID)"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => {
                               setShowVacantIds(!showVacantIds);
@@ -433,13 +498,6 @@ export default function AdminStudentIDManagement() {
                             title="Show vacant IDs"
                           >
                             <Archive className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleGenerateSuggestedId(student.branch)}
-                            className="p-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
-                            title="Generate suggested ID (fills the input with next available ID)"
-                          >
-                            <Plus className="w-4 h-4" />
                           </button>
                         </div>
                       ) : (
@@ -498,41 +556,76 @@ export default function AdminStudentIDManagement() {
           )}
         </div>
 
-        {/* Summary Stats */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center gap-3 mb-2">
-              <Users className="w-6 h-6 text-primary" />
-              <h3 className="text-lg font-bold text-card-foreground">Total Students</h3>
-            </div>
-            <div className="text-3xl font-black text-card-foreground">{students.length}</div>
-          </div>
+      </div>
 
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center gap-3 mb-2">
-              <IdCard className="w-6 h-6 text-green-600" />
-              <h3 className="text-lg font-bold text-card-foreground">IDs Assigned</h3>
+      {/* Vacant IDs Modal */}
+      {showVacantIdsModal && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowVacantIdsModal(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-[2.5rem] shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-8 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Archive className="w-6 h-6 text-blue-600" />
+                <h2 className="text-2xl font-black tracking-tight text-card-foreground">
+                  Vacant IDs
+                </h2>
+                <span className="text-sm font-bold text-muted-foreground">{vacantIds.length} total</span>
+              </div>
+              <button
+                onClick={() => setShowVacantIdsModal(false)}
+                className="p-2 hover:bg-destructive/10 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-destructive" />
+              </button>
             </div>
-            <div className="text-3xl font-black text-green-600">{students.filter(s => s.public_id).length}</div>
-          </div>
 
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center gap-3 mb-2">
-              <AlertCircle className="w-6 h-6 text-yellow-600" />
-              <h3 className="text-lg font-bold text-card-foreground">IDs Missing</h3>
+            <div className="p-6 overflow-y-auto flex-1 scrollbar-premium">
+              {vacantIds.length === 0 ? (
+                <div className="text-center py-12">
+                  <Archive className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+                  <p className="text-muted-foreground font-medium">No vacant IDs available</p>
+                  <p className="text-sm text-muted-foreground mt-1">Vacant IDs appear when a student's ID is freed.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {vacantIds.map((vacant) => (
+                    <div
+                      key={vacant.id}
+                      className="flex items-center justify-between px-4 py-3 bg-background/50 border border-border rounded-xl hover:border-primary/30 transition-all"
+                    >
+                      <div>
+                        <span className="font-mono font-bold text-card-foreground">{vacant.public_id}</span>
+                        {vacant.original_student_name && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            Previously: {vacant.original_student_name}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteVacantId(vacant.id)}
+                        disabled={deletingVacantId === vacant.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        {deletingVacantId === vacant.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <X className="w-3.5 h-3.5" />
+                        )}
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="text-3xl font-black text-yellow-600">{students.filter(s => !s.public_id).length}</div>
-          </div>
-
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center gap-3 mb-2">
-              <Archive className="w-6 h-6 text-blue-600" />
-              <h3 className="text-lg font-bold text-card-foreground">Vacant IDs</h3>
-            </div>
-            <div className="text-3xl font-black text-blue-600">{vacantIds.length}</div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

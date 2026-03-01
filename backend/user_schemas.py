@@ -621,23 +621,37 @@ class PointsLogResponse(BaseModel):
     source_id: Optional[int] = None
     extra_data: Optional[Dict[str, Any]] = None   # column name in DB is extra_data (NOT metadata)
     created_at: datetime
-    
+
     @field_serializer('created_at')
     def serialize_created_at(self, dt: datetime, _info) -> str:
-        """Serialize datetime to ISO string with IST timezone."""
+        """Serialize datetime to ISO string with IST timezone.
+
+        Handles all cases robustly:
+        - datetime.date → promotes to midnight UTC datetime (legacy DATE column data)
+        - naive datetime  → assumes UTC, converts to IST
+        - UTC-aware       → converts to IST
+        - IST-aware       → returns as-is
+        """
+        from datetime import date as _date
+        # Guard: if the DB returned a bare date object (happens when the column
+        # was accidentally DATE type), promote it to midnight UTC datetime so the
+        # serialiser below can convert it to 05:30 IST — better than crashing.
+        if isinstance(dt, _date) and not isinstance(dt, datetime):
+            dt = datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
+
         if dt.tzinfo == IST_TIMEZONE:
             # Already IST, return as-is
             return dt.isoformat()
         elif dt.tzinfo is None:
-            # Naive - assume UTC (new data after fix)
+            # Naive — assume UTC
             utc_dt = dt.replace(tzinfo=timezone.utc)
             ist_dt = utc_to_ist(utc_dt)
             return ist_dt.isoformat()
         else:
-            # Has timezone, assume it's UTC and convert
+            # Has timezone info (UTC or other) — convert to IST
             ist_dt = utc_to_ist(dt)
             return ist_dt.isoformat()
-    
+
     model_config = {"from_attributes": True}
 
 
@@ -708,6 +722,45 @@ class DatabaseStatsSchema(BaseModel):
     total_rewards: int
     total_papers: int
     database_size_mb: float
+
+
+# ─── Certificate Schemas ─────────────────────────────────────────────────────
+
+class CertificateResponse(BaseModel):
+    """Certificate record returned to clients."""
+    id: int
+    title: str
+    marks: Optional[float] = None
+    date_issued: datetime
+    description: Optional[str] = None
+    created_at: datetime
+
+    @field_serializer('date_issued', 'created_at')
+    def serialize_dt(self, dt: datetime, _info) -> str:
+        if dt.tzinfo is None:
+            utc_dt = dt.replace(tzinfo=timezone.utc)
+            ist_dt = utc_to_ist(utc_dt)
+        else:
+            ist_dt = utc_to_ist(dt)
+        return ist_dt.isoformat()
+
+    model_config = {"from_attributes": True}
+
+
+class CertificateCreate(BaseModel):
+    """Payload to create a new certificate (admin only)."""
+    title: str
+    marks: Optional[float] = None
+    date_issued: str  # ISO date string "YYYY-MM-DD"
+    description: Optional[str] = None
+
+
+class CertificateUpdate(BaseModel):
+    """Partial update payload for an existing certificate (admin only)."""
+    title: Optional[str] = None
+    marks: Optional[float] = None
+    date_issued: Optional[str] = None  # ISO date string "YYYY-MM-DD"
+    description: Optional[str] = None
 
 
 StudentStats.model_rebuild()

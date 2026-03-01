@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
-import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, getPointsLogs, PointsSummaryResponse, PointsLogEntry, StudentDashboardData, getOverallLeaderboard, getWeeklyLeaderboard, LeaderboardEntry } from "../lib/userApi";
+import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, getPointsLogs, PointsSummaryResponse, PointsLogEntry, StudentDashboardData, getOverallLeaderboard, getWeeklyLeaderboard, LeaderboardEntry, getMyCertificates, CertificateRecord } from "../lib/userApi";
 import { PaperAttempt, getPaperAttempt, PaperAttemptDetail, getPaperAttemptCount } from "../lib/api";
-import { Trophy, Target, Zap, CheckCircle2, XCircle, BarChart3, History, X, Eye, ChevronDown, ChevronUp, RotateCcw, Clock, Loader2, RefreshCw } from "lucide-react";
+import { Trophy, Target, Zap, CheckCircle2, XCircle, BarChart3, History, X, Eye, ChevronDown, ChevronUp, RotateCcw, Clock, Loader2, RefreshCw, Award } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { formatDateToIST } from "../lib/timezoneUtils";
 import MathQuestion from "../components/MathQuestion";
@@ -69,6 +69,15 @@ export default function StudentDashboard() {
     queryFn: () => getWeeklyLeaderboard(50),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
+  });
+
+  // ─── Certificates Query ───────────────────────────────────────────────────
+  const { data: certificates = [], isLoading: certificatesLoading } = useQuery<CertificateRecord[]>({
+    queryKey: ["myCertificates"],
+    queryFn: getMyCertificates,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 
   // ─── Combined Dashboard Query (replaces 5+ separate API calls) ────────────
@@ -883,6 +892,120 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+
+        {
+          /* ──────────────────────────────────────────────────────
+             MY CERTIFICATES ─ full-width section below grid
+           ────────────────────────────────────────────────────── */
+        }
+        <div className="mt-12 bg-card border border-border rounded-[2.5rem] p-8 shadow-xl">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-3xl font-black tracking-tighter uppercase italic text-card-foreground flex items-center gap-3">
+              <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center shadow-lg">
+                <Award className="w-6 h-6 text-amber-500" />
+              </div>
+              My Certificates
+            </h2>
+            {certificatesLoading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading…
+              </div>
+            )}
+          </div>
+
+          {certificates.length > 0 ? (
+            <div className="overflow-x-auto -mx-2">
+              <table className="w-full min-w-[520px]">
+                <thead>
+                  <tr className="border-b-2 border-border">
+                    <th className="px-2 pb-4 text-left w-14">
+                      <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">S.No.</span>
+                    </th>
+                    <th className="px-4 pb-4 text-left">
+                      <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Certificate Name</span>
+                    </th>
+                    <th className="px-4 pb-4 text-left w-36">
+                      <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Marks</span>
+                    </th>
+                    <th className="px-4 pb-4 text-left w-44">
+                      <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Date of Issue</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {certificates.map((cert, idx) => (
+                    <tr
+                      key={cert.id}
+                      className="border-b border-border/40 last:border-0 hover:bg-primary/5 transition-colors group"
+                    >
+                      {/* S.No */}
+                      <td className="px-2 py-5">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                          <span className="text-xs font-black text-primary">{idx + 1}</span>
+                        </div>
+                      </td>
+
+                      {/* Certificate Name */}
+                      <td className="px-4 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                            <Award className="w-5 h-5 text-amber-500" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-card-foreground text-sm">{cert.title}</div>
+                            {cert.description && (
+                              <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{cert.description}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Marks */}
+                      <td className="px-4 py-5">
+                        {cert.marks !== null && cert.marks !== undefined ? (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-black bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            {cert.marks}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm font-medium">—</span>
+                        )}
+                      </td>
+
+                      {/* Date of Issue */}
+                      <td className="px-4 py-5">
+                        <span className="text-sm font-medium text-card-foreground">
+                          {new Date(cert.date_issued).toLocaleDateString("en-IN", {
+                            timeZone: "Asia/Kolkata",
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : certificatesLoading ? (
+            <div className="space-y-3 py-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-16 bg-primary/5 rounded-2xl animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-14">
+              <div className="w-20 h-20 bg-amber-500/5 rounded-full flex items-center justify-center mx-auto mb-5 border-2 border-dashed border-amber-500/20">
+                <Award className="w-9 h-9 text-amber-500/30" />
+              </div>
+              <p className="font-bold text-card-foreground text-lg">No certificates yet</p>
+              <p className="text-sm text-muted-foreground mt-1">Complete your levels to earn certificates</p>
+            </div>
+          )}
+        </div>
+
     </div>
 
 
