@@ -301,25 +301,55 @@ async def save_practice_session(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Save a practice session with all attempts."""
+    """Save a practice session with all attempts.
+
+    Idempotency: if the same user submits an identical session (same op, mode,
+    question counts) within 60 seconds we return the already-committed record
+    without awarding points a second time.  This guards against the API client
+    retry logic that fires whenever a request times out or the connection drops
+    after the backend has already committed.
+    """
     import time
     request_start = time.time()
     try:
-        # Calculate attempted questions (answered questions, right or wrong)
+        # ── Idempotency guard ─────────────────────────────────────────────────
+        # The API client retries mutations on network errors (ERR_EMPTY_RESPONSE,
+        # timeout, etc.).  Without this check a retry after a dropped connection
+        # would award points twice even though the first request already committed.
+        sixty_secs_ago = datetime.utcnow() - timedelta(seconds=60)
+        existing_session = db.query(PracticeSession).filter(
+            PracticeSession.user_id == current_user.id,
+            PracticeSession.operation_type == session_data.operation_type,
+            PracticeSession.difficulty_mode == session_data.difficulty_mode,
+            PracticeSession.total_questions == session_data.total_questions,
+            PracticeSession.correct_answers == session_data.correct_answers,
+            PracticeSession.wrong_answers == session_data.wrong_answers,
+            PracticeSession.started_at >= sixty_secs_ago
+        ).order_by(PracticeSession.started_at.desc()).first()
+        if existing_session:
+            print(f"⚠️ [PRACTICE_SESSION] Duplicate detected for user {current_user.id} "
+                  f"(session {existing_session.id}), returning existing record")
+            # Ensure datetime fields are tz-aware before serialising
+            if existing_session.started_at and existing_session.started_at.tzinfo is None:
+                existing_session.started_at = existing_session.started_at.replace(tzinfo=timezone.utc)
+            if existing_session.completed_at and existing_session.completed_at.tzinfo is None:
+                existing_session.completed_at = existing_session.completed_at.replace(tzinfo=timezone.utc)
+            return PracticeSessionResponse.model_validate(existing_session)
+
+        # ── Points calculation ────────────────────────────────────────────────
+        # +1 per attempted question (right or wrong), +5 per correct answer
         attempted_questions = session_data.correct_answers + session_data.wrong_answers
-        
-        # Calculate points: +1 per attempted, +5 per correct
         points_earned = calculate_points(
             correct_answers=session_data.correct_answers,
             total_questions=session_data.total_questions,
             time_taken=session_data.time_taken,
             difficulty_mode=session_data.difficulty_mode,
             accuracy=session_data.accuracy,
-            is_mental_math=True,  # Mental math practice
+            is_mental_math=True,
             attempted_questions=attempted_questions
         )
         
-        # Create practice session
+        # ── Create practice session ───────────────────────────────────────────
         session = PracticeSession(
             user_id=current_user.id,
             operation_type=session_data.operation_type,
@@ -331,12 +361,12 @@ async def save_practice_session(
             score=session_data.score,
             time_taken=session_data.time_taken,
             points_earned=points_earned,
-            completed_at=datetime.utcnow().replace(tzinfo=timezone.utc)  # Store UTC time
+            completed_at=datetime.utcnow().replace(tzinfo=timezone.utc)
         )
         db.add(session)
-        db.flush()  # Get session ID
+        db.flush()  # Materialise session.id before inserting attempts
         
-        # Save attempts
+        # ── Save individual attempts ──────────────────────────────────────────
         for attempt_data in session_data.attempts:
             attempt = Attempt(
                 session_id=session.id,
@@ -349,40 +379,51 @@ async def save_practice_session(
             )
             db.add(attempt)
         
-        # Atomic database-level update to prevent race conditions
-        from sqlalchemy import update
+        # ── Award points (single atomic DB-level ADD) ─────────────────────────
+        # We use a core UPDATE with a server-side expression so the increment
+        # is atomic even under concurrent requests.  We do NOT also do
+        # `current_user.total_points += points_earned` because that would mark
+        # the ORM object as dirty and cause SQLAlchemy's autoflush-on-commit to
+        # emit a second (SET) update, creating a race with the ADD expression.
+        # db.refresh(current_user) at the end reloads the committed value.
+        from sqlalchemy import update as sa_update
+        balance_before = current_user.total_points
+        balance_after  = balance_before + points_earned
         db.execute(
-            update(User)
+            sa_update(User)
             .where(User.id == current_user.id)
             .values(total_points=User.total_points + points_earned)
         )
-        
-        # Update local object for response
-        current_user.total_points += points_earned
-        
-        # Log points transaction
+
+        # ── Persist points log entry ──────────────────────────────────────────
         from points_logger import log_points
         log_points(
             db=db,
             user=current_user,
             points=points_earned,
             source_type="mental_math",
-            description=f"Mental math practice: {session_data.operation_type} ({session_data.difficulty_mode})",
+            description=(
+                f"{session_data.operation_type.replace('_', ' ').title()} "
+                f"({session_data.difficulty_mode}): "
+                f"{session_data.correct_answers}/{attempted_questions} correct"
+            ),
             source_id=session.id,
             extra_data={
-                "operation_type": session_data.operation_type,
+                "operation_type":  session_data.operation_type,
                 "difficulty_mode": session_data.difficulty_mode,
                 "correct_answers": session_data.correct_answers,
-                "wrong_answers": session_data.wrong_answers,
+                "wrong_answers":   session_data.wrong_answers,
                 "attempted_questions": attempted_questions,
-                "total_questions": session_data.total_questions,
-                "accuracy": session_data.accuracy
+                "total_questions":  session_data.total_questions,
+                "accuracy":         round(session_data.accuracy, 2),
+                "balance_before":   balance_before,
+                "balance_after":    balance_after,
             }
         )
         
         db.commit()
         db.refresh(session)
-        db.refresh(current_user)
+        db.refresh(current_user)  # Reload so current_user.total_points is accurate
         
         # Ensure datetimes are treated as IST (SQLAlchemy returns naive datetimes)
         if session.started_at and session.started_at.tzinfo is None:
@@ -1011,12 +1052,15 @@ async def update_student_points(
             user=student,
             points=points_change,
             source_type="admin_adjustment",
-            description=f"Admin points adjustment by {admin.name} ({admin.email})",
+            description=f"Admin points adjustment by {admin.name}: {old_points} → {student.total_points}",
             extra_data={
-                "old_points": old_points,
-                "new_points": request.points,
-                "adjusted_by": admin.id,
-                "reason": getattr(request, "reason", None)
+                "old_points":    old_points,
+                "new_points":    student.total_points,
+                "balance_before": old_points,
+                "balance_after":  student.total_points,
+                "adjusted_by":   admin.id,
+                "admin_name":    admin.name,
+                "reason":        getattr(request, "reason", None)
             }
         )
     
@@ -1874,6 +1918,8 @@ async def generate_next_student_id(
 
 
 # ─── Leaderboard Endpoints ────────────────────────────────────────────────────
+# These query the User table directly (always up-to-date) rather than relying
+# on the Leaderboard cache table which is only populated by background jobs.
 
 @router.get("/leaderboard/overall")
 async def get_overall_leaderboard_endpoint(
@@ -1883,33 +1929,40 @@ async def get_overall_leaderboard_endpoint(
 ):
     """Return the overall leaderboard sorted by total_points.
 
-    Includes public_id, level, course and branch from StudentProfile so the
-    frontend can display a rich leaderboard row.
+    Queries User table directly so data is always correct regardless of whether
+    the background cache-update job has run. Includes StudentProfile data
+    (public_id, level, course, branch) via a single bulk join.
     """
-    from leaderboard_service import get_overall_leaderboard
-    from models import Leaderboard, StudentProfile
+    students = (
+        db.query(User)
+        .filter(User.role == "student")
+        .order_by(desc(User.total_points))
+        .limit(limit)
+        .all()
+    )
 
-    # Ensure leaderboard table is populated
-    entries = get_overall_leaderboard(db, limit=limit)
-
-    # Attach profile data in one query to avoid N+1
-    user_ids = [e["user_id"] for e in entries]
+    user_ids = [u.id for u in students]
     profiles: dict = {}
     if user_ids:
         for p in db.query(StudentProfile).filter(StudentProfile.user_id.in_(user_ids)).all():
             profiles[p.user_id] = p
 
-    enriched = []
-    for e in entries:
-        p = profiles.get(e["user_id"])
-        enriched.append({
-            **e,
-            "public_id": p.public_id if p else None,
-            "level":     p.level     if p else None,
-            "course":    p.course    if p else None,
-            "branch":    p.branch    if p else None,
+    result = []
+    for rank, u in enumerate(students, start=1):
+        p = profiles.get(u.id)
+        result.append({
+            "rank":          rank,
+            "user_id":       u.id,
+            "name":          u.display_name or u.name,
+            "avatar_url":    u.avatar_url,
+            "total_points":  u.total_points,
+            "weekly_points": 0,       # weekly points computed separately
+            "public_id":     p.public_id if p else None,
+            "level":         p.level     if p else None,
+            "course":        p.course    if p else None,
+            "branch":        p.branch    if p else None,
         })
-    return enriched
+    return result
 
 
 @router.get("/leaderboard/weekly")
@@ -1918,32 +1971,76 @@ async def get_weekly_leaderboard_endpoint(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Return the weekly leaderboard sorted by weekly_points.
+    """Return the weekly leaderboard sorted by points earned this calendar week.
 
-    Includes public_id, level, course and branch from StudentProfile.
+    Computes weekly points live via a SQL aggregate on PracticeSession and
+    PaperAttempt so data is always accurate. Falls back gracefully when there
+    are no sessions this week (ranks by total_points instead).
     """
-    from leaderboard_service import get_weekly_leaderboard
-    from models import Leaderboard, StudentProfile
+    ist_now = get_ist_now()
+    today = ist_now.date()
+    days_since_monday = today.weekday()  # 0 = Monday
+    week_start_ist = datetime.combine(today - timedelta(days=days_since_monday), datetime.min.time())
+    # Convert IST week-start to naive UTC for DB comparison
+    from timezone_utils import IST_OFFSET
+    week_start_utc = week_start_ist - IST_OFFSET
 
-    entries = get_weekly_leaderboard(db, limit=limit)
+    # Aggregate weekly points from mental-math practice sessions
+    mental_weekly = (
+        db.query(
+            PracticeSession.user_id,
+            func.sum(PracticeSession.points_earned).label("pts")
+        )
+        .filter(PracticeSession.started_at >= week_start_utc)
+        .group_by(PracticeSession.user_id)
+        .all()
+    )
 
-    user_ids = [e["user_id"] for e in entries]
+    # Aggregate weekly points from practice paper attempts
+    paper_weekly = (
+        db.query(
+            PaperAttempt.user_id,
+            func.sum(PaperAttempt.points_earned).label("pts")
+        )
+        .filter(PaperAttempt.started_at >= week_start_utc)
+        .group_by(PaperAttempt.user_id)
+        .all()
+    )
+
+    weekly_pts: dict = {}
+    for row in mental_weekly:
+        weekly_pts[row.user_id] = weekly_pts.get(row.user_id, 0) + int(row.pts or 0)
+    for row in paper_weekly:
+        weekly_pts[row.user_id] = weekly_pts.get(row.user_id, 0) + int(row.pts or 0)
+
+    students = db.query(User).filter(User.role == "student").all()
+
+    # Sort by weekly points desc, break ties by total points
+    students.sort(key=lambda u: (weekly_pts.get(u.id, 0), u.total_points), reverse=True)
+    students = students[:limit]
+
+    user_ids = [u.id for u in students]
     profiles: dict = {}
     if user_ids:
         for p in db.query(StudentProfile).filter(StudentProfile.user_id.in_(user_ids)).all():
             profiles[p.user_id] = p
 
-    enriched = []
-    for e in entries:
-        p = profiles.get(e["user_id"])
-        enriched.append({
-            **e,
-            "public_id": p.public_id if p else None,
-            "level":     p.level     if p else None,
-            "course":    p.course    if p else None,
-            "branch":    p.branch    if p else None,
+    result = []
+    for rank, u in enumerate(students, start=1):
+        p = profiles.get(u.id)
+        result.append({
+            "rank":          rank,
+            "user_id":       u.id,
+            "name":          u.display_name or u.name,
+            "avatar_url":    u.avatar_url,
+            "total_points":  u.total_points,
+            "weekly_points": weekly_pts.get(u.id, 0),
+            "public_id":     p.public_id if p else None,
+            "level":         p.level     if p else None,
+            "course":        p.course    if p else None,
+            "branch":        p.branch    if p else None,
         })
-    return enriched
+    return result
 
 
 @router.get("/points/logs", response_model=PointsSummaryResponse)

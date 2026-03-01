@@ -407,6 +407,8 @@ export default function BurstMode() {
   const [countdownNum, setCountdownNum] = useState(3);
   const [saving, setSaving] = useState(false);
   const [sessionSaved, setSessionSaved] = useState(false);
+  // useRef guard prevents React StrictMode double-invocation from saving twice
+  const savingRef = useRef(false);
   const [exitConfirm, setExitConfirm] = useState(false);
 
   // Refs
@@ -531,13 +533,15 @@ export default function BurstMode() {
   // ── Save session ─────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (phase !== "results" || results.length === 0 || sessionSaved || saving) return;
+    if (phase !== "results" || results.length === 0 || sessionSaved || saving || savingRef.current) return;
     saveSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
   const saveSession = async () => {
     if (!selectedOp || results.length === 0) return;
+    if (savingRef.current) return;  // prevent double-save (StrictMode / retry)
+    savingRef.current = true;
     setSaving(true);
     try {
       const correct = results.filter((r) => r.isCorrect).length;
@@ -577,6 +581,7 @@ export default function BurstMode() {
       if (refreshUser) await refreshUser();
     } catch (err) {
       console.error("Failed to save burst mode session:", err);
+      savingRef.current = false;  // allow retry on genuine failure
     } finally {
       setSaving(false);
     }

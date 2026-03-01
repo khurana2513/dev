@@ -80,9 +80,6 @@ if ALLOWED_ORIGINS:
 else:
     logger.warning("[SECURITY] No CORS origins configured (ALLOWED_ORIGINS empty)")
 
-origins = [
-    "https://th.blackmonkey.in"  # IMPORTANT
-]
 
 app.add_middleware(
     CORSMiddleware,
@@ -830,19 +827,21 @@ async def submit_paper_attempt(
             paper_attempt.user_id,
         )
         
-        # Check if attempt is already completed - but allow if it was just created (within last second)
-        # This handles race conditions where the same attempt might be submitted twice
+        # Idempotency: if this attempt already completed, return it (don't award points twice).
+        # The API client retries mutations (POST/PUT) on network errors — the backend may have
+        # committed the first submission but the response never reached the client.  We return
+        # the already-committed record for up to 90 s (longer than the 45 s MUTATION_TIMEOUT
+        # plus any retry delay) so the frontend gets a clean success rather than a 400.
         if paper_attempt.completed_at:
-            # Check if it was completed very recently (within 2 seconds) - might be a duplicate submission
             _comp = paper_attempt.completed_at
             _comp_utc = _comp if _comp.tzinfo is not None else _comp.replace(tzinfo=timezone.utc)
             time_since_completion = (get_utc_now() - _comp_utc).total_seconds()
             logger.info("[SUBMIT] attempt_id=%s completed_age_s=%.2f", attempt_id, time_since_completion)
-            if time_since_completion > 2:
-                logger.warning("[SUBMIT] attempt_id=%s rejected_duplicate=true", attempt_id)
+            if time_since_completion > 90:
+                logger.warning("[SUBMIT] attempt_id=%s rejected_stale_duplicate=true", attempt_id)
                 raise HTTPException(status_code=400, detail="Attempt already completed")
             else:
-                # Very recent completion - return the existing result instead of error
+                # Recent completion — this is a retry of an already-committed request
                 logger.info("[SUBMIT] attempt_id=%s returning_existing=true", attempt_id)
                 return PaperAttemptResponse.model_validate(paper_attempt)
         
@@ -930,32 +929,48 @@ async def submit_paper_attempt(
         # Store completed_at as naive UTC datetime
         paper_attempt.completed_at = datetime.utcnow()
         
-        # Update user points immediately (needed for response)
-        current_user.total_points += points_earned
-        
-        # Log points transaction
+        # ── Award points (single atomic DB-level ADD) ─────────────────────────
+        # Use a server-side expression so the increment is atomic even under
+        # concurrent requests.  Avoid also doing `current_user.total_points +=`
+        # because that would create an ORM dirty mark causing SQLAlchemy to emit
+        # a second SET update on flush, potentially conflicting with this ADD.
+        from sqlalchemy import update as sa_update
+        balance_before = current_user.total_points
+        balance_after  = balance_before + points_earned
+        db.execute(
+            sa_update(User)
+            .where(User.id == current_user.id)
+            .values(total_points=User.total_points + points_earned)
+        )
+
+        # ── Persist points log entry ──────────────────────────────────────────
         from points_logger import log_points
         log_points(
             db=db,
             user=current_user,
             points=points_earned,
             source_type="paper_attempt",
-            description=f"Practice paper: {paper_attempt.paper_title} ({paper_attempt.paper_level})",
+            description=(
+                f"Practice paper: {paper_attempt.paper_title} ({paper_attempt.paper_level}): "
+                f"{correct_count}/{attempted_questions} correct"
+            ),
             source_id=paper_attempt.id,
             extra_data={
-                "paper_title": paper_attempt.paper_title,
-                "paper_level": paper_attempt.paper_level,
+                "paper_title":  paper_attempt.paper_title,
+                "paper_level":  paper_attempt.paper_level,
                 "correct_answers": correct_count,
-                "wrong_answers": wrong_count,
+                "wrong_answers":   wrong_count,
                 "attempted_questions": attempted_questions,
                 "total_questions": total,
-                "accuracy": accuracy
+                "accuracy":       round(accuracy, 2),
+                "balance_before": balance_before,
+                "balance_after":  balance_after,
             }
         )
         
         db.commit()
         db.refresh(paper_attempt)
-        db.refresh(current_user)
+        db.refresh(current_user)  # Reload so total_points reflects the committed ADD
         
         elapsed = time.time() - request_start
         logger.info("[SUBMIT] path=/papers/attempt/%s duration_s=%.2f", attempt_id, elapsed)

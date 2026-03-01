@@ -99,6 +99,7 @@ def use_grace_skip(db: Session, user: User) -> bool:
         return False
     
     # Deduct points
+    balance_before_skip = user.total_points
     user.total_points = max(0, user.total_points - 2000)
     
     # Log points transaction
@@ -111,7 +112,9 @@ def use_grace_skip(db: Session, user: User) -> bool:
         description="Grace skip to preserve streak (2000 points)",
         extra_data={
             "streak_preserved": True,
-            "current_streak": user.current_streak
+            "current_streak":   user.current_streak,
+            "balance_before":   balance_before_skip,
+            "balance_after":    user.total_points,
         }
     )
     
@@ -234,6 +237,7 @@ def update_streak_with_grace_skip(
         bonus = check_streak_bonuses(db, user)
         result["bonus_points"] = bonus
         if bonus > 0:
+            balance_before_bonus = user.total_points
             user.total_points += bonus
             # Log streak bonus points
             from points_logger import log_points
@@ -256,8 +260,10 @@ def update_streak_with_grace_skip(
                 source_type="streak_bonus",
                 description=description,
                 extra_data={
-                    "streak_days": streak_days,
-                    "bonus_type": "milestone" if streak_days <= 21 else "monthly"
+                    "streak_days":    streak_days,
+                    "bonus_type":     "milestone" if streak_days <= 21 else "monthly",
+                    "balance_before": balance_before_bonus,
+                    "balance_after":  user.total_points,
                 }
             )
     

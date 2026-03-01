@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
-import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, getPointsLogs, PointsSummaryResponse, StudentDashboardData } from "../lib/userApi";
+import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, getPointsLogs, PointsSummaryResponse, PointsLogEntry, StudentDashboardData, getOverallLeaderboard, getWeeklyLeaderboard, LeaderboardEntry } from "../lib/userApi";
 import { PaperAttempt, getPaperAttempt, PaperAttemptDetail, getPaperAttemptCount } from "../lib/api";
-import { Trophy, Target, Zap, CheckCircle2, XCircle, BarChart3, History, X, Eye, ChevronDown, ChevronUp, RotateCcw, Clock, Loader2 } from "lucide-react";
+import { Trophy, Target, Zap, CheckCircle2, XCircle, BarChart3, History, X, Eye, ChevronDown, ChevronUp, RotateCcw, Clock, Loader2, RefreshCw } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { formatDateToIST } from "../lib/timezoneUtils";
 import MathQuestion from "../components/MathQuestion";
@@ -55,7 +55,21 @@ export default function StudentDashboard() {
   const [showPointsLog, setShowPointsLog] = useState(false);
   const [pointsLogData, setPointsLogData] = useState<PointsSummaryResponse | null>(null);
   const [loadingPointsLog, setLoadingPointsLog] = useState(false);
+  const [lbTab, setLbTab] = useState<"overall" | "weekly">("overall");
 
+  // ─── Leaderboard queries ───────────────────────────────────────────────────
+  const { data: overallLb = [], isLoading: lbOverallLoading, refetch: refetchOverallLb } = useQuery<LeaderboardEntry[]>({
+    queryKey: ["leaderboard", "overall"],
+    queryFn: () => getOverallLeaderboard(50),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const { data: weeklyLb = [], isLoading: lbWeeklyLoading, refetch: refetchWeeklyLb } = useQuery<LeaderboardEntry[]>({
+    queryKey: ["leaderboard", "weekly"],
+    queryFn: () => getWeeklyLeaderboard(50),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
   // ─── Combined Dashboard Query (replaces 5+ separate API calls) ────────────
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery<StudentDashboardData>({
@@ -736,6 +750,137 @@ export default function StudentDashboard() {
               Start Practice
             </button>
           </Link>
+
+          {/* ─── Leaderboard ─────────────────────────────────────────────── */}
+          <div className="bg-card border border-border rounded-[2.5rem] overflow-hidden shadow-xl">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-0 flex items-center justify-between mb-4">
+              <h2 className="text-xl font-black tracking-tight text-card-foreground flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-amber-500" />
+                Leaderboard
+              </h2>
+              <div className="flex items-center gap-1.5">
+                {/* Tab pills */}
+                <div className="flex bg-background border border-border rounded-xl p-0.5 gap-0.5">
+                  <button
+                    onClick={() => setLbTab("overall")}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      lbTab === "overall"
+                        ? "bg-primary text-primary-foreground shadow"
+                        : "text-muted-foreground hover:text-card-foreground"
+                    }`}
+                  >
+                    Overall
+                  </button>
+                  <button
+                    onClick={() => setLbTab("weekly")}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      lbTab === "weekly"
+                        ? "bg-primary text-primary-foreground shadow"
+                        : "text-muted-foreground hover:text-card-foreground"
+                    }`}
+                  >
+                    This Week
+                  </button>
+                </div>
+                <button
+                  onClick={() => lbTab === "overall" ? refetchOverallLb() : refetchWeeklyLb()}
+                  className="p-1.5 rounded-lg border border-border hover:bg-primary/10 hover:border-primary transition-all"
+                  title="Refresh"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </div>
+            </div>
+
+            {/* Loading skeleton */}
+            {(lbTab === "overall" ? lbOverallLoading : lbWeeklyLoading) ? (
+              <div className="px-4 pb-4 space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-12 bg-background/50 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="pb-3 max-h-[22rem] overflow-y-auto scrollbar-premium">
+                {(lbTab === "overall" ? overallLb : weeklyLb).map((entry, idx) => {
+                  const pts = lbTab === "overall" ? entry.total_points : entry.weekly_points;
+                  const isMe = entry.user_id === user?.id;
+                  const initial = (entry.name || "?").charAt(0).toUpperCase();
+                  const colours = ["bg-violet-500","bg-sky-500","bg-emerald-500","bg-amber-500","bg-rose-500","bg-pink-500","bg-indigo-500","bg-teal-500"];
+                  const colIdx = entry.name.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % colours.length;
+
+                  return (
+                    <div
+                      key={entry.user_id}
+                      className={`mx-3 my-0.5 px-3 py-2.5 rounded-xl flex items-center gap-2.5 transition-all ${
+                        isMe
+                          ? "bg-primary/10 border border-primary/30"
+                          : "hover:bg-primary/5"
+                      }`}
+                    >
+                      {/* Rank */}
+                      <div className="w-5 flex-shrink-0 text-center">
+                        {idx === 0 ? <span className="text-base leading-none">🥇</span>
+                          : idx === 1 ? <span className="text-base leading-none">🥈</span>
+                          : idx === 2 ? <span className="text-base leading-none">🥉</span>
+                          : <span className="text-xs font-black text-muted-foreground">{idx + 1}</span>}
+                      </div>
+
+                      {/* Avatar */}
+                      {entry.avatar_url ? (
+                        <img src={entry.avatar_url} alt={entry.name} className="w-7 h-7 rounded-full flex-shrink-0" />
+                      ) : (
+                        <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold ${colours[colIdx]}`}>
+                          {initial}
+                        </div>
+                      )}
+
+                      {/* Info */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className={`text-xs font-bold truncate ${
+                            isMe ? "text-primary" : "text-card-foreground"
+                          }`}>
+                            {entry.name}{isMe && " (you)"}
+                          </span>
+                          {entry.public_id && (
+                            <span className="text-[9px] font-mono font-bold px-1 py-0.5 bg-primary/10 text-primary rounded flex-shrink-0">
+                              {entry.public_id}
+                            </span>
+                          )}
+                        </div>
+                        {(entry.level || entry.course) && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {entry.level && <span className="text-[9px] font-bold px-1 py-0.5 bg-violet-500/10 text-violet-500 rounded">{entry.level}</span>}
+                            {entry.course && <span className="text-[9px] font-bold px-1 py-0.5 bg-sky-500/10 text-sky-500 rounded">{entry.course}</span>}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Points */}
+                      <div className="text-right flex-shrink-0">
+                        <div className={`text-sm font-black ${
+                          idx === 0 ? "text-amber-500" :
+                          idx === 1 ? "text-slate-400" :
+                          idx === 2 ? "text-orange-400" :
+                          isMe ? "text-primary" : "text-card-foreground"
+                        }`}>{pts.toLocaleString()}</div>
+                        <div className="text-[9px] text-muted-foreground">pts</div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {(lbTab === "overall" ? overallLb : weeklyLb).length === 0 && (
+                  <div className="px-6 py-10 text-center text-muted-foreground">
+                    <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm font-medium">No rankings yet</p>
+                    <p className="text-xs mt-1">Start practicing to appear here!</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -796,7 +941,14 @@ export default function StudentDashboard() {
                     <div className="text-sm font-bold text-muted-foreground mb-4">
                       {pointsLogData.total_entries} total entries (showing {pointsLogData.logs.length})
                     </div>
-                    {pointsLogData.logs.map((log) => (
+                    {pointsLogData.logs.map((log: PointsLogEntry) => {
+                      const meta = log.extra_data || {};
+                      // source type label
+                      const sourceLabel = log.source_type
+                        .split("_")
+                        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(" ");
+                      return (
                       <div
                         key={log.id}
                         className={`p-4 rounded-xl border transition-all ${
@@ -805,20 +957,27 @@ export default function StudentDashboard() {
                             : "bg-red-50/50 dark:bg-red-900/20 border-red-200/50 dark:border-red-700/50"
                         }`}
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className={`text-2xl font-black ${log.points > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                                {log.points > 0 ? "+" : ""}{log.points}
+                        <div className="flex items-start justify-between gap-4">
+                          {/* Left: description + badges */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start gap-3 mb-2">
+                              <span className={`text-xl font-black tabular-nums flex-shrink-0 ${
+                                log.points > 0
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-red-600 dark:text-red-400"
+                              }`}>
+                                {log.points > 0 ? "+" : ""}{log.points.toLocaleString()}
                               </span>
-                              <span className="text-sm font-bold text-card-foreground">{log.description}</span>
+                              <span className="text-sm font-semibold text-card-foreground leading-snug">{log.description}</span>
                             </div>
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                              <span className="px-2 py-1 bg-primary/10 rounded-lg text-primary font-semibold">
-                                {log.source_type.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())}
+
+                            {/* Meta row */}
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <span className="px-2 py-0.5 bg-primary/10 rounded-lg text-primary font-semibold flex-shrink-0">
+                                {sourceLabel}
                               </span>
-                              <span>
-                                <Clock className="w-3 h-3 inline mr-1" />
+                              <span className="flex items-center gap-1 flex-shrink-0">
+                                <Clock className="w-3 h-3" />
                                 {new Date(log.created_at).toLocaleString("en-IN", {
                                   timeZone: "Asia/Kolkata",
                                   month: "short",
@@ -828,27 +987,47 @@ export default function StudentDashboard() {
                                   minute: "2-digit"
                                 })}
                               </span>
+                              {meta.operation_type && (
+                                <span className="px-1.5 py-0.5 bg-background rounded border border-border">
+                                  {String(meta.operation_type).replace(/_/g, " ")}
+                                </span>
+                              )}
+                              {meta.difficulty_mode && (
+                                <span className="px-1.5 py-0.5 bg-background rounded border border-border">
+                                  {String(meta.difficulty_mode)}
+                                </span>
+                              )}
+                              {meta.streak_days !== undefined && (
+                                <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded border border-amber-500/20">
+                                  🔥 {meta.streak_days}d streak
+                                </span>
+                              )}
+                              {meta.correct_answers !== undefined && (
+                                <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded border border-emerald-500/20">
+                                  ✓ {meta.correct_answers}/{meta.attempted_questions ?? meta.total_questions}
+                                </span>
+                              )}
+                              {meta.paper_title && (
+                                <span className="px-1.5 py-0.5 bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded border border-sky-500/20 truncate max-w-[12rem]">
+                                  📄 {String(meta.paper_title)}
+                                </span>
+                              )}
                             </div>
-                            {log.metadata && Object.keys(log.metadata).length > 0 && (
-                              <div className="mt-2 text-xs text-muted-foreground">
-                                {log.metadata.operation_type && (
-                                  <span className="mr-3">Operation: {log.metadata.operation_type}</span>
-                                )}
-                                {log.metadata.difficulty_mode && (
-                                  <span className="mr-3">Difficulty: {log.metadata.difficulty_mode}</span>
-                                )}
-                                {log.metadata.streak_days && (
-                                  <span className="mr-3">Streak: {log.metadata.streak_days} days</span>
-                                )}
-                                {log.metadata.correct_answers !== undefined && (
-                                  <span className="mr-3">Correct: {log.metadata.correct_answers}/{log.metadata.total_questions}</span>
-                                )}
-                              </div>
-                            )}
                           </div>
+
+                          {/* Right: balance after */}
+                          {meta.balance_after !== undefined && (
+                            <div className="text-right flex-shrink-0">
+                              <div className="text-xs text-muted-foreground">Balance</div>
+                              <div className="text-sm font-black text-card-foreground tabular-nums">
+                                {Number(meta.balance_after).toLocaleString()}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               ) : (

@@ -534,7 +534,7 @@ class PointsLogResponse(BaseModel):
     source_type: str
     description: str
     source_id: Optional[int] = None
-    metadata: Optional[Dict[str, Any]] = None
+    extra_data: Optional[Dict[str, Any]] = None   # column name in DB is extra_data (NOT metadata)
     created_at: datetime
     
     @field_serializer('created_at')

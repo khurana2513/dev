@@ -490,13 +490,20 @@ export async function getVacantIds(): Promise<VacantIdsResponse> {
   return apiClient.get("/users/admin/vacant-ids");
 }
 
+export async function getPointsLogs(limit: number = 100, offset: number = 0): Promise<PointsSummaryResponse> {
+  return apiClient.get(`/users/points/logs?limit=${limit}&offset=${offset}`);
+}
+
+// ─── Leaderboard ──────────────────────────────────────────────────────────────
+
+// PointsLog entry returned by GET /users/points/logs
 export interface PointsLogEntry {
   id: number;
   points: number;
   source_type: string;
   description: string;
   source_id: number | null;
-  metadata: Record<string, any> | null;
+  extra_data: Record<string, any> | null;  // DB column name is extra_data
   created_at: string;
 }
 
@@ -508,12 +515,6 @@ export interface PointsSummaryResponse {
   total_entries: number;
 }
 
-export async function getPointsLogs(limit: number = 100, offset: number = 0): Promise<PointsSummaryResponse> {
-  return apiClient.get(`/users/points/logs?limit=${limit}&offset=${offset}`);
-}
-
-// ─── Leaderboard ──────────────────────────────────────────────────────────────
-
 export interface LeaderboardEntry {
   rank: number;
   user_id: number;
@@ -521,7 +522,6 @@ export interface LeaderboardEntry {
   avatar_url: string | null;
   total_points: number;
   weekly_points: number;
-  // Student profile enrichment
   public_id: string | null;
   level: string | null;
   course: string | null;
@@ -535,3 +535,4 @@ export async function getOverallLeaderboard(limit = 100): Promise<LeaderboardEnt
 export async function getWeeklyLeaderboard(limit = 100): Promise<LeaderboardEntry[]> {
   return apiClient.get<LeaderboardEntry[]>(`/users/leaderboard/weekly?limit=${limit}`);
 }
+
