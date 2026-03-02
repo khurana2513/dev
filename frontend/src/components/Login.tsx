@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocation } from "wouter";
-import { Loader2, Sparkles, Shield, TrendingUp, Zap, ChevronDown, ChevronUp, Activity } from "lucide-react";
+import { Loader2, Sparkles, Shield, TrendingUp, Zap, ChevronDown, Activity } from "lucide-react";
 import BackendTest from "./BackendTest";
 
 declare global {
@@ -146,95 +146,375 @@ export default function Login() {
     };
   }, [login]);
 
+  // Stable star positions (memo-like, computed once per component mount)
+  const stars = (() => {
+    const rng = (seed: number, max: number) => ((seed * 9301 + 49297) % 233280) / 233280 * max;
+    return Array.from({ length: 28 }, (_, i) => {
+      // Distribute mostly to outer quadrants — skip centre 300×300
+      let x: number, y: number;
+      do {
+        x = rng(i * 7 + 1, 100);
+        y = rng(i * 13 + 3, 100);
+      } while (x > 35 && x < 65 && y > 30 && y < 70);
+      const size = i % 9 === 0 ? 3 : i % 4 === 0 ? 1 : 2;
+      const dur = 4 + rng(i * 3, 4);
+      const delay = rng(i * 5 + 2, 8);
+      const isCross = i % 8 === 0;
+      return { x, y, size, dur, delay, isCross };
+    });
+  })();
+
+  const features = [
+    { icon: <TrendingUp style={{ width: 20, height: 20 }} />, label: "Progress" },
+    { icon: <Zap        style={{ width: 20, height: 20 }} />, label: "Practice" },
+    { icon: <Shield     style={{ width: 20, height: 20 }} />, label: "Secure"   },
+  ];
+
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 flex items-center justify-center p-4">
-      {/* Animated Background Blobs */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-0 -left-4 w-96 h-96 bg-indigo-500/30 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob"></div>
-        <div className="absolute top-0 -right-4 w-96 h-96 bg-purple-500/30 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-96 h-96 bg-pink-500/30 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000"></div>
-      </div>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-      {/* Floating Particles Effect */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(60)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full"
-            style={{
-              width: `${Math.random() * 3 + 1}px`,
-              height: `${Math.random() * 3 + 1}px`,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              backgroundColor: `rgba(255, 255, 255, ${Math.random() * 0.6 + 0.2})`,
-              animation: `float ${3 + Math.random() * 4}s ease-in-out infinite`,
-              animationDelay: `${Math.random() * 2}s`,
-              boxShadow: `0 0 ${Math.random() * 4 + 2}px rgba(255, 255, 255, 0.5)`,
-            }}
-          />
-        ))}
-      </div>
+        :root {
+          --lg-bg:      #06070F;
+          --lg-surf:    #0F1120;
+          --lg-surf2:   #141729;
+          --lg-border:  rgba(255,255,255,0.07);
+          --lg-border2: rgba(255,255,255,0.12);
+          --lg-purple:  #7B5CE5;
+          --lg-purple2: #9D7FF0;
+          --lg-purple3: #C4ADFF;
+          --lg-pglow:   rgba(123,92,229,0.28);
+          --lg-pdim:    rgba(123,92,229,0.10);
+          --lg-pink:    #EC4899;
+          --lg-white:   #F0F2FF;
+          --lg-white2:  #B8BDD8;
+          --lg-muted:   #525870;
+        }
 
-      {/* Main Content */}
-      <div className="relative z-10 w-full max-w-2xl">
-        {/* Premium Glass Card */}
-        <div className="bg-white/10 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/20 p-8 md:p-12 lg:p-16 transform transition-all duration-500 hover:scale-[1.02] hover:shadow-3xl">
-          {/* Logo/Icon */}
-          <div className="flex justify-center mb-8">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 rounded-2xl blur-xl opacity-75 animate-pulse"></div>
-              <div className="relative bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-6 rounded-2xl shadow-2xl transform hover:scale-110 transition-transform duration-300">
-                <Sparkles className="w-12 h-12 text-white" />
+        @keyframes lg-fade-up      { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
+        @keyframes lg-fade-in      { from{opacity:0} to{opacity:1} }
+        @keyframes lg-scale-in     { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
+        @keyframes lg-float-gentle { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+        @keyframes lg-orb-drift-1  { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(40px,-30px) scale(1.08)} }
+        @keyframes lg-orb-drift-2  { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-30px,40px) scale(1.06)} }
+        @keyframes lg-orb-drift-3  { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(20px,30px) scale(1.04)} 66%{transform:translate(-20px,-20px) scale(.97)} }
+        @keyframes lg-star-twinkle { 0%,100%{opacity:0;transform:scale(.5)} 50%{opacity:1;transform:scale(1)} }
+        @keyframes lg-shimmer-line { 0%{opacity:0;transform:translateX(-100%)} 50%{opacity:1} 100%{opacity:0;transform:translateX(100%)} }
+        @keyframes lg-icon-entrance{ from{opacity:0;transform:scale(.6) rotate(-10deg)} to{opacity:1;transform:scale(1) rotate(0)} }
+        @keyframes lg-feature-in   { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+        @keyframes lg-shimmer-move { 0%{background-position:0% 50%} 100%{background-position:300% 50%} }
+        @keyframes lg-pulse-top    { 0%,100%{opacity:.35} 50%{opacity:.8} }
+
+        .lg-card-icon {
+          animation:
+            lg-icon-entrance .6s cubic-bezier(.34,1.56,.64,1) .2s both,
+            lg-float-gentle 5s ease-in-out 1s infinite;
+        }
+
+        .lg-feature-item { transition: transform .3s ease; }
+        .lg-feature-item:hover { transform: translateY(-3px); }
+        .lg-feature-item:hover .lg-feat-box {
+          background: rgba(123,92,229,.18) !important;
+          border-color: rgba(123,92,229,.4) !important;
+          box-shadow: 0 10px 24px rgba(123,92,229,.2);
+        }
+        .lg-feature-item:hover .lg-feat-icon { color: #C4ADFF !important; }
+
+        .lg-google-wrap {
+          border-radius: 14px;
+          overflow: hidden;
+          box-shadow: 0 8px 32px rgba(0,0,0,.35);
+          transition: transform .25s ease, box-shadow .25s ease;
+        }
+        .lg-google-wrap:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 14px 40px rgba(0,0,0,.45);
+        }
+
+        .lg-conn-pill {
+          background: rgba(15,17,32,.85);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid var(--lg-border2);
+          border-radius: 100px;
+          padding: 8px 16px;
+          display: flex; align-items: center; gap: 8px;
+          cursor: pointer;
+          transition: all .25s ease;
+          box-shadow: 0 8px 24px rgba(0,0,0,.4);
+          animation: lg-fade-in .4s ease 1s both;
+        }
+        .lg-conn-pill:hover {
+          border-color: rgba(123,92,229,.3);
+          background: rgba(20,23,41,.9);
+          box-shadow: 0 10px 30px rgba(0,0,0,.5);
+        }
+        .lg-conn-expanded {
+          border-radius: 16px;
+          padding: 4px;
+        }
+        .lg-conn-expanded .lg-conn-pill {
+          border-radius: 12px;
+          padding: 10px 16px;
+        }
+
+        .lg-headline {
+          font-family: 'Syne', sans-serif;
+          font-size: clamp(34px,5vw,48px);
+          font-weight: 800;
+          letter-spacing: -.03em;
+          text-align: center;
+          line-height: 1.0;
+          margin-bottom: 14px;
+          animation: lg-fade-up .5s ease .2s both;
+          background: linear-gradient(135deg, #F0F2FF 30%, #C4ADFF 60%, #F0F2FF 90%);
+          background-size: 300% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: lg-fade-up .5s ease .2s both, lg-shimmer-move 6s linear 1s infinite;
+        }
+      `}</style>
+
+      {/* ── Full Page Shell ── */}
+      <div style={{
+        position: "fixed", inset: 0, overflow: "hidden",
+        background: "var(--lg-bg)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
+
+        {/* Layer 1 — Deep space radial */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse 120% 100% at 50% 0%, #1A1040 0%, #0D0A24 35%, #06070F 70%)",
+          pointerEvents: "none",
+        }} />
+
+        {/* Layer 2 — Left purple orb */}
+        <div style={{
+          position: "absolute",
+          width: 700, height: 700, borderRadius: "50%",
+          top: -200, left: -200,
+          background: "radial-gradient(circle, rgba(123,92,229,.18) 0%, rgba(123,92,229,.06) 50%, transparent 70%)",
+          filter: "blur(60px)", pointerEvents: "none",
+          animation: "lg-orb-drift-1 18s ease-in-out infinite",
+        }} />
+
+        {/* Layer 3 — Right pink/purple orb */}
+        <div style={{
+          position: "absolute",
+          width: 500, height: 500, borderRadius: "50%",
+          bottom: -100, right: -100,
+          background: "radial-gradient(circle, rgba(236,72,153,.12) 0%, rgba(123,92,229,.08) 40%, transparent 70%)",
+          filter: "blur(50px)", pointerEvents: "none",
+          animation: "lg-orb-drift-2 22s ease-in-out infinite",
+        }} />
+
+        {/* Layer 4 — Centre bloom */}
+        <div style={{
+          position: "absolute",
+          width: 600, height: 400, borderRadius: "50%",
+          top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+          background: "radial-gradient(ellipse, rgba(123,92,229,.1) 0%, transparent 65%)",
+          filter: "blur(40px)", pointerEvents: "none",
+          animation: "lg-orb-drift-3 14s ease-in-out infinite",
+        }} />
+
+        {/* Layer 5 — Star field */}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+          {stars.map((s, i) =>
+            s.isCross ? (
+              <svg
+                key={i}
+                style={{
+                  position: "absolute",
+                  left: `${s.x}%`, top: `${s.y}%`,
+                  width: s.size * 4, height: s.size * 4,
+                  overflow: "visible",
+                  animation: `lg-star-twinkle ${s.dur}s ease-in-out ${s.delay}s infinite`,
+                  opacity: 0,
+                }}
+                viewBox="-4 -4 8 8"
+              >
+                <line x1="0" y1="-3" x2="0" y2="3" stroke="white" strokeWidth=".8" strokeLinecap="round" />
+                <line x1="-3" y1="0" x2="3" y2="0" stroke="white" strokeWidth=".8" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <div key={i} style={{
+                position: "absolute",
+                left: `${s.x}%`, top: `${s.y}%`,
+                width: s.size, height: s.size, borderRadius: "50%",
+                background: "white",
+                animation: `lg-star-twinkle ${s.dur}s ease-in-out ${s.delay}s infinite`,
+                opacity: 0,
+              }} />
+            )
+          )}
+        </div>
+
+        {/* Layer 6 — Faint grid */}
+        <div style={{
+          position: "absolute", inset: 0, opacity: .18, pointerEvents: "none",
+          backgroundImage: "linear-gradient(rgba(123,92,229,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(123,92,229,.08) 1px,transparent 1px)",
+          backgroundSize: "72px 72px",
+          maskImage: "radial-gradient(ellipse 60% 60% at 50% 50%, black 20%, transparent 75%)",
+          WebkitMaskImage: "radial-gradient(ellipse 60% 60% at 50% 50%, black 20%, transparent 75%)",
+        }} />
+
+        {/* ── Sign-In Card ── */}
+        <div style={{
+          position: "relative", zIndex: 10,
+          width: "min(520px, calc(100vw - 48px))",
+          background: "rgba(15,17,32,0.75)",
+          backdropFilter: "blur(32px) saturate(1.4)",
+          WebkitBackdropFilter: "blur(32px) saturate(1.4)",
+          border: "1px solid rgba(255,255,255,.09)",
+          borderRadius: 28,
+          padding: "52px 48px",
+          overflow: "hidden",
+          animation: "lg-scale-in .5s cubic-bezier(.4,0,.2,1) both",
+          boxShadow: "0 40px 100px rgba(0,0,0,.55), 0 0 0 1px rgba(123,92,229,.08), inset 0 1px 0 rgba(255,255,255,.06)",
+        }}>
+          {/* Top shimmer sweep (fires once) */}
+          <div style={{
+            position: "absolute", top: 0, left: 0, right: 0, height: 1,
+            background: "linear-gradient(90deg, transparent 0%, rgba(196,173,255,.6) 50%, transparent 100%)",
+            animation: "lg-shimmer-line 1.2s ease .4s both",
+            pointerEvents: "none",
+          }} />
+
+          {/* Top accent bar */}
+          <div style={{
+            position: "absolute", top: 0, left: "20%", right: "20%", height: 1,
+            background: "linear-gradient(90deg, transparent, rgba(123,92,229,.5), rgba(196,173,255,.7), rgba(123,92,229,.5), transparent)",
+            borderRadius: 1,
+            animation: "lg-pulse-top 4s ease-in-out infinite",
+            pointerEvents: "none",
+          }} />
+
+          {/* Left inner glow */}
+          <div style={{
+            position: "absolute", top: -60, left: -60,
+            width: 250, height: 250, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(123,92,229,.12), transparent 65%)",
+            pointerEvents: "none",
+          }} />
+
+          {/* Bottom-right inner glow */}
+          <div style={{
+            position: "absolute", bottom: -40, right: -40,
+            width: 200, height: 200, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(236,72,153,.08), transparent 65%)",
+            pointerEvents: "none",
+          }} />
+
+          {/* App icon */}
+          <div style={{ textAlign: "center", marginBottom: 28, animation: "lg-fade-up .5s ease .1s both" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <div
+                className="lg-card-icon"
+                style={{
+                  width: 72, height: 72, borderRadius: 22,
+                  background: "linear-gradient(145deg, #7B5CE5 0%, #5B3FBF 40%, #9D3FA8 100%)",
+                  boxShadow: "0 16px 48px rgba(123,92,229,.4), 0 0 0 1px rgba(255,255,255,.12) inset, 0 2px 0 rgba(255,255,255,.2) inset",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Sparkles style={{ width: 32, height: 32, color: "white", filter: "drop-shadow(0 0 8px rgba(255,255,255,.5))" }} />
               </div>
             </div>
           </div>
 
-          {/* Title Section */}
-          <div className="text-center mb-10 animate-fade-in">
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold mb-4">
-              <span className="bg-gradient-to-r from-white via-indigo-200 to-purple-200 bg-clip-text text-transparent drop-shadow-lg inline-block">
-                Welcome Back
-              </span>
-            </h1>
-            <p className="text-white/80 text-lg md:text-xl font-medium leading-relaxed max-w-2xl mx-auto">
-              Sign in to track your progress, earn points, and improve your mental math skills
-            </p>
-          </div>
+          {/* Headline */}
+          <h1 className="lg-headline">Welcome Back</h1>
 
-          {/* Features Icons */}
-          <div className="flex justify-center gap-6 mb-8 opacity-80">
-            <div className="flex flex-col items-center gap-2 group">
-              <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm border border-white/20 group-hover:bg-white/20 transition-all duration-300 group-hover:scale-110">
-                <TrendingUp className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xs text-white/70 font-medium">Progress</span>
-            </div>
-            <div className="flex flex-col items-center gap-2 group">
-              <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm border border-white/20 group-hover:bg-white/20 transition-all duration-300 group-hover:scale-110">
-                <Zap className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xs text-white/70 font-medium">Practice</span>
-            </div>
-            <div className="flex flex-col items-center gap-2 group">
-              <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm border border-white/20 group-hover:bg-white/20 transition-all duration-300 group-hover:scale-110">
-                <Shield className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xs text-white/70 font-medium">Secure</span>
-            </div>
+          {/* Subtitle */}
+          <p style={{
+            fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 300,
+            color: "rgba(184,189,216,0.65)", textAlign: "center", lineHeight: 1.65,
+            maxWidth: 340, margin: "0 auto 32px",
+            animation: "lg-fade-up .5s ease .28s both",
+          }}>
+            Sign in to track your progress, earn points, and improve your mental math skills
+          </p>
+
+          {/* Feature icons */}
+          <div style={{
+            display: "flex", justifyContent: "center", gap: 28,
+            marginBottom: 36, animation: "lg-fade-up .5s ease .35s both",
+            alignItems: "center",
+          }}>
+            {features.map((f, idx) => (
+              <>
+                {idx > 0 && (
+                  <div key={`sep-${idx}`} style={{
+                    width: 1, height: 40,
+                    background: "rgba(255,255,255,0.07)",
+                    alignSelf: "center", flexShrink: 0,
+                  }} />
+                )}
+                <div
+                  key={f.label}
+                  className="lg-feature-item"
+                  style={{
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", gap: 10, width: 76,
+                    animation: `lg-feature-in .4s ease ${idx * 0.08 + 0.4}s both`,
+                    cursor: "default",
+                  }}
+                >
+                  <div
+                    className="lg-feat-box"
+                    style={{
+                      width: 48, height: 48, borderRadius: 15,
+                      background: "rgba(123,92,229,.1)",
+                      border: "1px solid rgba(123,92,229,.2)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      transition: "all .3s ease",
+                    }}
+                  >
+                    <span className="lg-feat-icon" style={{ color: "#9D7FF0", display: "flex" }}>{f.icon}</span>
+                  </div>
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 11, fontWeight: 500,
+                    letterSpacing: ".04em", color: "#525870",
+                    textAlign: "center",
+                  }}>
+                    {f.label}
+                  </span>
+                </div>
+              </>
+            ))}
           </div>
 
           {/* Error Message */}
           {error && (
-            <div className="mb-6 p-4 bg-red-500/20 backdrop-blur-sm border-2 border-red-400/50 rounded-xl text-red-100 text-sm animate-fade-in shadow-lg">
-              <div className="flex items-start gap-2">
-                <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse mt-1.5 flex-shrink-0"></div>
-                <div className="flex-1">
-                  <div className="whitespace-pre-line font-medium">{error}</div>
+            <div style={{
+              marginBottom: 20,
+              padding: "14px 16px",
+              background: "rgba(248,113,113,.1)",
+              border: "1px solid rgba(248,113,113,.3)",
+              borderRadius: 12,
+              animation: "lg-fade-in .3s ease both",
+            }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <div style={{
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: "#f87171", marginTop: 5, flexShrink: 0,
+                  animation: "lg-pulse-top 1s ease infinite",
+                }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    whiteSpace: "pre-line", fontWeight: 500,
+                    color: "#fca5a5", fontSize: 13,
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}>{error}</div>
                   {error.includes('Backend') && (
-                    <div className="mt-3 pt-3 border-t border-red-400/30">
-                      <div className="text-xs text-red-200/80">
-                        💡 Tip: Check the browser console (F12) for detailed error logs
-                      </div>
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(248,113,113,.2)", fontSize: 11, color: "rgba(252,165,165,.7)" }}>
+                      💡 Tip: Check the browser console (F12) for detailed error logs
                     </div>
                   )}
                 </div>
@@ -242,98 +522,107 @@ export default function Login() {
             </div>
           )}
 
-          {/* Google Sign-In Button Container */}
-          <div className="mb-6">
-            <div 
-              ref={buttonRef} 
-              id="google-signin-button" 
-              className="w-full flex justify-center transform transition-all duration-300 hover:scale-[1.02] google-button-wrapper"
-            ></div>
+          {/* Google Sign-In Button */}
+          <div style={{ marginBottom: 20, animation: "lg-fade-up .5s ease .45s both" }}>
+            <div className="lg-google-wrap">
+              <div
+                ref={buttonRef}
+                id="google-signin-button"
+                style={{ width: "100%", display: "flex", justifyContent: "center" }}
+              />
+            </div>
           </div>
-          
+
           {/* Loading State */}
           {loading && (
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 text-white/90 animate-fade-in">
-              <div className="relative">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-300" />
-                <div className="absolute inset-0 bg-indigo-300/20 rounded-full blur-xl animate-pulse"></div>
-              </div>
-              <span className="text-sm font-medium">Signing you in...</span>
-              <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+            <div style={{
+              marginTop: 20, display: "flex", flexDirection: "column",
+              alignItems: "center", gap: 12,
+              animation: "lg-fade-in .3s ease both",
+            }}>
+              <Loader2 style={{ width: 28, height: 28, color: "#9D7FF0", animation: "spin 1s linear infinite" }} />
+              <span style={{ fontSize: 13, color: "rgba(184,189,216,.8)", fontFamily: "'DM Sans', sans-serif" }}>
+                Signing you in…
+              </span>
+              <div style={{ width: 160, height: 3, background: "rgba(255,255,255,.07)", borderRadius: 99, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", width: "60%", borderRadius: 99,
+                  background: "linear-gradient(90deg, #7B5CE5, #9D7FF0, #EC4899)",
+                  animation: "lg-shimmer-move 1.5s linear infinite",
+                }} />
               </div>
             </div>
           )}
 
-          {/* Terms */}
-          <p className="mt-8 text-center text-sm text-white/60 leading-relaxed">
+          {/* Legal */}
+          <p style={{
+            marginTop: 16, textAlign: "center",
+            fontSize: 12, fontWeight: 300,
+            fontFamily: "'DM Sans', sans-serif",
+            color: "rgba(82,88,112,0.7)", lineHeight: 1.6, padding: "0 8px",
+            animation: "lg-fade-up .5s ease .5s both",
+          }}>
             By signing in, you agree to track your practice progress and earn points
           </p>
         </div>
 
-        {/* Backend Test - Collapsible in Corner */}
-        <div className="fixed bottom-4 right-4 z-50">
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl overflow-hidden">
+        {/* ── Connection Status Widget ── */}
+        <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 200 }}>
+          <div className={showBackendTest ? "lg-conn-expanded" : ""} style={{
+            background: "rgba(15,17,32,.85)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255,255,255,.12)",
+            borderRadius: showBackendTest ? 20 : 100,
+            boxShadow: "0 8px 24px rgba(0,0,0,.4)",
+            overflow: "hidden",
+            animation: "lg-fade-in .4s ease 1s both",
+            transition: "border-radius .25s ease",
+          }}>
             <button
               onClick={() => setShowBackendTest(!showBackendTest)}
-              className="w-full px-4 py-3 flex items-center justify-between gap-2 text-white/90 hover:bg-white/10 transition-all duration-300 group"
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                gap: 8, padding: "8px 16px", cursor: "pointer",
+                background: "transparent", border: "none",
+                transition: "background .25s ease",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(123,92,229,.08)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
             >
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-indigo-300 group-hover:text-indigo-200 transition-colors" />
-                <span className="text-sm font-medium">Connection Status</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Activity style={{ width: 14, height: 14, color: "#9D7FF0" }} />
+                <span style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 12, fontWeight: 600,
+                  color: "#B8BDD8", letterSpacing: ".04em",
+                }}>
+                  Connection Status
+                </span>
               </div>
-              {showBackendTest ? (
-                <ChevronDown className="w-4 h-4 transition-transform duration-300 rotate-180" />
-              ) : (
-                <ChevronDown className="w-4 h-4 transition-transform duration-300" />
-              )}
+              <ChevronDown style={{
+                width: 14, height: 14, color: "#525870",
+                transition: "transform .25s ease",
+                transform: showBackendTest ? "rotate(180deg)" : "none",
+              }} />
             </button>
+
             {showBackendTest && (
-              <div className="border-t border-white/20 p-4 max-w-sm animate-fade-in">
+              <div style={{
+                borderTop: "1px solid rgba(255,255,255,.07)",
+                padding: 16, maxWidth: 320,
+                animation: "lg-fade-in .2s ease both",
+              }}>
                 <BackendTest />
               </div>
             )}
           </div>
         </div>
-      </div>
 
-      <style>{`
-        @keyframes float {
-          0%, 100% {
-            transform: translateY(0px) translateX(0px);
-            opacity: 0.4;
-          }
-          50% {
-            transform: translateY(-20px) translateX(10px);
-            opacity: 0.8;
-          }
-        }
-        
-        /* Custom Google Button Styling */
-        .google-button-wrapper iframe {
-          border-radius: 12px !important;
-          overflow: hidden !important;
-        }
-        
-        .google-button-wrapper div[role="button"] {
-          background: rgba(255, 255, 255, 0.1) !important;
-          backdrop-filter: blur(10px) !important;
-          border: 1px solid rgba(255, 255, 255, 0.3) !important;
-          border-radius: 12px !important;
-          transition: all 0.3s ease !important;
-        }
-        
-        .google-button-wrapper div[role="button"]:hover {
-          background: rgba(255, 255, 255, 0.2) !important;
-          border-color: rgba(255, 255, 255, 0.5) !important;
-          transform: scale(1.02) !important;
-        }
-        
-        /* Override Google's white background */
-        .google-button-wrapper iframe[src*="accounts.google.com"] {
-          background: transparent !important;
-        }
-      `}</style>
-    </div>
+        <style>{`
+          @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        `}</style>
+      </div>
+    </>
   );
 }

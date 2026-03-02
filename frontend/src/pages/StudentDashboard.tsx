@@ -7,7 +7,6 @@ import { Trophy, Target, Zap, CheckCircle2, XCircle, BarChart3, History, X, Eye,
 import { Link, useLocation } from "wouter";
 import { formatDateToIST } from "../lib/timezoneUtils";
 import MathQuestion from "../components/MathQuestion";
-import Skeleton from "../components/Skeleton";
 
 type SessionFilter = "overall" | "mental_math" | "practice_paper" | "burst_mode";
 
@@ -249,20 +248,20 @@ export default function StudentDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-        <div className="container mx-auto pt-32 pb-20 px-6">
-          <div className="mb-10 space-y-4">
-            <Skeleton className="h-10 w-72" />
-            <Skeleton className="h-5 w-96" />
+      <div style={{minHeight:"100vh",background:"#0c0e1a",paddingTop:"8rem",paddingBottom:"5rem",padding:"8rem 1.5rem 5rem"}}>
+        <div style={{maxWidth:"1280px",margin:"0 auto"}}>
+          <div style={{marginBottom:"2.5rem",display:"flex",flexDirection:"column",gap:"0.75rem"}}>
+            <div style={{height:"2.5rem",width:"18rem",background:"#1a1d30",borderRadius:"0.75rem",animation:"pulse 1.5s ease-in-out infinite"}} />
+            <div style={{height:"1.25rem",width:"24rem",background:"#1a1d30",borderRadius:"0.75rem",animation:"pulse 1.5s ease-in-out infinite"}} />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton key={`stats-skeleton-${index}`} className="h-32 rounded-[2.5rem]" />
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1.5rem",marginBottom:"3rem"}}>
+            {Array.from({length:4}).map((_,i)=>(
+              <div key={`stats-skeleton-${i}`} style={{height:"9rem",background:"#131629",borderRadius:"1.5rem",animation:"pulse 1.5s ease-in-out infinite",animationDelay:`${i*0.1}s`}} />
             ))}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={`panel-skeleton-${index}`} className="h-48 rounded-[2.5rem]" />
+          <div style={{display:"grid",gridTemplateColumns:"8fr 4fr",gap:"2rem"}}>
+            {Array.from({length:2}).map((_,i)=>(
+              <div key={`panel-skeleton-${i}`} style={{height:"14rem",background:"#131629",borderRadius:"1.5rem",animation:"pulse 1.5s ease-in-out infinite",animationDelay:`${i*0.15}s`}} />
             ))}
           </div>
         </div>
@@ -272,13 +271,16 @@ export default function StudentDashboard() {
 
   if (!stats) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-xl text-red-400 mb-4">Failed to load dashboard</div>
-          <p className="text-white mb-4">Please check your connection and try again.</p>
+      <div style={{minHeight:"100vh",background:"#0c0e1a",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{textAlign:"center",padding:"2rem"}}>
+          <div style={{width:"4rem",height:"4rem",background:"rgba(239,68,68,0.1)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 1rem",border:"2px solid rgba(239,68,68,0.3)"}}>
+            <span style={{fontSize:"1.5rem"}}>⚠</span>
+          </div>
+          <div style={{fontSize:"1.25rem",color:"#f87171",fontWeight:800,marginBottom:"0.75rem",fontFamily:"'Playfair Display',Georgia,serif"}}>Failed to load dashboard</div>
+          <p style={{color:"#94a3b8",marginBottom:"1.5rem",fontSize:"0.875rem"}}>Please check your connection and try again.</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
+            style={{padding:"0.625rem 1.5rem",background:"#7c5af6",color:"#fff",border:"none",borderRadius:"0.75rem",fontWeight:700,cursor:"pointer",fontSize:"0.875rem"}}
           >
             Retry
           </button>
@@ -450,31 +452,71 @@ export default function StudentDashboard() {
 
   const displaySessions = showAllSessions ? filteredSessions : filteredSessions.slice(0, 5);
 
+  const DB = {
+    bg: "#0c0e1a",
+    surf: "#131629",
+    surf2: "#181b2e",
+    border: "rgba(255,255,255,0.07)",
+    purple: "#7c5af6",
+    purpleDim: "rgba(124,90,246,0.13)",
+    gold: "#f59e0b",
+    goldDim: "rgba(245,158,11,0.13)",
+    green: "#22c55e",
+    greenDim: "rgba(34,197,94,0.13)",
+    burst: "#f97316",
+    burstDim: "rgba(249,115,22,0.13)",
+    teal: "#14b8a6",
+    tealDim: "rgba(20,184,166,0.13)",
+    text: "#e2e8f0",
+    muted: "#64748b",
+    font: "'Playfair Display',Georgia,serif",
+  };
+
   return (
-    <div className="min-h-screen bg-background pt-32 pb-20 px-6 transition-colors duration-300">
-      <div className="container mx-auto">
+    <div style={{minHeight:"100vh",background:DB.bg,paddingTop:"8rem",paddingBottom:"5rem"}}>
+      <style>{`
+        @keyframes db-fade-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes db-count-up{from{opacity:0;transform:scale(0.8)}to{opacity:1;transform:scale(1)}}
+        @keyframes db-pulse-ring{0%,100%{box-shadow:0 0 0 0 rgba(124,90,246,0.5)}50%{box-shadow:0 0 0 8px rgba(124,90,246,0)}}
+        @keyframes db-slide-row{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes db-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        .db-stat-card{transition:transform 0.2s,box-shadow 0.2s}
+        .db-stat-card:hover{transform:translateY(-3px);box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+        .db-sess-row{transition:background 0.15s,border-color 0.15s}
+        .db-sess-row:hover{background:rgba(255,255,255,0.04)!important;border-color:rgba(124,90,246,0.35)!important}
+        .db-scrollbar::-webkit-scrollbar{width:4px}
+        .db-scrollbar::-webkit-scrollbar-track{background:transparent}
+        .db-scrollbar::-webkit-scrollbar-thumb{background:rgba(124,90,246,0.4);border-radius:2px}
+        .db-btn-icon{transition:transform 0.15s,background 0.15s}
+        .db-btn-icon:hover{transform:scale(1.12)}
+      `}</style>
+      <div style={{maxWidth:"1280px",margin:"0 auto",padding:"0 1.5rem"}}>
         {/* Page Header */}
-        <header className="mb-12">
-          <h1 className="text-5xl font-black tracking-tighter uppercase italic text-foreground mb-2">
-            Welcome Back, {user?.display_name || user?.name}!
+        <header style={{marginBottom:"3rem",animation:"db-fade-up 0.5s ease both"}}>
+          <h1 style={{fontFamily:DB.font,fontSize:"clamp(2rem,4vw,3.25rem)",fontWeight:900,color:DB.text,marginBottom:"0.5rem",lineHeight:1.1}}>
+            Welcome Back,{" "}
+            <span style={{background:"linear-gradient(120deg,#7c5af6,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+              {user?.display_name || user?.name}
+            </span>!
           </h1>
-          <p className="text-muted-foreground text-lg font-medium">
+          <p style={{color:DB.muted,fontSize:"1rem",fontWeight:500,marginBottom:"1rem"}}>
             Track your progress and compete with others
           </p>
-          <div className="mt-4">
+          <div>
             <Link href="/attendance">
-              <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-4 py-2 rounded-full transition-colors cursor-pointer border border-primary/20">
-                <Calendar className="w-4 h-4" />📅 My Attendance
+              <span style={{display:"inline-flex",alignItems:"center",gap:"0.5rem",fontSize:"0.8125rem",fontWeight:700,color:DB.purple,background:DB.purpleDim,padding:"0.5rem 1rem",borderRadius:"9999px",cursor:"pointer",border:`1px solid rgba(124,90,246,0.25)`,transition:"background 0.15s"}}>
+                <Calendar style={{width:"0.875rem",height:"0.875rem"}} /> My Attendance
               </span>
             </Link>
           </div>
         </header>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1.5rem",marginBottom:"3rem"}}>
           {/* Total Points */}
-          <div 
-            className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl hover:border-primary transition-all group cursor-pointer"
+          <div
+            className="db-stat-card"
+            style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",padding:"1.75rem",cursor:"pointer",position:"relative",overflow:"hidden",animation:"db-fade-up 0.5s ease 0.05s both",borderTop:`3px solid ${DB.gold}`}}
             onClick={async () => {
               setShowPointsLog(true);
               setLoadingPointsLog(true);
@@ -488,151 +530,119 @@ export default function StudentDashboard() {
               }
             }}
           >
-            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-all duration-300">
-              <Trophy className="w-6 h-6 text-primary" />
+            <div style={{width:"2.5rem",height:"2.5rem",background:DB.goldDim,borderRadius:"0.75rem",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:"1.25rem",border:`1px solid rgba(245,158,11,0.25)`}}>
+              <Trophy style={{width:"1.25rem",height:"1.25rem",color:DB.gold}} />
             </div>
-            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Total Points</div>
-            <div className="text-3xl font-black italic text-card-foreground">{stats.total_points.toLocaleString()}</div>
-            <div className="text-xs text-muted-foreground mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to view log</div>
+            <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>Total Points</div>
+            <div style={{fontSize:"1.75rem",fontWeight:900,color:DB.gold,fontFamily:DB.font,animation:"db-count-up 0.5s ease 0.1s both"}}>{stats.total_points.toLocaleString()}</div>
+            <div style={{fontSize:"0.7rem",color:DB.muted,marginTop:"0.5rem"}}>Click to view log</div>
           </div>
 
           {/* Overall Accuracy */}
-          <div className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl hover:border-primary transition-all group">
-            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-all duration-300">
-              <Target className="w-6 h-6 text-primary" />
+          <div className="db-stat-card" style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",padding:"1.75rem",position:"relative",overflow:"hidden",animation:"db-fade-up 0.5s ease 0.1s both",borderTop:`3px solid ${DB.purple}`}}>
+            <div style={{width:"2.5rem",height:"2.5rem",background:DB.purpleDim,borderRadius:"0.75rem",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:"1.25rem",border:`1px solid rgba(124,90,246,0.25)`}}>
+              <Target style={{width:"1.25rem",height:"1.25rem",color:DB.purple}} />
             </div>
-            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Overall Accuracy</div>
-            <div className="text-3xl font-black italic text-card-foreground">{stats.overall_accuracy.toFixed(1)}%</div>
+            <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>Overall Accuracy</div>
+            <div style={{fontSize:"1.75rem",fontWeight:900,color:DB.purple,fontFamily:DB.font,animation:"db-count-up 0.5s ease 0.15s both"}}>{stats.overall_accuracy.toFixed(1)}%</div>
           </div>
 
           {/* Total Questions */}
-          <div className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl hover:border-primary transition-all group">
-            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-all duration-300">
-              <Zap className="w-6 h-6 text-primary" />
+          <div className="db-stat-card" style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",padding:"1.75rem",position:"relative",overflow:"hidden",animation:"db-fade-up 0.5s ease 0.15s both",borderTop:`3px solid ${DB.teal}`}}>
+            <div style={{width:"2.5rem",height:"2.5rem",background:DB.tealDim,borderRadius:"0.75rem",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:"1.25rem",border:`1px solid rgba(20,184,166,0.25)`}}>
+              <Zap style={{width:"1.25rem",height:"1.25rem",color:DB.teal}} />
             </div>
-            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Total Questions</div>
-            <div className="text-3xl font-black italic text-card-foreground">{(stats.total_questions || 0).toLocaleString()}</div>
+            <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>Total Questions</div>
+            <div style={{fontSize:"1.75rem",fontWeight:900,color:DB.teal,fontFamily:DB.font,animation:"db-count-up 0.5s ease 0.2s both"}}>{(stats.total_questions || 0).toLocaleString()}</div>
           </div>
 
           {/* Total Sessions */}
-          <div className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl hover:border-primary transition-all group">
-            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-all duration-300">
-              <BarChart3 className="w-6 h-6 text-primary" />
+          <div className="db-stat-card" style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",padding:"1.75rem",position:"relative",overflow:"hidden",animation:"db-fade-up 0.5s ease 0.2s both",borderTop:`3px solid ${DB.green}`}}>
+            <div style={{width:"2.5rem",height:"2.5rem",background:DB.greenDim,borderRadius:"0.75rem",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:"1.25rem",border:`1px solid rgba(34,197,94,0.25)`}}>
+              <BarChart3 style={{width:"1.25rem",height:"1.25rem",color:DB.green}} />
             </div>
-            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Practice Sessions</div>
-            <div className="text-3xl font-black italic text-card-foreground">{stats.total_sessions}</div>
+            <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>Practice Sessions</div>
+            <div style={{fontSize:"1.75rem",fontWeight:900,color:DB.green,fontFamily:DB.font,animation:"db-count-up 0.5s ease 0.25s both"}}>{stats.total_sessions}</div>
           </div>
         </div>
 
         {/* Content Grid */}
-        <div className="grid lg:grid-cols-12 gap-12">
+        <div style={{display:"grid",gridTemplateColumns:"8fr 4fr",gap:"2rem"}}>
           {/* Main Content */}
-          <div className="lg:col-span-8 space-y-12">
+          <div style={{display:"flex",flexDirection:"column",gap:"2rem"}}>
             {/* Recent Practice Sessions */}
-            <div className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-3xl font-black tracking-tighter uppercase italic text-card-foreground flex items-center gap-3">
-                  <History className="w-8 h-8 text-primary" />
+            <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",padding:"2rem",animation:"db-fade-up 0.5s ease 0.25s both"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.5rem",flexWrap:"wrap",gap:"1rem"}}>
+                <h2 style={{fontFamily:DB.font,fontSize:"1.5rem",fontWeight:900,color:DB.text,display:"flex",alignItems:"center",gap:"0.75rem"}}>
+                  <History style={{width:"1.5rem",height:"1.5rem",color:DB.purple}} />
                   Recent Practice Sessions
                 </h2>
                 {/* Filter Buttons */}
-                <div className="flex gap-2 bg-secondary/50 backdrop-blur-md p-1.5 rounded-full border border-border/50">
-                  <button
-                    onClick={() => setSessionFilter("overall")}
-                    className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
-                      sessionFilter === "overall"
-                        ? "bg-primary text-primary-foreground shadow-lg"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setSessionFilter("mental_math")}
-                    className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
-                      sessionFilter === "mental_math"
-                        ? "bg-primary text-primary-foreground shadow-lg"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Mental Math
-                  </button>
-                  <button
-                    onClick={() => setSessionFilter("practice_paper")}
-                    className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
-                      sessionFilter === "practice_paper"
-                        ? "bg-primary text-primary-foreground shadow-lg"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Practice Papers
-                  </button>
-                  <button
-                    onClick={() => setSessionFilter("burst_mode")}
-                    className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
-                      sessionFilter === "burst_mode"
-                        ? "bg-amber-500 text-white shadow-lg shadow-amber-500/25"
-                        : "text-muted-foreground hover:text-amber-400"
-                    }`}
-                  >
-                    ⚡ Burst Mode
-                  </button>
+                <div style={{display:"flex",gap:"0.25rem",background:"rgba(255,255,255,0.04)",padding:"0.25rem",borderRadius:"9999px",border:`1px solid ${DB.border}`}}>
+                  {([
+                    {key:"overall",label:"All",color:DB.purple},
+                    {key:"mental_math",label:"Mental Math",color:DB.purple},
+                    {key:"practice_paper",label:"Papers",color:DB.teal},
+                    {key:"burst_mode",label:"⚡ Burst",color:DB.burst},
+                  ] as const).map(({key,label,color})=>(
+                    <button
+                      key={key}
+                      onClick={() => setSessionFilter(key)}
+                      style={{padding:"0.375rem 0.875rem",borderRadius:"9999px",fontSize:"0.75rem",fontWeight:700,border:"none",cursor:"pointer",transition:"all 0.15s",background:sessionFilter===key?color:"transparent",color:sessionFilter===key?"#fff":DB.muted}}
+                    >{label}</button>
+                  ))}
                 </div>
               </div>
-              <div className="mb-6 p-4 bg-primary/5 rounded-2xl border border-primary/20">
-            <p className="text-sm text-primary font-bold">
-              ℹ️ <strong>Note:</strong> Only your last 10 mental math practice sessions and 10 practice paper attempts are stored and displayed. Older sessions are automatically removed to optimize storage.
-            </p>
-          </div>
+              <div style={{marginBottom:"1.5rem",padding:"0.875rem 1rem",background:DB.purpleDim,borderRadius:"0.875rem",border:`1px solid rgba(124,90,246,0.2)`}}>
+                <p style={{fontSize:"0.8rem",color:DB.purple,fontWeight:600}}>
+                  <strong>Note:</strong> Only your last 10 mental math practice sessions and 10 practice paper attempts are stored. Older sessions are automatically removed to optimize storage.
+                </p>
+              </div>
           {filteredSessions.length > 0 ? (
             <>
-              <div className="space-y-4">
-                {displaySessions.map((session) => (
-                <div
-                  key={`${session.type}-${session.id}`}
-                  className="bg-card border border-border rounded-2xl p-6 shadow-xl hover:border-primary transition-all cursor-pointer group"
-                  onClick={() => {
-                    if (session.type === "mental_math" || session.type === "burst_mode") {
-                      setExpandedSession(expandedSession === session.id ? null : session.id);
-                    } else {
-                      setSelectedPaperAttempt(selectedPaperAttempt?.id === session.id ? null : paperAttempts.find(p => p.id === session.id) || null);
-                    }
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className="font-bold text-card-foreground text-lg">{session.title}</span>
-                        <span className={session.type === "burst_mode" ? "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20" : session.type === "mental_math" ? "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-primary/10 text-primary border border-primary/20" : "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-accent text-accent-foreground border border-accent"}>
+              <div style={{display:"flex",flexDirection:"column",gap:"0.625rem"}}>
+                {displaySessions.map((session,rowIdx) => {
+                  const typeColor = session.type==="burst_mode"?DB.burst:session.type==="mental_math"?DB.purple:DB.teal;
+                  const typeBadge = session.type==="burst_mode"?"⚡ Burst Mode":session.type==="mental_math"?"Mental Math":"Practice Paper";
+                  return (
+                  <div
+                    key={`${session.type}-${session.id}`}
+                    className="db-sess-row"
+                    style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"1rem",padding:"1rem 1.25rem",cursor:"pointer",display:"flex",alignItems:"center",gap:"1rem",animation:`db-slide-row 0.3s ease ${rowIdx*0.05}s both`,borderLeft:`3px solid ${typeColor}`}}
+                    onClick={() => {
+                      if (session.type === "mental_math" || session.type === "burst_mode") {
+                        setExpandedSession(expandedSession === session.id ? null : session.id);
+                      } else {
+                        setSelectedPaperAttempt(selectedPaperAttempt?.id === session.id ? null : paperAttempts.find(p => p.id === session.id) || null);
+                      }
+                    }}
+                  >
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginBottom:"0.375rem",flexWrap:"wrap"}}>
+                        <span style={{fontWeight:700,color:DB.text,fontSize:"0.9rem",whiteSpace:"nowrap"}}>{session.title}</span>
+                        <span style={{padding:"0.2rem 0.625rem",fontSize:"0.65rem",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.05em",borderRadius:"9999px",background:`rgba(${session.type==="burst_mode"?"249,115,22":session.type==="mental_math"?"124,90,246":"20,184,166"},0.15)`,color:typeColor,border:`1px solid ${typeColor}40`}}>
                           {session.subtitle}
                         </span>
-                        <span className={session.type === "burst_mode" ? "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-amber-500 text-white" : session.type === "mental_math" ? "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-secondary text-secondary-foreground" : "px-3 py-1 text-xs font-black uppercase tracking-widest rounded-full bg-primary text-primary-foreground"}>
-                          {session.type === "burst_mode" ? "⚡ Burst Mode" : session.type === "mental_math" ? "Mental Math" : "Practice Paper"}
+                        <span style={{padding:"0.2rem 0.625rem",fontSize:"0.65rem",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.05em",borderRadius:"9999px",background:typeColor,color:"#fff"}}>
+                          {typeBadge}
                         </span>
                       </div>
-                      <div className="flex items-center gap-6 text-sm flex-wrap">
-                        <span className="text-muted-foreground font-medium">
-                          Score: <span className="font-bold text-primary">{session.score ?? session.correct_answers}</span>/{session.total_questions ?? (session.correct_answers + session.wrong_answers)}
-                        </span>
-                        <span className="text-muted-foreground font-medium">
-                          Accuracy: <span className="font-bold text-primary">{session.accuracy.toFixed(1)}%</span>
-                        </span>
+                      <div style={{display:"flex",alignItems:"center",gap:"1rem",fontSize:"0.8rem",flexWrap:"wrap"}}>
+                        <span style={{color:DB.muted}}>Score: <strong style={{color:typeColor}}>{session.score ?? session.correct_answers}</strong>/{session.total_questions ?? (session.correct_answers + session.wrong_answers)}</span>
+                        <span style={{color:DB.muted}}>Accuracy: <strong style={{color:typeColor}}>{session.accuracy.toFixed(1)}%</strong></span>
                         {session.time_taken !== null && session.time_taken !== undefined && (
-                          <span className="text-muted-foreground font-medium">
-                            Duration: <span className="font-bold">{formatTime(session.time_taken)}</span>
-                          </span>
+                          <span style={{color:DB.muted}}>Duration: <strong style={{color:DB.text}}>{formatTime(session.time_taken)}</strong></span>
                         )}
-                        <span className="text-muted-foreground font-medium">
-                          Points: <span className="font-bold text-primary">+{session.points_earned}</span>
-                        </span>
-                        <span className="text-muted-foreground font-medium">
-                          <Clock className="w-4 h-4 inline mr-1" />
+                        <span style={{color:DB.muted}}>Points: <strong style={{color:DB.gold}}>+{session.points_earned}</strong></span>
+                        <span style={{color:DB.muted,display:"flex",alignItems:"center",gap:"0.25rem"}}>
+                          <Clock style={{width:"0.75rem",height:"0.75rem"}} />
                           {formatDateToIST(session.completed_at || session.started_at)}
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-4">
+                    <div style={{display:"flex",alignItems:"center",gap:"0.5rem",flexShrink:0}}>
                       <button
+                        className="db-btn-icon"
                         onClick={async (e) => {
                           e.stopPropagation();
                           if (session.type === "mental_math" || session.type === "burst_mode") {
@@ -646,7 +656,6 @@ export default function StudentDashboard() {
                               const attempt = paperAttempts.find(p => p.id === attemptId);
                               if (attempt) {
                                 setSelectedPaperAttempt(attempt);
-                                // Fetch full detail with all questions
                                 setLoadingPaperDetail(true);
                                 try {
                                   const detail = await getPaperAttempt(attemptId);
@@ -661,66 +670,59 @@ export default function StudentDashboard() {
                             }
                           }
                         }}
-                        className="group relative p-3 bg-primary/10 hover:bg-primary/20 rounded-xl transition-all duration-300 hover:scale-110 hover:shadow-lg border border-primary/20 hover:border-primary/40"
+                        style={{padding:"0.5rem",background:DB.purpleDim,border:`1px solid rgba(124,90,246,0.25)`,borderRadius:"0.625rem",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
                         title="View Details"
                       >
-                        <Eye className="w-5 h-5 text-primary group-hover:scale-110 transition-transform duration-300 group-hover:animate-pulse" />
+                        <Eye style={{width:"1rem",height:"1rem",color:DB.purple}} />
                       </button>
                       {session.type === "practice_paper" && session.completed_at && (
                         <button
+                          className="db-btn-icon"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleReAttempt(session.id);
                           }}
                           disabled={reAttempting === session.id || (session.seed !== undefined && session.seed !== null && attemptCounts[`${session.seed}_${session.paper_title}`]?.can_reattempt === false)}
-                          className="group relative p-3 bg-accent/10 hover:bg-accent/20 rounded-xl transition-all duration-300 hover:scale-110 hover:shadow-lg border border-accent/20 hover:border-accent/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                          style={{padding:"0.5rem",background:DB.tealDim,border:`1px solid rgba(20,184,166,0.25)`,borderRadius:"0.625rem",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",opacity:reAttempting===session.id?0.5:1}}
                           title={reAttempting === session.id ? "Starting..." : "Re-attempt"}
                         >
-                          <RotateCcw className={`w-5 h-5 text-accent-foreground group-hover:scale-110 transition-transform duration-300 ${reAttempting === session.id ? "animate-spin" : "group-hover:rotate-180"}`} />
+                          <RotateCcw style={{width:"1rem",height:"1rem",color:DB.teal}} className={reAttempting === session.id ? "animate-spin" : ""} />
                         </button>
                       )}
                     </div>
                   </div>
-                </div>
-                ))}
+                  );
+                })}
               </div>
               {filteredSessions.length > 5 && (
                 <button
                   onClick={() => setShowAllSessions(!showAllSessions)}
-                  className="w-full group inline-flex items-center justify-center px-8 py-4 text-lg font-black uppercase tracking-widest text-primary-foreground bg-primary rounded-full shadow-2xl hover:scale-105 transition-all"
+                  style={{width:"100%",marginTop:"1rem",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:"0.5rem",padding:"0.875rem",fontSize:"0.875rem",fontWeight:700,color:DB.purple,background:DB.purpleDim,border:`1px solid rgba(124,90,246,0.25)`,borderRadius:"0.875rem",cursor:"pointer",transition:"all 0.15s"}}
                 >
                   {showAllSessions ? (
-                    <>
-                      <ChevronUp className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-                      Show Less
-                    </>
+                    <><ChevronUp style={{width:"1rem",height:"1rem"}} />Show Less</>
                   ) : (
-                    <>
-                      <ChevronDown className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-                      Show All ({filteredSessions.length} sessions)
-                    </>
+                    <><ChevronDown style={{width:"1rem",height:"1rem"}} />Show All ({filteredSessions.length} sessions)</>
                   )}
                 </button>
               )}
             </>
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <History className="w-12 h-12 mx-auto mb-4 text-muted" />
-              <p className="text-lg">No {sessionFilter === "overall" ? "" : sessionFilter === "mental_math" ? "mental math " : "practice paper "}practice sessions yet</p>
-              <p className="text-sm mt-2">Start practicing to see your progress here!</p>
-              <div className="flex gap-3 justify-center mt-4">
+            <div style={{textAlign:"center",padding:"3rem 1rem"}}>
+              <div style={{width:"3.5rem",height:"3.5rem",background:DB.purpleDim,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 1rem",animation:"db-float 3s ease-in-out infinite"}}>
+                <History style={{width:"1.5rem",height:"1.5rem",color:DB.purple}} />
+              </div>
+              <p style={{fontSize:"1rem",fontWeight:700,color:DB.text,marginBottom:"0.25rem"}}>No {sessionFilter === "overall" ? "" : sessionFilter === "mental_math" ? "mental math " : "practice paper "}sessions yet</p>
+              <p style={{fontSize:"0.8rem",color:DB.muted,marginBottom:"1rem"}}>Start practicing to see your progress here!</p>
+              <div style={{display:"flex",gap:"0.75rem",justifyContent:"center"}}>
                 {sessionFilter !== "practice_paper" && (
                   <Link href="/mental">
-                    <button className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:scale-105 transition-all shadow-lg">
-                      Start Mental Math
-                    </button>
+                    <button style={{padding:"0.625rem 1.25rem",background:DB.purple,color:"#fff",border:"none",borderRadius:"0.75rem",fontWeight:700,cursor:"pointer",fontSize:"0.875rem"}}>Start Mental Math</button>
                   </Link>
                 )}
                 {sessionFilter !== "mental_math" && (
                   <Link href="/create">
-                    <button className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:scale-105 transition-all shadow-lg">
-                      Create Practice Paper
-                    </button>
+                    <button style={{padding:"0.625rem 1.25rem",background:DB.teal,color:"#fff",border:"none",borderRadius:"0.75rem",fontWeight:700,cursor:"pointer",fontSize:"0.875rem"}}>Create Practice Paper</button>
                   </Link>
                 )}
               </div>
@@ -730,81 +732,66 @@ export default function StudentDashboard() {
           </div>
 
         {/* Sidebar */}
-        <div className="lg:col-span-4 space-y-8">
+        <div style={{display:"flex",flexDirection:"column",gap:"1.5rem"}}>
           {/* Quick Stats */}
-          <div className="bg-card border border-border rounded-[2.5rem] p-8 shadow-xl">
-            <h2 className="text-2xl font-black tracking-tighter uppercase italic text-card-foreground mb-6">
-              Quick Stats
-            </h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-muted-foreground">Total Questions</span>
-                <span className="font-black text-card-foreground">{stats.total_questions}</span>
+          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",padding:"1.75rem",animation:"db-fade-up 0.5s ease 0.3s both"}}>
+            <h2 style={{fontFamily:DB.font,fontSize:"1.125rem",fontWeight:900,color:DB.text,marginBottom:"1.25rem"}}>Quick Stats</h2>
+            <div style={{display:"flex",flexDirection:"column",gap:"0.875rem"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:"0.8rem",fontWeight:700,color:DB.muted}}>Total Questions</span>
+                <span style={{fontWeight:900,color:DB.text}}>{stats.total_questions}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-muted-foreground">Correct</span>
-                <span className="font-black text-green-600 flex items-center gap-1">
-                  <CheckCircle2 className="w-4 h-4" />
-                  {stats.total_correct}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:"0.8rem",fontWeight:700,color:DB.muted}}>Correct</span>
+                <span style={{fontWeight:900,color:DB.green,display:"flex",alignItems:"center",gap:"0.25rem"}}>
+                  <CheckCircle2 style={{width:"0.875rem",height:"0.875rem"}} />{stats.total_correct}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-muted-foreground">Wrong</span>
-                <span className="font-black text-red-600 flex items-center gap-1">
-                  <XCircle className="w-4 h-4" />
-                  {stats.total_wrong}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:"0.8rem",fontWeight:700,color:DB.muted}}>Wrong</span>
+                <span style={{fontWeight:900,color:"#f87171",display:"flex",alignItems:"center",gap:"0.25rem"}}>
+                  <XCircle style={{width:"0.875rem",height:"0.875rem"}} />{stats.total_wrong}
                 </span>
               </div>
-
             </div>
           </div>
 
           {/* Practice Button */}
           <Link href="/mental">
-            <button className="w-full group inline-flex items-center justify-center px-8 py-4 text-lg font-black uppercase tracking-widest text-primary-foreground bg-primary rounded-full shadow-2xl hover:scale-105 transition-all">
-              <Zap className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+            <button
+              className="db-btn-icon"
+              style={{width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:"0.5rem",padding:"1rem",fontSize:"0.9375rem",fontWeight:900,color:"#fff",background:"linear-gradient(135deg,#7c5af6,#a78bfa)",border:"none",borderRadius:"1rem",cursor:"pointer",letterSpacing:"0.05em",textTransform:"uppercase",animation:"db-pulse-ring 2.5s ease-in-out infinite"}}
+            >
+              <Zap style={{width:"1.125rem",height:"1.125rem"}} />
               Start Practice
             </button>
           </Link>
 
           {/* ─── Leaderboard ─────────────────────────────────────────────── */}
-          <div className="bg-card border border-border rounded-[2.5rem] overflow-hidden shadow-xl">
+          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",overflow:"hidden",animation:"db-fade-up 0.5s ease 0.35s both"}}>
             {/* Header */}
-            <div className="px-6 pt-6 pb-0 flex items-center justify-between mb-4">
-              <h2 className="text-xl font-black tracking-tight text-card-foreground flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-amber-500" />
+            <div style={{padding:"1.25rem 1.5rem 0",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
+              <h2 style={{fontFamily:DB.font,fontSize:"1rem",fontWeight:900,color:DB.text,display:"flex",alignItems:"center",gap:"0.5rem"}}>
+                <Trophy style={{width:"1rem",height:"1rem",color:DB.gold}} />
                 Leaderboard
               </h2>
-              <div className="flex items-center gap-1.5">
-                {/* Tab pills */}
-                <div className="flex bg-background border border-border rounded-xl p-0.5 gap-0.5">
+              <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
+                <div style={{display:"flex",background:"rgba(255,255,255,0.04)",border:`1px solid ${DB.border}`,borderRadius:"0.625rem",padding:"0.2rem",gap:"0.15rem"}}>
                   <button
                     onClick={() => setLbTab("overall")}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      lbTab === "overall"
-                        ? "bg-primary text-primary-foreground shadow"
-                        : "text-muted-foreground hover:text-card-foreground"
-                    }`}
-                  >
-                    Overall
-                  </button>
+                    style={{padding:"0.25rem 0.625rem",borderRadius:"0.4rem",fontSize:"0.7rem",fontWeight:700,border:"none",cursor:"pointer",background:lbTab==="overall"?DB.purple:"transparent",color:lbTab==="overall"?"#fff":DB.muted,transition:"all 0.15s"}}
+                  >Overall</button>
                   <button
                     onClick={() => setLbTab("weekly")}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      lbTab === "weekly"
-                        ? "bg-primary text-primary-foreground shadow"
-                        : "text-muted-foreground hover:text-card-foreground"
-                    }`}
-                  >
-                    This Week
-                  </button>
+                    style={{padding:"0.25rem 0.625rem",borderRadius:"0.4rem",fontSize:"0.7rem",fontWeight:700,border:"none",cursor:"pointer",background:lbTab==="weekly"?DB.purple:"transparent",color:lbTab==="weekly"?"#fff":DB.muted,transition:"all 0.15s"}}
+                  >This Week</button>
                 </div>
                 <button
                   onClick={() => lbTab === "overall" ? refetchOverallLb() : refetchWeeklyLb()}
-                  className="p-1.5 rounded-lg border border-border hover:bg-primary/10 hover:border-primary transition-all"
+                  style={{padding:"0.35rem",borderRadius:"0.5rem",border:`1px solid ${DB.border}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
                   title="Refresh"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+                  <RefreshCw style={{width:"0.8rem",height:"0.8rem",color:DB.muted}} />
                 </button>
               </div>
             </div>
@@ -817,81 +804,71 @@ export default function StudentDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="pb-3 max-h-[22rem] overflow-y-auto scrollbar-premium">
+              <div className="db-scrollbar" style={{paddingBottom:"0.75rem",maxHeight:"22rem",overflowY:"auto"}}>
                 {(lbTab === "overall" ? overallLb : weeklyLb).map((entry, idx) => {
                   const pts = lbTab === "overall" ? entry.total_points : entry.weekly_points;
                   const isMe = entry.user_id === user?.id;
                   const initial = (entry.name || "?").charAt(0).toUpperCase();
-                  const colours = ["bg-violet-500","bg-sky-500","bg-emerald-500","bg-amber-500","bg-rose-500","bg-pink-500","bg-indigo-500","bg-teal-500"];
-                  const colIdx = entry.name.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % colours.length;
+                  const avatarColors = ["#7c5af6","#14b8a6","#22c55e","#f59e0b","#f87171","#ec4899","#6366f1","#0ea5e9"];
+                  const colIdx = entry.name.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % avatarColors.length;
+                  const medalText = idx===0?"🥇":idx===1?"🥈":idx===2?"🥉":null;
+                  const rankColor = idx===0?DB.gold:idx===1?"#94a3b8":idx===2?"#fb923c":DB.muted;
 
                   return (
                     <div
                       key={entry.user_id}
-                      className={`mx-3 my-0.5 px-3 py-2.5 rounded-xl flex items-center gap-2.5 transition-all ${
-                        isMe
-                          ? "bg-primary/10 border border-primary/30"
-                          : "hover:bg-primary/5"
-                      }`}
+                      style={{margin:"0 0.75rem 0.25rem",padding:"0.625rem",borderRadius:"0.75rem",display:"flex",alignItems:"center",gap:"0.625rem",background:isMe?DB.purpleDim:"transparent",border:isMe?`1px solid rgba(124,90,246,0.3)`:`1px solid transparent`,transition:"all 0.15s"}}
                     >
                       {/* Rank */}
-                      <div className="w-5 flex-shrink-0 text-center">
-                        {idx === 0 ? <span className="text-base leading-none">🥇</span>
-                          : idx === 1 ? <span className="text-base leading-none">🥈</span>
-                          : idx === 2 ? <span className="text-base leading-none">🥉</span>
-                          : <span className="text-xs font-black text-muted-foreground">{idx + 1}</span>}
+                      <div style={{width:"1.25rem",flexShrink:0,textAlign:"center"}}>
+                        {medalText
+                          ? <span style={{fontSize:"0.9rem",lineHeight:1}}>{medalText}</span>
+                          : <span style={{fontSize:"0.7rem",fontWeight:900,color:DB.muted}}>{idx + 1}</span>}
                       </div>
 
                       {/* Avatar */}
                       {entry.avatar_url ? (
-                        <img src={entry.avatar_url} alt={entry.name} className="w-7 h-7 rounded-full flex-shrink-0" />
+                        <img src={entry.avatar_url} alt={entry.name} style={{width:"1.75rem",height:"1.75rem",borderRadius:"50%",flexShrink:0,border:idx<3?`2px solid ${rankColor}`:"2px solid transparent"}} />
                       ) : (
-                        <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold ${colours[colIdx]}`}>
+                        <div style={{width:"1.75rem",height:"1.75rem",borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:"0.7rem",fontWeight:700,background:avatarColors[colIdx],border:idx<3?`2px solid ${rankColor}`:"none"}}>
                           {initial}
                         </div>
                       )}
 
                       {/* Info */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className={`text-xs font-bold truncate ${
-                            isMe ? "text-primary" : "text-card-foreground"
-                          }`}>
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{display:"flex",alignItems:"center",gap:"0.25rem",flexWrap:"wrap"}}>
+                          <span style={{fontSize:"0.75rem",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:isMe?DB.purple:DB.text}}>
                             {entry.name}{isMe && " (you)"}
                           </span>
                           {entry.public_id && (
-                            <span className="text-[9px] font-mono font-bold px-1 py-0.5 bg-primary/10 text-primary rounded flex-shrink-0">
+                            <span style={{fontSize:"0.6rem",fontFamily:"monospace",fontWeight:700,padding:"0.1rem 0.3rem",background:DB.purpleDim,color:DB.purple,borderRadius:"0.25rem",flexShrink:0}}>
                               {entry.public_id}
                             </span>
                           )}
                         </div>
                         {(entry.level || entry.course) && (
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {entry.level && <span className="text-[9px] font-bold px-1 py-0.5 bg-violet-500/10 text-violet-500 rounded">{entry.level}</span>}
-                            {entry.course && <span className="text-[9px] font-bold px-1 py-0.5 bg-sky-500/10 text-sky-500 rounded">{entry.course}</span>}
+                          <div style={{display:"flex",alignItems:"center",gap:"0.25rem",marginTop:"0.15rem"}}>
+                            {entry.level && <span style={{fontSize:"0.6rem",fontWeight:700,padding:"0.1rem 0.3rem",background:"rgba(124,90,246,0.13)",color:DB.purple,borderRadius:"0.25rem"}}>{entry.level}</span>}
+                            {entry.course && <span style={{fontSize:"0.6rem",fontWeight:700,padding:"0.1rem 0.3rem",background:"rgba(14,165,233,0.13)",color:"#38bdf8",borderRadius:"0.25rem"}}>{entry.course}</span>}
                           </div>
                         )}
                       </div>
 
                       {/* Points */}
-                      <div className="text-right flex-shrink-0">
-                        <div className={`text-sm font-black ${
-                          idx === 0 ? "text-amber-500" :
-                          idx === 1 ? "text-slate-400" :
-                          idx === 2 ? "text-orange-400" :
-                          isMe ? "text-primary" : "text-card-foreground"
-                        }`}>{pts.toLocaleString()}</div>
-                        <div className="text-[9px] text-muted-foreground">pts</div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontSize:"0.8rem",fontWeight:900,color:idx===0?DB.gold:idx===1?"#94a3b8":idx===2?"#fb923c":isMe?DB.purple:DB.text}}>{pts.toLocaleString()}</div>
+                        <div style={{fontSize:"0.6rem",color:DB.muted}}>pts</div>
                       </div>
                     </div>
                   );
                 })}
 
                 {(lbTab === "overall" ? overallLb : weeklyLb).length === 0 && (
-                  <div className="px-6 py-10 text-center text-muted-foreground">
-                    <Trophy className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm font-medium">No rankings yet</p>
-                    <p className="text-xs mt-1">Start practicing to appear here!</p>
+                  <div style={{padding:"2.5rem 1.5rem",textAlign:"center"}}>
+                    <Trophy style={{width:"2rem",height:"2rem",margin:"0 auto 0.5rem",color:DB.muted,opacity:0.3}} />
+                    <p style={{fontSize:"0.8rem",fontWeight:600,color:DB.muted}}>No rankings yet</p>
+                    <p style={{fontSize:"0.7rem",color:DB.muted,marginTop:"0.25rem"}}>Start practicing to appear here!</p>
                   </div>
                 )}
               </div>
@@ -900,44 +877,40 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-        {
-          /* ──────────────────────────────────────────────────────
-             MY CERTIFICATES ─ full-width section below grid
-           ────────────────────────────────────────────────────── */
-        }
-        <div className="mt-12 bg-card border border-border rounded-[2.5rem] p-8 shadow-xl">
+        {/* MY CERTIFICATES */}
+        <div style={{marginTop:"2.5rem",background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",padding:"2rem",animation:"db-fade-up 0.5s ease 0.4s both"}}>
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-black tracking-tighter uppercase italic text-card-foreground flex items-center gap-3">
-              <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center shadow-lg">
-                <Award className="w-6 h-6 text-amber-500" />
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"2rem"}}>
+            <h2 style={{fontFamily:DB.font,fontSize:"1.5rem",fontWeight:900,color:DB.text,display:"flex",alignItems:"center",gap:"0.75rem"}}>
+              <div style={{width:"2.75rem",height:"2.75rem",background:DB.goldDim,border:`1px solid rgba(245,158,11,0.25)`,borderRadius:"0.875rem",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <Award style={{width:"1.25rem",height:"1.25rem",color:DB.gold}} />
               </div>
               My Certificates
             </h2>
             {certificatesLoading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
+              <div style={{display:"flex",alignItems:"center",gap:"0.5rem",fontSize:"0.8rem",color:DB.muted}}>
+                <Loader2 style={{width:"1rem",height:"1rem",animation:"spin 1s linear infinite"}} />
                 Loading…
               </div>
             )}
           </div>
 
           {certificates.length > 0 ? (
-            <div className="overflow-x-auto -mx-2">
-              <table className="w-full min-w-[520px]">
+            <div style={{overflowX:"auto",margin:"0 -0.5rem"}}>
+              <table style={{width:"100%",minWidth:"520px",borderCollapse:"collapse"}}>
                 <thead>
-                  <tr className="border-b-2 border-border">
-                    <th className="px-2 pb-4 text-left w-14">
-                      <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">S.No.</span>
+                  <tr style={{borderBottom:`2px solid ${DB.border}`}}>
+                    <th style={{padding:"0 0.5rem 1rem",textAlign:"left",width:"3.5rem"}}>
+                      <span style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted}}>S.No.</span>
                     </th>
-                    <th className="px-4 pb-4 text-left">
-                      <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Certificate Name</span>
+                    <th style={{padding:"0 1rem 1rem",textAlign:"left"}}>
+                      <span style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted}}>Certificate Name</span>
                     </th>
-                    <th className="px-4 pb-4 text-left w-36">
-                      <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Marks</span>
+                    <th style={{padding:"0 1rem 1rem",textAlign:"left",width:"9rem"}}>
+                      <span style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted}}>Marks</span>
                     </th>
-                    <th className="px-4 pb-4 text-left w-44">
-                      <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Date of Issue</span>
+                    <th style={{padding:"0 1rem 1rem",textAlign:"left",width:"11rem"}}>
+                      <span style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted}}>Date of Issue</span>
                     </th>
                   </tr>
                 </thead>
@@ -945,44 +918,46 @@ export default function StudentDashboard() {
                   {certificates.map((cert, idx) => (
                     <tr
                       key={cert.id}
-                      className="border-b border-border/40 last:border-0 hover:bg-primary/5 transition-colors group"
+                      style={{borderBottom:`1px solid rgba(255,255,255,0.05)`,transition:"background 0.15s"}}
+                      onMouseOver={e=>(e.currentTarget.style.background=DB.purpleDim)}
+                      onMouseOut={e=>(e.currentTarget.style.background="transparent")}
                     >
                       {/* S.No */}
-                      <td className="px-2 py-5">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                          <span className="text-xs font-black text-primary">{idx + 1}</span>
+                      <td style={{padding:"1.25rem 0.5rem"}}>
+                        <div style={{width:"2rem",height:"2rem",borderRadius:"50%",background:DB.purpleDim,border:`1px solid rgba(124,90,246,0.2)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          <span style={{fontSize:"0.75rem",fontWeight:900,color:DB.purple}}>{idx + 1}</span>
                         </div>
                       </td>
 
                       {/* Certificate Name */}
-                      <td className="px-4 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                            <Award className="w-5 h-5 text-amber-500" />
+                      <td style={{padding:"1.25rem 1rem"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:"0.75rem"}}>
+                          <div style={{width:"2.25rem",height:"2.25rem",borderRadius:"0.625rem",background:DB.goldDim,border:`1px solid rgba(245,158,11,0.2)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                            <Award style={{width:"1.125rem",height:"1.125rem",color:DB.gold}} />
                           </div>
                           <div>
-                            <div className="font-bold text-card-foreground text-sm">{cert.title}</div>
+                            <div style={{fontWeight:700,color:DB.text,fontSize:"0.875rem"}}>{cert.title}</div>
                             {cert.description && (
-                              <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{cert.description}</div>
+                              <div style={{fontSize:"0.75rem",color:DB.muted,marginTop:"0.125rem",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:1,WebkitBoxOrient:"vertical"}}>{cert.description}</div>
                             )}
                           </div>
                         </div>
                       </td>
 
                       {/* Marks */}
-                      <td className="px-4 py-5">
+                      <td style={{padding:"1.25rem 1rem"}}>
                         {cert.marks !== null && cert.marks !== undefined ? (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-black bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          <span style={{display:"inline-flex",alignItems:"center",padding:"0.25rem 0.75rem",borderRadius:"9999px",fontSize:"0.875rem",fontWeight:900,background:DB.goldDim,color:DB.gold,border:`1px solid rgba(245,158,11,0.2)`}}>
                             {cert.marks}
                           </span>
                         ) : (
-                          <span className="text-muted-foreground text-sm font-medium">—</span>
+                          <span style={{color:DB.muted,fontSize:"0.875rem",fontWeight:500}}>—</span>
                         )}
                       </td>
 
                       {/* Date of Issue */}
-                      <td className="px-4 py-5">
-                        <span className="text-sm font-medium text-card-foreground">
+                      <td style={{padding:"1.25rem 1rem"}}>
+                        <span style={{fontSize:"0.875rem",fontWeight:500,color:DB.text}}>
                           {new Date(cert.date_issued).toLocaleDateString("en-IN", {
                             timeZone: "Asia/Kolkata",
                             day: "numeric",
@@ -997,69 +972,65 @@ export default function StudentDashboard() {
               </table>
             </div>
           ) : certificatesLoading ? (
-            <div className="space-y-3 py-2">
+            <div style={{display:"flex",flexDirection:"column",gap:"0.75rem",padding:"0.5rem 0"}}>
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-16 bg-primary/5 rounded-2xl animate-pulse" />
+                <div key={i} style={{height:"4rem",background:DB.surf2,borderRadius:"1rem",animation:"pulse 1.5s ease-in-out infinite"}} />
               ))}
             </div>
           ) : (
-            <div className="text-center py-14">
-              <div className="w-20 h-20 bg-amber-500/5 rounded-full flex items-center justify-center mx-auto mb-5 border-2 border-dashed border-amber-500/20">
-                <Award className="w-9 h-9 text-amber-500/30" />
+            <div style={{textAlign:"center",padding:"3.5rem 1rem"}}>
+              <div style={{width:"5rem",height:"5rem",background:DB.goldDim,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 1.25rem",border:`2px dashed rgba(245,158,11,0.25)`,animation:"db-float 3s ease-in-out infinite"}}>
+                <Award style={{width:"2.25rem",height:"2.25rem",color:DB.gold,opacity:0.4}} />
               </div>
-              <p className="font-bold text-card-foreground text-lg">No certificates yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Complete your levels to earn certificates</p>
+              <p style={{fontWeight:700,color:DB.text,fontSize:"1rem",marginBottom:"0.375rem"}}>No certificates yet</p>
+              <p style={{fontSize:"0.8rem",color:DB.muted}}>Complete your levels to earn certificates</p>
             </div>
           )}
         </div>
 
     </div>
 
-
-
-
-
 {/* Points Log Modal */}
       {showPointsLog && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowPointsLog(false)}>
-          <div className="bg-card border border-border rounded-[2.5rem] shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col transition-all duration-300" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-border flex items-center justify-between">
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}} onClick={() => setShowPointsLog(false)}>
+          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderTop:`3px solid ${DB.purple}`,borderRadius:"1.5rem",boxShadow:"0 32px 80px rgba(0,0,0,0.6)",maxWidth:"56rem",width:"100%",maxHeight:"90vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={(e) => e.stopPropagation()}>
+            <div style={{padding:"1.5rem",borderBottom:`1px solid ${DB.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div>
-                <h2 className="text-3xl font-black tracking-tighter uppercase italic text-card-foreground mb-2">Points Transaction Log</h2>
-                <p className="text-sm text-muted-foreground">
+                <h2 style={{fontFamily:DB.font,fontSize:"1.5rem",fontWeight:900,color:DB.text,marginBottom:"0.375rem"}}>Points Transaction Log</h2>
+                <p style={{fontSize:"0.8rem",color:DB.muted}}>
                   Complete history of all point transactions with checksum verification
                 </p>
               </div>
               <button
                 onClick={() => setShowPointsLog(false)}
-                className="p-2 hover:bg-secondary rounded-xl transition-colors"
+                style={{padding:"0.5rem",background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"0.75rem",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
               >
-                <X className="w-6 h-6 text-muted-foreground" />
+                <X style={{width:"1.25rem",height:"1.25rem",color:DB.muted}} />
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto flex-1 scrollbar-premium">
+            <div className="db-scrollbar" style={{padding:"1.5rem",overflowY:"auto",flex:1}}>
               {loadingPointsLog ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <span className="ml-3 text-muted-foreground">Loading points log...</span>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"3rem"}}>
+                  <Loader2 style={{width:"2rem",height:"2rem",animation:"spin 1s linear infinite",color:DB.purple}} />
+                  <span style={{marginLeft:"0.75rem",color:DB.muted}}>Loading points log...</span>
                 </div>
               ) : pointsLogData ? (
                 <>
                   {/* Checksum Summary */}
-                  <div className="mb-6 p-4 bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 rounded-2xl border border-primary/20">
-                    <div className="grid grid-cols-3 gap-4 text-center">
+                  <div style={{marginBottom:"1.5rem",padding:"1rem",background:DB.purpleDim,borderRadius:"1rem",border:`1px solid rgba(124,90,246,0.2)`}}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"1rem",textAlign:"center"}}>
                       <div>
-                        <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">From Logs</div>
-                        <div className="text-2xl font-black text-card-foreground">{pointsLogData.total_points_from_logs.toLocaleString()}</div>
+                        <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>From Logs</div>
+                        <div style={{fontSize:"1.5rem",fontWeight:900,color:DB.text}}>{pointsLogData.total_points_from_logs.toLocaleString()}</div>
                       </div>
                       <div>
-                        <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Current Total</div>
-                        <div className="text-2xl font-black text-card-foreground">{pointsLogData.total_points_from_user.toLocaleString()}</div>
+                        <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>Current Total</div>
+                        <div style={{fontSize:"1.5rem",fontWeight:900,color:DB.text}}>{pointsLogData.total_points_from_user.toLocaleString()}</div>
                       </div>
                       <div>
-                        <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Status</div>
-                        <div className={`text-2xl font-black ${pointsLogData.match ? "text-emerald-500" : "text-red-500"}`}>
+                        <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>Status</div>
+                        <div style={{fontSize:"1.5rem",fontWeight:900,color:pointsLogData.match?DB.green:"#f87171"}}>
                           {pointsLogData.match ? "✓ Match" : "✕ Mismatch"}
                         </div>
                       </div>
@@ -1067,8 +1038,8 @@ export default function StudentDashboard() {
                   </div>
 
                   {/* Points Log Entries */}
-                  <div className="space-y-3">
-                    <div className="text-sm font-bold text-muted-foreground mb-4">
+                  <div style={{display:"flex",flexDirection:"column",gap:"0.625rem"}}>
+                    <div style={{fontSize:"0.8rem",fontWeight:700,color:DB.muted,marginBottom:"0.75rem"}}>
                       {pointsLogData.total_entries} total entries (showing {pointsLogData.logs.length})
                     </div>
                     {pointsLogData.logs.map((log: PointsLogEntry) => {
@@ -1081,33 +1052,22 @@ export default function StudentDashboard() {
                       return (
                       <div
                         key={log.id}
-                        className={`p-4 rounded-xl border transition-all ${
-                          log.points > 0
-                            ? "bg-emerald-50/50 dark:bg-emerald-900/20 border-emerald-200/50 dark:border-emerald-700/50"
-                            : "bg-red-50/50 dark:bg-red-900/20 border-red-200/50 dark:border-red-700/50"
-                        }`}
+                        style={{padding:"1rem",borderRadius:"0.75rem",border:`1px solid ${log.points >= 0 ? "rgba(34,197,94,0.2)" : "rgba(248,113,113,0.2)"}`,background:log.points >= 0 ? "rgba(34,197,94,0.06)" : "rgba(248,113,113,0.06)",animation:"db-slide-row 0.3s ease both"}}
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          {/* Left: description + badges */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start gap-3 mb-2">
-                              <span className={`text-xl font-black tabular-nums flex-shrink-0 ${
-                                log.points > 0
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : "text-red-600 dark:text-red-400"
-                              }`}>
-                                {log.points > 0 ? "+" : ""}{log.points.toLocaleString()}
+                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:"1rem"}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:"flex",alignItems:"flex-start",gap:"0.75rem",marginBottom:"0.5rem"}}>
+                              <span style={{fontSize:"1.1rem",fontWeight:900,fontVariantNumeric:"tabular-nums",flexShrink:0,color:log.points >= 0 ? DB.green : "#f87171"}}>
+                                {log.points >= 0 ? "+" : ""}{(log.points ?? 0).toLocaleString()}
                               </span>
-                              <span className="text-sm font-semibold text-card-foreground leading-snug">{log.description}</span>
+                              <span style={{fontSize:"0.8rem",fontWeight:600,color:DB.text,lineHeight:1.4}}>{log.description}</span>
                             </div>
-
-                            {/* Meta row */}
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                              <span className="px-2 py-0.5 bg-primary/10 rounded-lg text-primary font-semibold flex-shrink-0">
+                            <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"0.5rem",fontSize:"0.7rem",color:DB.muted}}>
+                              <span style={{padding:"0.15rem 0.5rem",background:DB.purpleDim,borderRadius:"0.375rem",color:DB.purple,fontWeight:600,flexShrink:0}}>
                                 {sourceLabel}
                               </span>
-                              <span className="flex items-center gap-1 flex-shrink-0">
-                                <Clock className="w-3 h-3" />
+                              <span style={{display:"flex",alignItems:"center",gap:"0.25rem",flexShrink:0}}>
+                                <Clock style={{width:"0.7rem",height:"0.7rem"}} />
                                 {new Date(log.created_at).toLocaleString("en-IN", {
                                   timeZone: "Asia/Kolkata",
                                   month: "short",
@@ -1118,38 +1078,36 @@ export default function StudentDashboard() {
                                 })}
                               </span>
                               {meta.operation_type && (
-                                <span className="px-1.5 py-0.5 bg-background rounded border border-border">
+                                <span style={{padding:"0.15rem 0.5rem",background:DB.surf2,borderRadius:"0.25rem",border:`1px solid ${DB.border}`}}>
                                   {String(meta.operation_type).replace(/_/g, " ")}
                                 </span>
                               )}
                               {meta.difficulty_mode && (
-                                <span className="px-1.5 py-0.5 bg-background rounded border border-border">
+                                <span style={{padding:"0.15rem 0.5rem",background:DB.surf2,borderRadius:"0.25rem",border:`1px solid ${DB.border}`}}>
                                   {String(meta.difficulty_mode)}
                                 </span>
                               )}
                               {meta.streak_days !== undefined && (
-                                <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded border border-amber-500/20">
+                                <span style={{padding:"0.15rem 0.5rem",background:"rgba(245,158,11,0.1)",color:DB.gold,borderRadius:"0.25rem",border:`1px solid rgba(245,158,11,0.2)`}}>
                                   🔥 {meta.streak_days}d streak
                                 </span>
                               )}
                               {meta.correct_answers !== undefined && (
-                                <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded border border-emerald-500/20">
+                                <span style={{padding:"0.15rem 0.5rem",background:DB.greenDim,color:DB.green,borderRadius:"0.25rem",border:`1px solid rgba(34,197,94,0.2)`}}>
                                   ✓ {meta.correct_answers}/{meta.attempted_questions ?? meta.total_questions}
                                 </span>
                               )}
                               {meta.paper_title && (
-                                <span className="px-1.5 py-0.5 bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded border border-sky-500/20 truncate max-w-[12rem]">
+                                <span style={{padding:"0.15rem 0.5rem",background:"rgba(14,165,233,0.1)",color:"#38bdf8",borderRadius:"0.25rem",border:"1px solid rgba(14,165,233,0.2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"12rem"}}>
                                   📄 {String(meta.paper_title)}
                                 </span>
                               )}
                             </div>
                           </div>
-
-                          {/* Right: balance after */}
-                          {meta.balance_after !== undefined && (
-                            <div className="text-right flex-shrink-0">
-                              <div className="text-xs text-muted-foreground">Balance</div>
-                              <div className="text-sm font-black text-card-foreground tabular-nums">
+                          {(meta.balance_after !== undefined) && (
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:"0.65rem",color:DB.muted}}>Balance</div>
+                              <div style={{fontSize:"0.875rem",fontWeight:900,color:DB.text,fontVariantNumeric:"tabular-nums"}}>
                                 {Number(meta.balance_after).toLocaleString()}
                               </div>
                             </div>
@@ -1161,7 +1119,7 @@ export default function StudentDashboard() {
                   </div>
                 </>
               ) : (
-                <div className="text-center py-12 text-muted-foreground">
+                <div style={{textAlign:"center",padding:"3rem",color:DB.muted}}>
                   <p>No points log data available</p>
                 </div>
               )}
@@ -1172,88 +1130,59 @@ export default function StudentDashboard() {
 
       {/* Session Detail Modal */}
       {selectedSession && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedSession(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col transition-all duration-300" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}} onClick={() => setSelectedSession(null)}>
+          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderTop:`3px solid ${DB.purple}`,borderRadius:"1.5rem",boxShadow:"0 32px 80px rgba(0,0,0,0.6)",maxWidth:"56rem",width:"100%",maxHeight:"90vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={(e) => e.stopPropagation()}>
+            <div style={{padding:"1.5rem",borderBottom:`1px solid ${DB.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Practice Session Details</h2>
-                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                <h2 style={{fontFamily:DB.font,fontSize:"1.375rem",fontWeight:900,color:DB.text,marginBottom:"0.25rem"}}>Practice Session Details</h2>
+                <p style={{fontSize:"0.8rem",color:DB.muted}}>
                   {getOperationName(selectedSession.operation_type)} • {selectedSession.difficulty_mode} • {formatDate(selectedSession.started_at)}
                 </p>
                 {selectedSession.completed_at && (
-                  <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                    Completed: {formatDateToIST(selectedSession.completed_at)}
-                  </p>
+                  <p style={{fontSize:"0.8rem",color:DB.muted,marginTop:"0.125rem"}}>Completed: {formatDateToIST(selectedSession.completed_at)}</p>
                 )}
               </div>
-              <button
-                onClick={() => setSelectedSession(null)}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <X className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+              <button onClick={() => setSelectedSession(null)} style={{padding:"0.5rem",background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"0.75rem",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <X style={{width:"1.25rem",height:"1.25rem",color:DB.muted}} />
               </button>
             </div>
-            
-            <div className="p-6 overflow-y-auto flex-1 scrollbar-premium">
+            <div className="db-scrollbar" style={{padding:"1.5rem",overflowY:"auto",flex:1}}>
               {/* Session Summary */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-lg p-4 border border-indigo-200 dark:border-indigo-700 transition-all duration-300">
-                  <div className="text-sm text-indigo-600 dark:text-indigo-300 font-semibold">Score</div>
-                  <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-200">{selectedSession.score}/{selectedSession.total_questions}</div>
-                </div>
-                <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4 border border-green-200 dark:border-green-700 transition-all duration-300">
-                  <div className="text-sm text-green-600 dark:text-green-300 font-semibold">Accuracy</div>
-                  <div className="text-2xl font-bold text-green-900 dark:text-green-200">{selectedSession.accuracy.toFixed(1)}%</div>
-                </div>
-                <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700 transition-all duration-300">
-                  <div className="text-sm text-blue-600 dark:text-blue-300 font-semibold">Time</div>
-                  <div className="text-2xl font-bold text-blue-900 dark:text-blue-200">{formatTime(selectedSession.time_taken)}</div>
-                </div>
-                <div className="bg-purple-50 dark:bg-purple-900/30 rounded-lg p-4 border border-purple-200 dark:border-purple-700 transition-all duration-300">
-                  <div className="text-sm text-purple-600 dark:text-purple-300 font-semibold">Points</div>
-                  <div className="text-2xl font-bold text-purple-900 dark:text-purple-200">+{selectedSession.points_earned}</div>
-                </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1rem",marginBottom:"1.5rem"}}>
+                {[
+                  {label:"Score",val:`${selectedSession.score}/${selectedSession.total_questions}`,color:DB.purple},
+                  {label:"Accuracy",val:`${selectedSession.accuracy.toFixed(1)}%`,color:DB.green},
+                  {label:"Time",val:formatTime(selectedSession.time_taken),color:DB.teal},
+                  {label:"Points",val:`+${selectedSession.points_earned}`,color:DB.gold},
+                ].map(({label,val,color})=>(
+                  <div key={label} style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"0.875rem",padding:"1rem",borderTop:`2px solid ${color}`}}>
+                    <div style={{fontSize:"0.7rem",fontWeight:700,color:DB.muted,marginBottom:"0.375rem"}}>{label}</div>
+                    <div style={{fontSize:"1.375rem",fontWeight:900,color}}>{val}</div>
+                  </div>
+                ))}
               </div>
-
               {/* Questions List */}
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Questions & Answers</h3>
-                <div className="space-y-3">
+                <h3 style={{fontSize:"1rem",fontWeight:900,color:DB.text,marginBottom:"1rem"}}>Questions & Answers</h3>
+                <div style={{display:"flex",flexDirection:"column",gap:"0.625rem"}}>
                   {selectedSession.attempts.map((attempt) => (
-                    <div
-                      key={attempt.id}
-                      className={`rounded-lg p-4 border-2 transition-all duration-300 ${
-                        attempt.is_correct
-                          ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700"
-                          : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <span className="font-semibold text-slate-700 dark:text-white">Q{attempt.question_number}:</span>
-                            <span className="text-slate-900 dark:text-white font-mono text-lg">
-                              {formatQuestion(attempt.question_data, selectedSession.operation_type)}
-                            </span>
+                    <div key={attempt.id} style={{borderRadius:"0.75rem",padding:"1rem",border:`1px solid ${attempt.is_correct?"rgba(34,197,94,0.25)":"rgba(248,113,113,0.25)"}`,background:attempt.is_correct?"rgba(34,197,94,0.06)":"rgba(248,113,113,0.06)"}}>
+                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+                        <div style={{flex:1}}>
+                          <div style={{display:"flex",alignItems:"center",gap:"0.75rem",marginBottom:"0.5rem"}}>
+                            <span style={{fontWeight:600,color:DB.text,fontSize:"0.875rem"}}>Q{attempt.question_number}:</span>
+                            <span style={{color:DB.text,fontFamily:"monospace",fontSize:"1rem"}}>{formatQuestion(attempt.question_data, selectedSession.operation_type)}</span>
                           </div>
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className={attempt.is_correct ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}>
-                              Your answer: <span className="font-semibold">{attempt.user_answer !== null ? attempt.user_answer : "—"}</span>
-                            </span>
-                            <span className="text-slate-600 dark:text-slate-300">
-                              Correct: <span className="font-semibold">{attempt.correct_answer}</span>
-                            </span>
-                            <span className="text-slate-600 dark:text-slate-300">
-                              Time: <span className="font-semibold">{attempt.time_taken.toFixed(2)}s</span>
-                            </span>
+                          <div style={{display:"flex",alignItems:"center",gap:"1rem",fontSize:"0.8rem",flexWrap:"wrap"}}>
+                            <span style={{color:attempt.is_correct?DB.green:"#f87171"}}>Your answer: <strong>{attempt.user_answer !== null ? attempt.user_answer : "—"}</strong></span>
+                            <span style={{color:DB.muted}}>Correct: <strong style={{color:DB.text}}>{attempt.correct_answer}</strong></span>
+                            <span style={{color:DB.muted}}>Time: <strong style={{color:DB.text}}>{attempt.time_taken.toFixed(2)}s</strong></span>
                           </div>
                         </div>
-                        <div className="ml-4">
-                          {attempt.is_correct ? (
-                            <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
-                          ) : (
-                            <XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
-                          )}
+                        <div style={{marginLeft:"1rem"}}>
+                          {attempt.is_correct
+                            ? <CheckCircle2 style={{width:"1.25rem",height:"1.25rem",color:DB.green}} />
+                            : <XCircle style={{width:"1.25rem",height:"1.25rem",color:"#f87171"}} />}
                         </div>
                       </div>
                     </div>
@@ -1267,64 +1196,61 @@ export default function StudentDashboard() {
 
       {/* Paper Attempt Detail Modal */}
       {selectedPaperAttempt && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedPaperAttempt(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}} onClick={() => setSelectedPaperAttempt(null)}>
+          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderTop:`3px solid ${DB.teal}`,borderRadius:"1.5rem",boxShadow:"0 32px 80px rgba(0,0,0,0.6)",maxWidth:"56rem",width:"100%",maxHeight:"90vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={(e) => e.stopPropagation()}>
+            <div style={{padding:"1.5rem",borderBottom:`1px solid ${DB.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Practice Paper Details</h2>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                <h2 style={{fontFamily:DB.font,fontSize:"1.375rem",fontWeight:900,color:DB.text,marginBottom:"0.25rem"}}>Practice Paper Details</h2>
+                <p style={{fontSize:"0.8rem",color:DB.muted}}>
                   {selectedPaperAttempt.paper_title} • {selectedPaperAttempt.paper_level} • {formatDate(selectedPaperAttempt.started_at)}
                 </p>
                 {selectedPaperAttempt.completed_at && (
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                    Completed: {formatDateToIST(selectedPaperAttempt.completed_at)}
-                  </p>
+                  <p style={{fontSize:"0.8rem",color:DB.muted,marginTop:"0.125rem"}}>Completed: {formatDateToIST(selectedPaperAttempt.completed_at)}</p>
                 )}
               </div>
               <button
                 onClick={() => setSelectedPaperAttempt(null)}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                style={{padding:"0.5rem",background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"0.75rem",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
               >
-                <X className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+                <X style={{width:"1.25rem",height:"1.25rem",color:DB.muted}} />
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto flex-1 scrollbar-premium">
+            <div className="db-scrollbar" style={{padding:"1.5rem",overflowY:"auto",flex:1}}>
               {/* Paper Summary */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-lg p-4 border border-indigo-200 dark:border-indigo-700">
-                  <div className="text-sm text-indigo-600 dark:text-indigo-400 font-semibold">Score</div>
-                  <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-300">{selectedPaperAttempt.score}/{selectedPaperAttempt.total_questions}</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1rem",marginBottom:"1.5rem"}}>
+                <div style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"0.875rem",padding:"1rem",borderTop:`2px solid ${DB.purple}`}}>
+                  <div style={{fontSize:"0.7rem",fontWeight:700,color:DB.muted,marginBottom:"0.375rem"}}>Score</div>
+                  <div style={{fontSize:"1.375rem",fontWeight:900,color:DB.purple}}>{selectedPaperAttempt.score}/{selectedPaperAttempt.total_questions}</div>
                 </div>
-                <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4 border border-green-200 dark:border-green-700">
-                  <div className="text-sm text-green-600 dark:text-green-400 font-semibold">Accuracy</div>
-                  <div className="text-2xl font-bold text-green-900 dark:text-green-300">{selectedPaperAttempt.accuracy.toFixed(1)}%</div>
+                <div style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"0.875rem",padding:"1rem",borderTop:`2px solid ${DB.green}`}}>
+                  <div style={{fontSize:"0.7rem",fontWeight:700,color:DB.muted,marginBottom:"0.375rem"}}>Accuracy</div>
+                  <div style={{fontSize:"1.375rem",fontWeight:900,color:DB.green}}>{selectedPaperAttempt.accuracy.toFixed(1)}%</div>
                 </div>
                 {selectedPaperAttempt.time_taken !== null && selectedPaperAttempt.time_taken !== undefined && (
-                  <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
-                    <div className="text-sm text-blue-600 dark:text-blue-400 font-semibold">Time</div>
-                    <div className="text-2xl font-bold text-blue-900 dark:text-blue-300">{formatTime(selectedPaperAttempt.time_taken)}</div>
+                  <div style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"0.875rem",padding:"1rem",borderTop:`2px solid ${DB.teal}`}}>
+                    <div style={{fontSize:"0.7rem",fontWeight:700,color:DB.muted,marginBottom:"0.375rem"}}>Time</div>
+                    <div style={{fontSize:"1.375rem",fontWeight:900,color:DB.teal}}>{formatTime(selectedPaperAttempt.time_taken)}</div>
                   </div>
                 )}
-                <div className="bg-purple-50 dark:bg-purple-900/30 rounded-lg p-4 border border-purple-200 dark:border-purple-700">
-                  <div className="text-sm text-purple-600 dark:text-purple-400 font-semibold">Points</div>
-                  <div className="text-2xl font-bold text-purple-900 dark:text-purple-300">+{selectedPaperAttempt.points_earned}</div>
+                <div style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"0.875rem",padding:"1rem",borderTop:`2px solid ${DB.gold}`}}>
+                  <div style={{fontSize:"0.7rem",fontWeight:700,color:DB.muted,marginBottom:"0.375rem"}}>Points</div>
+                  <div style={{fontSize:"1.375rem",fontWeight:900,color:DB.gold}}>+{selectedPaperAttempt.points_earned}</div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Results Summary</h3>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
+                <h3 style={{fontSize:"1rem",fontWeight:900,color:DB.text}}>Results Summary</h3>
                 {selectedPaperAttempt.completed_at && (() => {
                   // Only check re-attempt if seed is available
                   if (selectedPaperAttempt.seed === undefined || selectedPaperAttempt.seed === null) {
-                    // If seed is missing, allow re-attempt (backward compatibility)
                     return (
                       <button
                         onClick={() => handleReAttempt(selectedPaperAttempt.id)}
                         disabled={reAttempting === selectedPaperAttempt.id}
-                        className="px-4 py-2 bg-purple-600 dark:bg-purple-500 text-white rounded-lg hover:bg-purple-700 dark:hover:bg-purple-600 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{padding:"0.5rem 1rem",background:DB.purple,color:"#fff",border:"none",borderRadius:"0.625rem",fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:"0.5rem",opacity:reAttempting===selectedPaperAttempt.id?0.5:1,fontSize:"0.875rem"}}
                       >
-                        <RotateCcw className={`w-4 h-4 ${reAttempting === selectedPaperAttempt.id ? "animate-spin" : ""}`} />
+                        <RotateCcw style={{width:"0.875rem",height:"0.875rem"}} className={reAttempting === selectedPaperAttempt.id ? "animate-spin" : ""} />
                         {reAttempting === selectedPaperAttempt.id ? "Starting..." : "Re-attempt Paper"}
                       </button>
                     );
@@ -1335,82 +1261,74 @@ export default function StudentDashboard() {
                     <button
                       onClick={() => handleReAttempt(selectedPaperAttempt.id)}
                       disabled={reAttempting === selectedPaperAttempt.id || !canReattempt}
-                      className="px-4 py-2 bg-purple-600 dark:bg-purple-500 text-white rounded-lg hover:bg-purple-700 dark:hover:bg-purple-600 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{padding:"0.5rem 1rem",background:DB.purple,color:"#fff",border:"none",borderRadius:"0.625rem",fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:"0.5rem",opacity:(reAttempting===selectedPaperAttempt.id||!canReattempt)?0.5:1,fontSize:"0.875rem"}}
                       title={!canReattempt ? "Maximum attempts reached (1 fresh + 1 re-attempt)" : ""}
                     >
-                      <RotateCcw className={`w-4 h-4 ${reAttempting === selectedPaperAttempt.id ? "animate-spin" : ""}`} />
+                      <RotateCcw style={{width:"0.875rem",height:"0.875rem"}} className={reAttempting === selectedPaperAttempt.id ? "animate-spin" : ""} />
                       {reAttempting === selectedPaperAttempt.id ? "Starting..." : "Re-attempt Paper"}
                     </button>
                   );
                 })()}
               </div>
 
-              <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 border border-slate-200 dark:border-slate-600">
-                <div className="grid grid-cols-2 gap-4">
+              <div style={{background:DB.surf2,borderRadius:"0.875rem",padding:"1rem",border:`1px solid ${DB.border}`,marginBottom:"1rem"}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"}}>
                   <div>
-                    <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Correct Answers</div>
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">{selectedPaperAttempt.correct_answers}</div>
+                    <div style={{fontSize:"0.8rem",color:DB.muted,marginBottom:"0.25rem"}}>Correct Answers</div>
+                    <div style={{fontSize:"1.375rem",fontWeight:900,color:DB.green}}>{selectedPaperAttempt.correct_answers}</div>
                   </div>
                   <div>
-                    <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Wrong Answers</div>
-                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">{selectedPaperAttempt.wrong_answers}</div>
+                    <div style={{fontSize:"0.8rem",color:DB.muted,marginBottom:"0.25rem"}}>Wrong Answers</div>
+                    <div style={{fontSize:"1.375rem",fontWeight:900,color:"#f87171"}}>{selectedPaperAttempt.wrong_answers}</div>
                   </div>
                 </div>
               </div>
 
               {!selectedPaperAttempt.completed_at && (
-                <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-                  <p className="text-sm text-yellow-800 dark:text-yellow-300">This paper attempt is still in progress.</p>
+                <div style={{marginTop:"1rem",padding:"1rem",background:"rgba(245,158,11,0.08)",border:`1px solid rgba(245,158,11,0.2)`,borderRadius:"0.75rem"}}>
+                  <p style={{fontSize:"0.8rem",color:DB.gold}}>This paper attempt is still in progress.</p>
                 </div>
               )}
 
               {/* Questions List */}
               {loadingPaperDetail ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <span className="ml-3 text-slate-600 dark:text-slate-400">Loading questions...</span>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"2rem"}}>
+                  <Loader2 style={{width:"2rem",height:"2rem",animation:"spin 1s linear infinite",color:DB.purple}} />
+                  <span style={{marginLeft:"0.75rem",color:DB.muted}}>Loading questions...</span>
                 </div>
               ) : selectedPaperAttemptDetail && selectedPaperAttemptDetail.generated_blocks ? (
-                <div className="mt-6">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">All Questions</h3>
-                  <div className="space-y-4">
+                <div style={{marginTop:"1.5rem"}}>
+                  <h3 style={{fontSize:"1rem",fontWeight:900,color:DB.text,marginBottom:"1rem"}}>All Questions</h3>
+                  <div style={{display:"flex",flexDirection:"column",gap:"0.75rem"}}>
                     {selectedPaperAttemptDetail.generated_blocks.map((block: any, blockIdx: number) => (
-                      <div key={blockIdx} className="mb-6">
+                      <div key={blockIdx} style={{marginBottom:"0.5rem"}}>
                         {block.questions && block.questions.map((question: any) => {
                           const userAnswer = selectedPaperAttemptDetail.answers?.[String(question.id)] ?? selectedPaperAttemptDetail.answers?.[question.id];
                           const isCorrect = userAnswer !== null && userAnswer !== undefined && Math.abs(userAnswer - question.answer) < 0.01;
                           return (
                             <div
                               key={question.id}
-                              className={`p-4 rounded-lg border-2 transition-all duration-300 mb-3 ${
-                                isCorrect
-                                  ? "bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700"
-                                  : "bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700"
-                              }`}
+                              style={{padding:"1rem",borderRadius:"0.75rem",border:`1px solid ${isCorrect?"rgba(34,197,94,0.25)":"rgba(248,113,113,0.25)"}`,background:isCorrect?"rgba(34,197,94,0.06)":"rgba(248,113,113,0.06)",marginBottom:"0.5rem"}}
                             >
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-3 mb-2">
-                                    <span className="font-semibold text-slate-700 dark:text-white">Q{question.id}:</span>
+                              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"0.5rem"}}>
+                                <div style={{flex:1}}>
+                                  <div style={{display:"flex",alignItems:"center",gap:"0.75rem",marginBottom:"0.5rem"}}>
+                                    <span style={{fontWeight:600,color:DB.text,fontSize:"0.875rem"}}>Q{question.id}:</span>
                                     <MathQuestion question={question} showAnswer={false} largeFont={true} />
                                   </div>
-                                  <div className="flex items-center gap-4 text-sm">
-                                    <span className={isCorrect ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}>
-                                      Your answer: <span className="font-semibold">
-                                        {userAnswer !== null && userAnswer !== undefined ? userAnswer : "—"}
-                                      </span>
+                                  <div style={{display:"flex",alignItems:"center",gap:"1rem",fontSize:"0.8rem",flexWrap:"wrap"}}>
+                                    <span style={{color:isCorrect?DB.green:"#f87171"}}>
+                                      Your answer: <strong>{userAnswer !== null && userAnswer !== undefined ? userAnswer : "—"}</strong>
                                     </span>
-                                    <span className="text-slate-600 dark:text-slate-300">
-                                      Correct: <span className="font-semibold">{question.answer}</span>
+                                    <span style={{color:DB.muted}}>
+                                      Correct: <strong style={{color:DB.text}}>{question.answer}</strong>
                                     </span>
                                   </div>
                                 </div>
-                                <div className="ml-4">
-                                  {isCorrect ? (
-                                    <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
-                                  ) : (
-                                    <XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
-                                  )}
+                                <div style={{marginLeft:"1rem"}}>
+                                  {isCorrect
+                                    ? <CheckCircle2 style={{width:"1.25rem",height:"1.25rem",color:DB.green}} />
+                                    : <XCircle style={{width:"1.25rem",height:"1.25rem",color:"#f87171"}} />}
                                 </div>
                               </div>
                             </div>
@@ -1421,8 +1339,8 @@ export default function StudentDashboard() {
                   </div>
                 </div>
               ) : selectedPaperAttempt.completed_at ? (
-                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
-                  <p className="text-sm text-blue-800 dark:text-blue-300">Click "View Details" again to load all questions.</p>
+                <div style={{marginTop:"1rem",padding:"1rem",background:"rgba(14,165,233,0.08)",border:`1px solid rgba(14,165,233,0.2)`,borderRadius:"0.75rem"}}>
+                  <p style={{fontSize:"0.8rem",color:"#38bdf8"}}>Click "View Details" again to load all questions.</p>
                 </div>
               ) : null}
             </div>
@@ -1432,4 +1350,3 @@ export default function StudentDashboard() {
     </div>
   );
 }
-

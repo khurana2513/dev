@@ -56,7 +56,7 @@ export default function GridMaster() {
             backdropFilter: "blur(16px)",
             position: "sticky",
             top: 0,
-            zIndex: 100,
+            zIndex: 10,
           }}
         >
           <div
@@ -104,7 +104,7 @@ export default function GridMaster() {
                 style={{
                   fontSize: 17,
                   fontWeight: 700,
-                  fontFamily: "'Syne', sans-serif",
+                  fontFamily: "'Playfair Display', Georgia, serif",
                   background: "linear-gradient(135deg, #9b8cff, #4ecdc4)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",

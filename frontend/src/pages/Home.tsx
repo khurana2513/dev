@@ -83,7 +83,7 @@ function InView({ children, className = "", delay = 0, direction = "up" }: {
 // ─────────────────────────────────────────────────────────────
 const GlobalStyles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700;1,800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
     :root {
       --th-bg: #07080F;
@@ -106,7 +106,7 @@ const GlobalStyles = () => (
       --th-white2: #94A3B8;
       --th-muted: #475569;
       --th-muted2: #636888;
-      --th-font-display: 'Syne', sans-serif;
+      --th-font-display: 'Playfair Display', Georgia, serif;
       --th-font-body: 'Inter', system-ui, sans-serif;
       --th-font-mono: 'Space Grotesk', monospace;
     }
@@ -223,7 +223,7 @@ const COURSES = [
     tagline: "Mental Visualization Engine",
     desc: "From counting beads to performing complex multi-digit calculations entirely in the mind. Abacus rewires how children think — permanently.",
     color: "#7C3AED", dimColor: "rgba(124,58,237,0.10)", glowColor: "rgba(124,58,237,0.20)", borderColor: "rgba(124,58,237,0.25)",
-    icon: Calculator, emoji: "🧮",
+    icon: Calculator,
     outcomes: ["Mental calculation speed", "Focus & concentration", "Visual memory", "Math confidence"],
     stat: "10 Levels · 4 Months Each",
     image: "/imagesproject/homepage/abacus.png", path: "/courses/abacus",
@@ -233,7 +233,7 @@ const COURSES = [
     tagline: "Ancient Speed. Modern Edge.",
     desc: "16 sacred sutras from ancient Indian mathematics. Solve 997 × 998 in under 3 seconds. Competitive exam prep unlike anything taught in school.",
     color: "#F59E0B", dimColor: "rgba(245,158,11,0.10)", glowColor: "rgba(245,158,11,0.20)", borderColor: "rgba(245,158,11,0.25)",
-    icon: BookOpen, emoji: "🕉",
+    icon: BookOpen,
     outcomes: ["Exam speed tactics", "Complex mental arithmetic", "LCM, GCD, roots", "Competitive edge"],
     stat: "4 Levels · 4 Months Each",
     image: "/imagesproject/homepage/Vedic-Maths.png", path: "/courses/vedic-maths",
@@ -243,7 +243,7 @@ const COURSES = [
     tagline: "Precision. Clarity. Confidence.",
     desc: "English and Hindi tracks. Fine motor control meets cognitive rhythm. Students see measurable improvement within weeks — not months.",
     color: "#0FB8A0", dimColor: "rgba(15,184,160,0.10)", glowColor: "rgba(15,184,160,0.20)", borderColor: "rgba(15,184,160,0.25)",
-    icon: PenTool, emoji: "✍️",
+    icon: PenTool,
     outcomes: ["Legibility & speed", "English & Hindi tracks", "Creative calligraphy", "Exam handwriting"],
     stat: "1 Level · 3 Months",
     image: "/imagesproject/homepage/handwriting.png", path: "/courses/handwriting",
@@ -253,7 +253,7 @@ const COURSES = [
     tagline: "Engineers Start Here.",
     desc: "From paper circuits at age 4 to drone engineering at 18. Five progressive courses under the Black Monkey umbrella. Hands-on, project-based, real.",
     color: "#EA580C", dimColor: "rgba(234,88,12,0.10)", glowColor: "rgba(234,88,12,0.20)", borderColor: "rgba(234,88,12,0.25)",
-    icon: Rocket, emoji: "🤖",
+    icon: Rocket,
     outcomes: ["Robotics & IoT", "Drone engineering", "AI & Machine learning", "Real-world projects"],
     stat: "5 Courses · 8–12 Weeks Each",
     image: "/imagesproject/homepage/stem.png", path: "/courses/stem",
@@ -434,7 +434,7 @@ function Programs() {
                 )}
 
                 <div style={{ width: 50, height: 50, borderRadius: 15, marginBottom: 18, background: course.dimColor, border: `1px solid ${course.borderColor}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-                  {course.emoji}
+                  
                 </div>
 
                 <div style={{ fontFamily: "var(--th-font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", color: course.color, textTransform: "uppercase", marginBottom: 6 }}>{course.tag}</div>

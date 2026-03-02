@@ -1716,8 +1716,8 @@ export default function Mental() {
     const s = document.createElement("style");
     s.id = id;
     s.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
-      :root{--mm-bg:#06070F;--mm-bg2:#0B0D1A;--mm-surf:#0F1120;--mm-surf2:#141729;--mm-surf3:#1C2040;--mm-bdr:rgba(255,255,255,0.06);--mm-bdr2:rgba(255,255,255,0.10);--mm-pur:#7B5CE5;--mm-pur2:#9D7FF0;--mm-pur3:#C4ADFF;--mm-pglow:rgba(123,92,229,0.22);--mm-pdim:rgba(123,92,229,0.10);--mm-grn:#10B981;--mm-rdim:rgba(239,68,68,0.12);--mm-red:#EF4444;--mm-gld:#F59E0B;--mm-whi:#F0F2FF;--mm-whi2:#B8BDD8;--mm-muted:#525870;--mm-fd:'Syne',sans-serif;--mm-fb:'DM Sans',sans-serif;--mm-fm:'JetBrains Mono',monospace;}
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700;1,800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+      :root{--mm-bg:#06070F;--mm-bg2:#0B0D1A;--mm-surf:#0F1120;--mm-surf2:#141729;--mm-surf3:#1C2040;--mm-bdr:rgba(255,255,255,0.06);--mm-bdr2:rgba(255,255,255,0.10);--mm-pur:#7B5CE5;--mm-pur2:#9D7FF0;--mm-pur3:#C4ADFF;--mm-pglow:rgba(123,92,229,0.22);--mm-pdim:rgba(123,92,229,0.10);--mm-grn:#10B981;--mm-rdim:rgba(239,68,68,0.12);--mm-red:#EF4444;--mm-gld:#F59E0B;--mm-whi:#F0F2FF;--mm-whi2:#B8BDD8;--mm-muted:#525870;--mm-fd:'Playfair Display',Georgia,serif;--mm-fb:'DM Sans',sans-serif;--mm-fm:'JetBrains Mono',monospace;}
       @keyframes mm-fade-up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
       @keyframes mm-fade-in{from{opacity:0}to{opacity:1}}
       @keyframes mm-scale-in{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
@@ -1755,7 +1755,7 @@ export default function Mental() {
 
   if (countdown > 0) {
     return (
-      <div style={{minHeight:"100vh",background:"var(--mm-bg)",display:"flex",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden"}}>
+      <div style={{minHeight:"100vh",background:"var(--mm-bg)",display:"flex",alignItems:"center",justifyContent:"center",position:"relative",overflowX:"hidden"}}>
         {/* Background glow */}
         <div style={{position:"absolute",width:400,height:400,borderRadius:"50%",background:"radial-gradient(circle, rgba(123,92,229,.15) 0%, transparent 70%)",pointerEvents:"none"}} />
         <div className="mm-pulse-ring" style={{position:"absolute",width:300,height:300,borderRadius:"50%",border:"1px solid rgba(123,92,229,.12)",pointerEvents:"none"}} />

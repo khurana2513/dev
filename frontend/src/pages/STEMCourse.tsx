@@ -50,7 +50,7 @@ function FadeIn({ children, delay = 0, dir = "up", className = "" }: {
 function STEMStyles() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700;1,800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
       .st-page {
         --st-bg:    #07060A;
@@ -74,7 +74,7 @@ function STEMStyles() {
         --st-white: #EDE8F8;
         --st-white2:#9B96B8;
         --st-muted: #524E68;
-        --st-font-d:'Syne', sans-serif;
+        --st-font-d:'Playfair Display', Georgia, serif;
         --st-font-b:'DM Sans', sans-serif;
         --st-font-m:'JetBrains Mono', monospace;
         background: var(--st-bg);

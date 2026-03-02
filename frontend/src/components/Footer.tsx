@@ -14,7 +14,7 @@ export default function Footer() {
     purple2: "#a78bfa",
   };
 
-  const fontDisplay = "'Plus Jakarta Sans','Syne',system-ui,sans-serif";
+  const fontDisplay = "'Plus Jakarta Sans','Playfair Display',Georgia,serif";
   const fontMono    = "'DM Mono','JetBrains Mono',monospace";
   const fontBody    = "'DM Sans','Outfit',system-ui,sans-serif";
 

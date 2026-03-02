@@ -110,7 +110,7 @@ export default function Header() {
 
   return (
     <header
-      className={`sticky top-0 z-50 transition-all duration-500 ${
+      className={`sticky top-0 z-[200] transition-all duration-500 ${
         scrolled
           ? "py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 shadow-lg"
           : "py-6 bg-transparent"
@@ -155,20 +155,20 @@ export default function Header() {
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${coursesOpen ? "rotate-180" : ""}`} />
               </button>
               {coursesOpen && (
-                <div className="absolute top-full left-0 mt-3 w-72 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl overflow-hidden z-50"
+                <div className="absolute top-full left-0 mt-3 w-72 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl overflow-hidden z-[200]"
                   style={CARD_STYLE} onMouseEnter={handleCoursesEnter} onMouseLeave={handleCoursesLeave}>
                   <div className="p-1.5">
                     <Link href="/courses/abacus">
-                      <div className={navItem(isActive("/courses/abacus"))}><Calculator className="w-4 h-4" />🧮 Study Abacus</div>
+                      <div className={navItem(isActive("/courses/abacus"))}><Calculator className="w-4 h-4" />Study Abacus</div>
                     </Link>
                     <Link href="/courses/vedic-maths">
-                      <div className={navItem(isActive("/courses/vedic-maths"))}><BookOpen className="w-4 h-4" />🕉️ Vedic Maths</div>
+                      <div className={navItem(isActive("/courses/vedic-maths"))}><BookOpen className="w-4 h-4" />Vedic Maths</div>
                     </Link>
                     <Link href="/courses/handwriting">
-                      <div className={navItem(isActive("/courses/handwriting"))}><PenTool className="w-4 h-4" />✍️ Handwriting</div>
+                      <div className={navItem(isActive("/courses/handwriting"))}><PenTool className="w-4 h-4" />Handwriting</div>
                     </Link>
                     <Link href="/courses/stem">
-                      <div className={navItem(isActive("/courses/stem"))}><Rocket className="w-4 h-4" />🤖 STEM</div>
+                      <div className={navItem(isActive("/courses/stem"))}><Rocket className="w-4 h-4" />STEM</div>
                     </Link>
                   </div>
                 </div>
@@ -185,7 +185,7 @@ export default function Header() {
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${practiceOpen ? "rotate-180" : ""}`} />
               </button>
               {practiceOpen && (
-                <div className="absolute top-full left-0 mt-3 w-60 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl z-50"
+                <div className="absolute top-full left-0 mt-3 w-60 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl z-[200]"
                   style={{ ...CARD_STYLE, overflow: "visible" }} onMouseEnter={handlePracticeEnter} onMouseLeave={handlePracticeLeave}>
                   <div className="p-1.5">
 
@@ -195,33 +195,33 @@ export default function Header() {
                         isActive("/create") || isActive("/vedic-maths")
                           ? "text-primary bg-primary/10 shadow-sm" : "text-card-foreground hover:bg-primary/10 hover:shadow-sm"
                       }`}>
-                        <div className="flex items-center gap-2"><FileText className="w-4 h-4" />📄 Create Paper</div>
+                        <div className="flex items-center gap-2"><FileText className="w-4 h-4" />Create Paper</div>
                         <ChevronRight className="w-3.5 h-3.5 opacity-50 flex-shrink-0" />
                       </div>
                       {practiceSubOpen && (
-                        <div className="absolute left-full top-0 ml-2 w-64 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl z-[60] overflow-hidden"
+                        <div className="absolute left-full top-0 ml-2 w-64 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl z-[210] overflow-hidden"
                           style={CARD_STYLE} onMouseEnter={handlePracticeSubEnter} onMouseLeave={handlePracticeSubLeave}>
                           <div className="p-1.5">
-                            <div className="px-4 py-2 text-[10px] font-black text-primary/70 uppercase tracking-[0.2em]">🧮 Abacus</div>
+                            <div className="px-4 py-2 text-[10px] font-black text-primary/70 uppercase tracking-[0.2em]">Abacus</div>
                             <div className="px-4 py-3 text-sm font-medium flex items-center gap-2 rounded-xl text-card-foreground/40 cursor-not-allowed select-none">
                               <Lock className="w-4 h-4 flex-shrink-0" /><span>Junior Level</span>
                               <span className="text-[10px] text-muted-foreground ml-auto whitespace-nowrap">Coming Soon</span>
                             </div>
                             <Link href="/create/basic">
                               <div className={navItem(isActive("/create/basic"))} onClick={() => { setPracticeOpen(false); setPracticeSubOpen(false); }}>
-                                <BookOpen className="w-4 h-4" />📘 Basic Level
+                                <BookOpen className="w-4 h-4" />Basic Level
                               </div>
                             </Link>
                             <Link href="/create/advanced">
                               <div className={navItem(isActive("/create/advanced"))} onClick={() => { setPracticeOpen(false); setPracticeSubOpen(false); }}>
-                                <Trophy className="w-4 h-4" />🏆 Advanced Level
+                                <Trophy className="w-4 h-4" />Advanced Level
                               </div>
                             </Link>
                             <div className="mt-1 pt-2 mx-4 border-t-2 border-border/50" />
-                            <div className="px-4 py-2 text-[10px] font-black text-primary/70 uppercase tracking-[0.2em]">🕉️ Vedic Maths</div>
+                            <div className="px-4 py-2 text-[10px] font-black text-primary/70 uppercase tracking-[0.2em]">Vedic Maths</div>
                             <Link href="/vedic-maths/level-1">
                               <div className={navItem(isActive("/vedic-maths"))} onClick={() => { setPracticeOpen(false); setPracticeSubOpen(false); }}>
-                                <BookOpen className="w-4 h-4" />📖 Vedic Maths
+                                <BookOpen className="w-4 h-4" />Vedic Maths
                               </div>
                             </Link>
                           </div>
@@ -231,12 +231,12 @@ export default function Header() {
 
                     <Link href="/mental">
                       <div className={navItem(isActive("/mental"))} onClick={() => setPracticeOpen(false)}>
-                        <Brain className="w-4 h-4" />🧠 Mental Math
+                        <Brain className="w-4 h-4" />Mental Math
                       </div>
                     </Link>
                     <Link href="/burst">
                       <div className={navItem(isActive("/burst"), true)} onClick={() => setPracticeOpen(false)}>
-                        <Zap className="w-4 h-4 text-amber-500" />⚡ Burst Mode
+                        <Zap className="w-4 h-4 text-amber-500" />Burst Mode
                         <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
@@ -257,12 +257,12 @@ export default function Header() {
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${gamesOpen ? "rotate-180" : ""}`} />
               </button>
               {gamesOpen && (
-                <div className="absolute top-full left-0 mt-3 w-64 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl overflow-hidden z-50"
+                <div className="absolute top-full left-0 mt-3 w-64 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl overflow-hidden z-[200]"
                   style={CARD_STYLE} onMouseEnter={handleGamesEnter} onMouseLeave={handleGamesLeave}>
                   <div className="p-1.5">
                     <Link href="/tools/soroban">
                       <div className={navItem(isActive("/tools/soroban"))} onClick={() => setGamesOpen(false)}>
-                        <span className="text-base leading-none">🧮</span>Abacus Soroban
+                        <Calculator className="w-4 h-4" />Abacus Soroban
                       </div>
                     </Link>
                     <Link href="/tools/gridmaster">
@@ -272,7 +272,7 @@ export default function Header() {
                     </Link>
                     <Link href="/tools/gridmaster?tab=magic">
                       <div className={navItem(isActive("/tools/gridmaster"))} onClick={() => setGamesOpen(false)}>
-                        <Sparkles className="w-4 h-4" />✨ Magic Square
+                        <Sparkles className="w-4 h-4" />Magic Square
                       </div>
                     </Link>
                   </div>
@@ -306,7 +306,7 @@ export default function Header() {
                         )}
                       </button>
                       {userMenuOpen && (
-                        <div className="absolute right-0 top-full mt-2 w-64 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl overflow-hidden z-50"
+                        <div className="absolute right-0 top-full mt-2 w-64 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl overflow-hidden z-[200]"
                           style={CARD_STYLE} onMouseEnter={handleUserMenuEnter} onMouseLeave={handleUserMenuLeave}>
                           <div className="p-4 border-b-2 border-border/50 bg-gradient-to-br from-primary/5 to-transparent">
                             <div className="font-semibold text-card-foreground text-sm">{displayName}</div>
@@ -315,22 +315,27 @@ export default function Header() {
                           </div>
                           <div className="p-1.5">
                             <Link href="/dashboard">
-                              <div className={navItem(isActive("/dashboard"))}><BarChart3 className="w-4 h-4" />📊 Dashboard</div>
+                              <div className={navItem(isActive("/dashboard"))}><BarChart3 className="w-4 h-4" />Dashboard</div>
                             </Link>
                             <Link href="/profile">
-                              <div className={navItem(isActive("/profile"))}><User className="w-4 h-4" />👤 Student Profile</div>
+                              <div className={navItem(isActive("/profile"))}><User className="w-4 h-4" />Student Profile</div>
                             </Link>
                             {isAdmin && (
                               <>
                                 <div className="mx-4 my-1 border-t border-border/50" />
                                 <Link href="/admin">
                                   <div className="px-4 py-3 text-sm font-medium text-card-foreground hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
-                                    <Shield className="w-4 h-4" />🛡️ Admin Dashboard
+                                    <Shield className="w-4 h-4" />Admin Dashboard
                                   </div>
                                 </Link>
                                 <Link href="/admin/attendance">
                                   <div className="px-4 py-3 text-sm font-medium text-card-foreground hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
-                                    <Calendar className="w-4 h-4" />📅 Attendance
+                                    <Calendar className="w-4 h-4" />Attendance
+                                  </div>
+                                </Link>
+                                <Link href="/admin/access-control">
+                                  <div className="px-4 py-3 text-sm font-medium text-card-foreground hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
+                                    <Lock className="w-4 h-4" />Access Control
                                   </div>
                                 </Link>
                               </>
@@ -339,7 +344,7 @@ export default function Header() {
                           <div className="p-1.5 border-t-2 border-border/50">
                             <button onClick={logout}
                               className="w-full px-4 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 flex items-center gap-2 text-left transition-all rounded-xl">
-                              <LogOut className="w-4 h-4" />🚪 Logout
+                              <LogOut className="w-4 h-4" />Logout
                             </button>
                           </div>
                         </div>
@@ -367,43 +372,43 @@ export default function Header() {
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-border pt-4 pb-4 mt-2">
             <div className="flex flex-col gap-1">
-              <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">📚 Courses</div>
+              <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Courses</div>
               <Link href="/courses/abacus" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Calculator className="w-4 h-4" />🧮 Study Abacus</div>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Calculator className="w-4 h-4" />Study Abacus</div>
               </Link>
               <Link href="/courses/vedic-maths" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><BookOpen className="w-4 h-4" />🕉️ Vedic Maths</div>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><BookOpen className="w-4 h-4" />Vedic Maths</div>
               </Link>
               <Link href="/courses/handwriting" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><PenTool className="w-4 h-4" />✍️ Handwriting</div>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><PenTool className="w-4 h-4" />Handwriting</div>
               </Link>
               <Link href="/courses/stem" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Rocket className="w-4 h-4" />🤖 STEM</div>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Rocket className="w-4 h-4" />STEM</div>
               </Link>
               <div className="border-t border-border my-2" />
-              <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">🎯 Practice</div>
+              <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Practice</div>
               <div className="px-2 py-1">
-                <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">🧮 Abacus</div>
+                <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Abacus</div>
                 <div className="px-4 py-2 text-sm font-medium text-card-foreground opacity-50 cursor-not-allowed rounded-lg flex items-center gap-3">
                   <Lock className="w-4 h-4" /><span>Junior Level</span><span className="text-[10px] text-muted-foreground ml-auto">Coming Soon</span>
                 </div>
                 <Link href="/create/basic" onClick={() => setMobileMenuOpen(false)}>
-                  <div className="px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><BookOpen className="w-4 h-4" />📘 Basic Level</div>
+                  <div className="px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><BookOpen className="w-4 h-4" />Basic Level</div>
                 </Link>
                 <Link href="/create/advanced" onClick={() => setMobileMenuOpen(false)}>
-                  <div className="px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Trophy className="w-4 h-4" />🏆 Advanced Level</div>
+                  <div className="px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Trophy className="w-4 h-4" />Advanced Level</div>
                 </Link>
-                <div className="px-2 py-1 mt-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">🕉️ Vedic Maths</div>
+                <div className="px-2 py-1 mt-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Vedic Maths</div>
                 <Link href="/vedic-maths/level-1" onClick={() => setMobileMenuOpen(false)}>
-                  <div className="px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><BookOpen className="w-4 h-4" />📖 Vedic Maths</div>
+                  <div className="px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><BookOpen className="w-4 h-4" />Vedic Maths</div>
                 </Link>
               </div>
               <Link href="/mental" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Brain className="w-4 h-4" />🧠 Mental Math</div>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Brain className="w-4 h-4" />Mental Math</div>
               </Link>
               <Link href="/burst" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors">
-                  <Zap className="w-4 h-4 text-amber-500" /><span>⚡ Burst Mode</span>
+                  <Zap className="w-4 h-4 text-amber-500" /><span>Burst Mode</span>
                   <span className="ml-auto relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
@@ -411,15 +416,15 @@ export default function Header() {
                 </div>
               </Link>
               <div className="border-t border-border my-2" />
-              <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">🎮 Games</div>
+              <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Games</div>
               <Link href="/tools/soroban" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><span className="text-base">🧮</span>Abacus Soroban</div>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Calculator className="w-4 h-4" />Abacus Soroban</div>
               </Link>
               <Link href="/tools/gridmaster" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Grid3X3 className="w-4 h-4" />⊞ Vedic Grid</div>
               </Link>
               <Link href="/tools/gridmaster?tab=magic" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Sparkles className="w-4 h-4" />✨ Magic Square</div>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Sparkles className="w-4 h-4" />Magic Square</div>
               </Link>
               {!isAuthenticated && (
                 <div className="mt-3 pt-3 border-t border-border">

@@ -426,7 +426,7 @@ export default function BurstMode() {
     const style = document.createElement("style");
     style.id = id;
     style.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700;1,800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
       :root {
         --bm-bg: #06070F; --bm-bg2: #0B0D1A; --bm-surf: #0F1120; --bm-surf2: #141729; --bm-surf3: #1A1F38;
         --bm-bdr: rgba(255,255,255,0.06); --bm-bdr2: rgba(255,255,255,0.10);
@@ -436,7 +436,7 @@ export default function BurstMode() {
         --bm-green: #10B981; --bm-gdim: rgba(16,185,129,0.12);
         --bm-red: #EF4444; --bm-rdim: rgba(239,68,68,0.12);
         --bm-gold: #F59E0B; --bm-white: #F0F2FF; --bm-white2: #B8BDD8; --bm-muted: #525870;
-        --bm-fd: 'Syne', sans-serif; --bm-fb: 'DM Sans', sans-serif; --bm-fm: 'JetBrains Mono', monospace;
+        --bm-fd: 'Playfair Display', Georgia, serif; --bm-fb: 'DM Sans', sans-serif; --bm-fm: 'JetBrains Mono', monospace;
       }
       @keyframes bm-fade-up { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:none} }
       @keyframes bm-fade-in { from{opacity:0} to{opacity:1} }
@@ -690,7 +690,7 @@ export default function BurstMode() {
   // Selection phase
   if (phase === "select") {
     return (
-      <div style={{ minHeight: "100vh", background: "var(--bm-bg)", position: "relative", overflow: "hidden" }}>
+      <div style={{ minHeight: "100vh", background: "var(--bm-bg)", position: "relative", overflowX: "hidden" }}>
         {/* Atmospheric glow */}
         <div style={{
           position: "absolute", top: -100, left: "50%", transform: "translateX(-50%)",
@@ -883,7 +883,7 @@ export default function BurstMode() {
       : { color: "var(--bm-green)", transition: "color .5s ease" };
 
     return (
-      <div style={{ minHeight: "100vh", background: "var(--bm-bg)", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+      <div style={{ minHeight: "100vh", background: "var(--bm-bg)", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
         {/* Background atmosphere */}
         <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 50% 40% at 50% 60%, rgba(249,115,22,.04) 0%, transparent 65%)", pointerEvents: "none" }} />
 
@@ -918,7 +918,7 @@ export default function BurstMode() {
         )}
 
         {/* Top bar */}
-        <div style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(6,7,15,.9)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--bm-bdr)", height: 64, display: "grid", gridTemplateColumns: "80px 1fr 120px", alignItems: "center", padding: "0 24px" }}>
+        <div style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(6,7,15,.9)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--bm-bdr)", height: 64, display: "grid", gridTemplateColumns: "80px 1fr 120px", alignItems: "center", padding: "0 24px" }}>
           {/* Back button */}
           <button
             onClick={handleBack}

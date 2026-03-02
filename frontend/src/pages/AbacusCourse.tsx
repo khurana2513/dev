@@ -55,7 +55,7 @@ function FadeIn({
 function AbacusStyles() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=JetBrains+Mono:wght@400;500;600&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700;1,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
       :root {
         --ab-bg:      #06070F;
@@ -73,7 +73,7 @@ function AbacusStyles() {
         --ab-muted:   #5A5F7A;
         --ab-gold:    #E8A820;
         --ab-teal:    #0FB8A0;
-        --ab-font-d:  'Syne', sans-serif;
+        --ab-font-d:  'Playfair Display', Georgia, serif;
         --ab-font-b:  'DM Sans', sans-serif;
         --ab-font-m:  'JetBrains Mono', monospace;
       }

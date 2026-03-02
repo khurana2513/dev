@@ -7,9 +7,31 @@ import {
   MonthlySessionEntry,
   AttendanceStatus,
   STATUS_LABELS,
-  STATUS_COLORS,
 } from "../lib/attendanceApi";
 import { useAuth } from "../contexts/AuthContext";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Design tokens
+// ─────────────────────────────────────────────────────────────────────────────
+const DB = {
+  bg:        "#0c0e1a",
+  surf:      "#131629",
+  surf2:     "#181b2e",
+  border:    "rgba(255,255,255,0.07)",
+  purple:    "#7c5af6",
+  purpleDim: "rgba(124,90,246,0.13)",
+  gold:      "#f59e0b",
+  goldDim:   "rgba(245,158,11,0.13)",
+  green:     "#22c55e",
+  greenDim:  "rgba(34,197,94,0.13)",
+  red:       "#f87171",
+  redDim:    "rgba(248,113,113,0.13)",
+  teal:      "#14b8a6",
+  tealDim:   "rgba(20,184,166,0.13)",
+  text:      "#e2e8f0",
+  muted:     "#64748b",
+  font:      "'Playfair Display',Georgia,serif",
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers

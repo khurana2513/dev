@@ -726,7 +726,7 @@ export default function PaperAttempt() {
               <div style={{width:72,height:72,borderRadius:'50%',background:'linear-gradient(135deg,#10B981,#059669)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px',boxShadow:'0 8px 32px rgba(16,185,129,0.4)',animation:'pa-trophy 0.6s cubic-bezier(0.34,1.56,0.64,1)'}}>
                 <Trophy style={{width:36,height:36,color:'white'}} />
               </div>
-              <h1 style={{fontSize:32,fontWeight:800,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:'0 0 8px'}}>Paper Completed!</h1>
+              <h1 style={{fontSize:32,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'0 0 8px'}}>Paper Completed!</h1>
               <p style={{color:'#525870',fontFamily:'DM Sans, sans-serif',fontSize:15,margin:0}}>{paperConfig?.title}</p>
             </div>
 
@@ -791,7 +791,7 @@ export default function PaperAttempt() {
 
           {/* Results breakdown */}
           <div style={{background:'#0F1120',borderRadius:20,padding:'32px 36px',border:'1px solid rgba(255,255,255,0.07)',boxShadow:'0 24px 60px rgba(0,0,0,0.4)',animation:'pa-fade-up 0.5s ease 0.2s both'}}>
-            <h2 style={{fontSize:22,fontWeight:700,color:'#F0F2FF',fontFamily:'Syne, sans-serif',marginBottom:24}}>Question Review</h2>
+            <h2 style={{fontSize:22,fontWeight:700,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",marginBottom:24}}>Question Review</h2>
             
             {/* Separate questions into categories */}
             {(() => {
@@ -848,7 +848,7 @@ export default function PaperAttempt() {
                 <div className="space-y-8">
                   {correctQuestions.length > 0 && (
                     <div>
-                      <h3 style={{fontSize:18,fontWeight:700,color:'#10B981',fontFamily:'Syne, sans-serif',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+                      <h3 style={{fontSize:18,fontWeight:700,color:'#10B981',fontFamily:"'Playfair Display', Georgia, serif",marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
                         <CheckCircle2 style={{width:20,height:20}} />
                         Correct Answers ({correctQuestions.length})
                       </h3>
@@ -886,7 +886,7 @@ export default function PaperAttempt() {
 
                   {wrongQuestions.length > 0 && (
                     <div>
-                      <h3 style={{fontSize:18,fontWeight:700,color:'#EF4444',fontFamily:'Syne, sans-serif',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+                      <h3 style={{fontSize:18,fontWeight:700,color:'#EF4444',fontFamily:"'Playfair Display', Georgia, serif",marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
                         <XCircle style={{width:20,height:20}} />
                         Wrong Answers ({wrongQuestions.length})
                       </h3>
@@ -918,7 +918,7 @@ export default function PaperAttempt() {
 
                   {unattemptedQuestions.length > 0 && (
                     <div>
-                      <h3 style={{fontSize:18,fontWeight:700,color:'#F59E0B',fontFamily:'Syne, sans-serif',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+                      <h3 style={{fontSize:18,fontWeight:700,color:'#F59E0B',fontFamily:"'Playfair Display', Georgia, serif",marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
                         <Square style={{width:20,height:20}} />
                         Unattempted ({unattemptedQuestions.length})
                       </h3>
@@ -1001,7 +1001,7 @@ export default function PaperAttempt() {
             <div style={{width:56,height:56,borderRadius:'50%',background:'linear-gradient(135deg,rgba(123,92,229,0.2),rgba(157,127,240,0.1))',border:'1px solid rgba(123,92,229,0.3)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
               <Target style={{width:26,height:26,color:'#9D7FF0'}} />
             </div>
-            <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:'0 0 6px'}}>{paperConfig.title}</h2>
+            <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'0 0 6px'}}>{paperConfig.title}</h2>
             <p style={{color:'#525870',fontFamily:'JetBrains Mono, monospace',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',margin:0}}>{paperConfig.level}</p>
           </div>
           
@@ -1070,7 +1070,7 @@ export default function PaperAttempt() {
           {/* Center: Title */}
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <Target style={{width:18,height:18,color:'#7B5CE5',flexShrink:0}} />
-            <h1 style={{fontSize:17,fontWeight:800,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:360}}>{paperConfig.title}</h1>
+            <h1 style={{fontSize:17,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:360}}>{paperConfig.title}</h1>
           </div>
           {/* Right: Timer + Progress */}
           <div style={{display:'flex',alignItems:'center',gap:16,justifyContent:'flex-end'}}>
@@ -1087,7 +1087,7 @@ export default function PaperAttempt() {
       {showExitConfirm && (
         <div style={{position:'fixed',inset:0,zIndex:50,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.75)',backdropFilter:'blur(12px)'}}>
           <div style={{background:'#0F1120',borderRadius:16,padding:'28px 32px',maxWidth:420,width:'calc(100% - 32px)',border:'1px solid rgba(255,255,255,0.08)',boxShadow:'0 24px 60px rgba(0,0,0,0.6)'}}>
-            <h3 style={{fontSize:20,fontWeight:700,color:'#F0F2FF',fontFamily:'Syne, sans-serif',marginBottom:8}}>Exit Paper?</h3>
+            <h3 style={{fontSize:20,fontWeight:700,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",marginBottom:8}}>Exit Paper?</h3>
             <p style={{color:'#B8BDD8',fontFamily:'DM Sans, sans-serif',fontSize:14,marginBottom:24,lineHeight:1.6}}>
               Your progress will be saved, but the timer will stop. Are you sure you want to exit?
             </p>

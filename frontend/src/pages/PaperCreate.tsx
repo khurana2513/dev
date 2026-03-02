@@ -1289,7 +1289,7 @@ export default function PaperCreate() {
           </div>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <FileDown style={{width:20,height:20,color:'#7B5CE5',flexShrink:0}} />
-            <h1 style={{fontSize:20,fontWeight:800,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:0,letterSpacing:'-0.01em'}}>Create Paper</h1>
+            <h1 style={{fontSize:20,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:0,letterSpacing:'-0.01em'}}>Create Paper</h1>
           </div>
           <div style={{display:'flex',justifyContent:'flex-end'}}>
             {blocks.length > 0 && (
@@ -1308,28 +1308,28 @@ export default function PaperCreate() {
             {isBasicPage && (
               <div style={{marginBottom:28,paddingBottom:24,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
                 <div className="pc-section-label">Basic Operations</div>
-                <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:'4px 0 6px'}}>Basic Operations</h2>
+                <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'4px 0 6px'}}>Basic Operations</h2>
                 <p style={{color:'#525870',fontFamily:'DM Sans, sans-serif',fontSize:14,margin:0}}>Create math papers with basic operations: Addition, Subtraction, Multiplication, and Division</p>
               </div>
             )}
             {isJuniorPage && (
               <div style={{marginBottom:28,paddingBottom:24,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
                 <div className="pc-section-label">Junior Operations</div>
-                <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:'4px 0 6px'}}>Junior Operations</h2>
+                <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'4px 0 6px'}}>Junior Operations</h2>
                 <p style={{color:'#525870',fontFamily:'DM Sans, sans-serif',fontSize:14,margin:0}}>Create math papers for junior level abacus training: Direct Add/Sub, Small Friends, and Big Friends</p>
               </div>
             )}
             {isAdvancedPage && (
               <div style={{marginBottom:28,paddingBottom:24,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
                 <div className="pc-section-label">Advanced Operations</div>
-                <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:'4px 0 6px'}}>Advanced Operations</h2>
+                <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'4px 0 6px'}}>Advanced Operations</h2>
                 <p style={{color:'#525870',fontFamily:'DM Sans, sans-serif',fontSize:14,margin:0}}>Create math papers with advanced operations: Decimal operations, LCM, GCD, Square Root, Cube Root, and more</p>
               </div>
             )}
             {isVedicPage && (
               <div style={{marginBottom:28,paddingBottom:24,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
                 <div className="pc-section-label">Vedic Maths</div>
-                <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:'4px 0 6px'}}>
+                <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'4px 0 6px'}}>
                   {level === "Custom" 
                     ? "Vedic Maths Operations" 
                     : level === "Vedic-Level-1" 
@@ -1421,7 +1421,7 @@ export default function PaperCreate() {
             <div>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12,marginBottom:20}}>
                 <div>
-                  <h2 style={{fontSize:20,fontWeight:700,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:'0 0 4px'}}>Question Blocks</h2>
+                  <h2 style={{fontSize:20,fontWeight:700,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'0 0 4px'}}>Question Blocks</h2>
                   {blocks.length > 0 && (
                     <p style={{fontSize:12,color:'#525870',fontFamily:'JetBrains Mono, monospace',margin:0}}>
                       Total: <span style={{color:'#9D7FF0',fontWeight:700}}>{blocks.reduce((sum, block) => sum + block.count, 0)}</span> questions
@@ -1483,7 +1483,7 @@ export default function PaperCreate() {
                             <span style={{fontSize:16,fontWeight:800,color:'white',fontFamily:'JetBrains Mono, monospace'}}>{index + 1}</span>
                           </div>
                           <div>
-                            <h3 style={{fontSize:16,fontWeight:700,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:0}}>
+                            <h3 style={{fontSize:16,fontWeight:700,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:0}}>
                               {generateSectionName(block)}
                             </h3>
                           </div>
@@ -4127,7 +4127,7 @@ export default function PaperCreate() {
                     <Eye style={{width:22,height:22,color:'white'}} />
                   </div>
                   <div>
-                    <h2 style={{fontSize:20,fontWeight:800,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:'0 0 3px'}}>Paper Preview</h2>
+                    <h2 style={{fontSize:20,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'0 0 3px'}}>Paper Preview</h2>
                     <p style={{fontSize:12,color:'#525870',fontFamily:'DM Sans, sans-serif',margin:0}}>Review your generated questions</p>
                   </div>
                 </div>
@@ -4225,7 +4225,7 @@ export default function PaperCreate() {
                             const originalIndex = groupSet.indices[blockInGroupIndex];
                             return (
                               <div key={originalIndex} style={{flex:1,background:'#141729',border:'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'16px 18px',minWidth:0,transition:'all 0.2s'}}>
-                                <h3 style={{fontWeight:800,fontSize:15,marginBottom:12,color:'#F0F2FF',fontFamily:'Syne, sans-serif'}}>
+                                <h3 style={{fontWeight:800,fontSize:15,marginBottom:12,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif"}}>
                                   {block.config.title || `Section ${originalIndex + 1}`}
                 </h3>
                                 <div className="grid grid-cols-1 gap-2">
@@ -4261,7 +4261,7 @@ export default function PaperCreate() {
                     
                     return (
                       <div key={originalIndex} style={{background:'#141729',border:'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'16px 18px',transition:'all 0.2s',marginBottom:12}}>
-                        <h3 style={{fontWeight:800,fontSize:15,marginBottom:12,color:'#F0F2FF',fontFamily:'Syne, sans-serif'}}>
+                        <h3 style={{fontWeight:800,fontSize:15,marginBottom:12,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif"}}>
                           {block.config.title || `Section ${originalIndex + 1}`}
                         </h3>
                         {isVerticalBlock ? (
@@ -4425,7 +4425,7 @@ export default function PaperCreate() {
                         <FileDown style={{width:18,height:18,color:'white'}} />
                       </div>
                       <div>
-                        <h3 style={{fontSize:18,fontWeight:800,color:'#F0F2FF',fontFamily:'Syne, sans-serif',margin:'0 0 2px'}}>Download Options</h3>
+                        <h3 style={{fontSize:18,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'0 0 2px'}}>Download Options</h3>
                         <p style={{fontSize:12,color:'#525870',fontFamily:'DM Sans, sans-serif',margin:0}}>Choose your preferred format</p>
                       </div>
                     </div>
