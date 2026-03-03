@@ -268,7 +268,7 @@ def get_leaderboard(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     branch: Optional[str] = Query(None, description="Filter by branch"),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=500),
 ):
     """
     Live leaderboard — ranks by User.total_points.
@@ -286,7 +286,6 @@ def get_leaderboard(
         .filter(
             User.role == "student",
             User.is_archived == False,
-            User.total_points > 0,
         )
     )
 
@@ -295,6 +294,19 @@ def get_leaderboard(
 
     query = query.order_by(desc(User.total_points)).limit(limit)
     rows = query.all()
+
+    # Total count of ALL eligible students (not capped by limit)
+    total_count = (
+        db.query(func.count(User.id))
+        .outerjoin(StudentProfile, StudentProfile.user_id == User.id)
+        .filter(
+            User.role == "student",
+            User.is_archived == False,
+        )
+    )
+    if branch:
+        total_count = total_count.filter(StudentProfile.branch == branch)
+    total_students = total_count.scalar() or 0
 
     entries = []
     for rank, row in enumerate(rows, start=1):
@@ -329,7 +341,7 @@ def get_leaderboard(
     return LeaderboardResponse(
         entries=entries,
         current_user_rank=current_user_rank,
-        total_participants=len(entries),
+        total_participants=total_students,
         available_branches=available_branches,
     )
 
@@ -386,17 +398,19 @@ def get_weekly_summary(
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _compute_live_rank(db: Session, student_id: int) -> Optional[int]:
-    """Compute live rank by total_points among non-archived students."""
+    """Compute live rank by total_points among all active students (including 0-point)."""
     user = db.query(User).filter(User.id == student_id).first()
-    if not user or (user.total_points or 0) <= 0:
+    if not user:
         return None
+
+    my_points = user.total_points or 0
 
     rank = (
         db.query(func.count(User.id))
         .filter(
             User.role == "student",
             User.is_archived == False,
-            User.total_points > user.total_points,
+            User.total_points > my_points,
         )
         .scalar()
     )

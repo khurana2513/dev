@@ -119,9 +119,9 @@ export default function BackendTest() {
       {results.length > 0 && (
         <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-premium">
           {results.map((result, i) => (
-            <div 
-              key={i} 
+            <div key={i} 
               className={`text-xs font-mono p-3 rounded-lg border backdrop-blur-sm ${getStatusColor(result.status)} animate-fade-in`}
+              style={{ wordBreak: "break-all", overflowWrap: "anywhere", minWidth: 0, overflow: "hidden" }}
             >
               <div className="flex items-start gap-2">
                 {getStatusIcon(result.status)}

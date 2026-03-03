@@ -375,3 +375,39 @@ input[type="number"] {
 .dark .badge-bronze {
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
 }
+
+/* ── Streak fire badge (navbar) ─────────────────────────────────── */
+@keyframes streak-glow-pulse {
+  0%, 100% { box-shadow: 0 0 6px 1px rgba(251,146,60,0.50), 0 0 16px 2px rgba(239,68,68,0.25); }
+  50%       { box-shadow: 0 0 12px 3px rgba(251,146,60,0.80), 0 0 28px 6px rgba(239,68,68,0.45); }
+}
+@keyframes streak-glow-zero {
+  0%, 100% { box-shadow: 0 0 4px 1px rgba(100,116,139,0.25); }
+  50%       { box-shadow: 0 0 7px 2px rgba(100,116,139,0.40); }
+}
+@keyframes fire-flicker {
+  0%   { transform: scale(1)    rotate(0deg);   }
+  20%  { transform: scale(1.15) rotate(-5deg);  }
+  40%  { transform: scale(0.95) rotate(4deg);   }
+  60%  { transform: scale(1.12) rotate(-3deg);  }
+  80%  { transform: scale(0.97) rotate(2deg);   }
+  100% { transform: scale(1)    rotate(0deg);   }
+}
+@keyframes streak-number-pop {
+  0%   { transform: scale(0.5); opacity: 0; }
+  65%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.streak-badge-active {
+  animation: streak-glow-pulse 2s ease-in-out infinite;
+}
+.streak-badge-zero {
+  animation: streak-glow-zero 3s ease-in-out infinite;
+}
+.streak-fire-icon {
+  animation: fire-flicker 1.6s ease-in-out infinite;
+  display: inline-block;
+}
+.streak-number-pop {
+  animation: streak-number-pop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}

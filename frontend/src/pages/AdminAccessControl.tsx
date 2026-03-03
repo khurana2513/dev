@@ -59,8 +59,8 @@ function Drawer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40"
-            style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+            className="fixed inset-0"
+            style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 210 }}
             onClick={onClose}
           />
           <motion.div
@@ -69,10 +69,11 @@ function Drawer({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed right-0 top-0 h-full z-50 overflow-y-auto"
+            className="fixed right-0 top-0 h-full overflow-y-auto"
             style={{
               width: 480,
               maxWidth: "100vw",
+              zIndex: 220,
               background: "#0F0F18",
               borderLeft: "1px solid rgba(255,255,255,0.10)",
               boxShadow: "-20px 0 60px rgba(0,0,0,0.6)",
@@ -407,6 +408,55 @@ export default function AdminAccessControl() {
   const [bulkResult, setBulkResult] = useState<BulkImportResult | null>(null);
   const [modeUpdating, setModeUpdating] = useState(false);
 
+  // Maintenance mode state
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean | null>(null);
+  const [maintenanceMsg, setMaintenanceMsg] = useState("");
+  const [maintenanceMsgDraft, setMaintenanceMsgDraft] = useState("");
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [maintenanceMsgEditing, setMaintenanceMsgEditing] = useState(false);
+
+  // Fetch maintenance status on mount
+  useEffect(() => {
+    const base = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8001";
+    fetch(`${base}/public/maintenance-status`)
+      .then((r) => r.json())
+      .then((d: { enabled: boolean; message: string }) => {
+        setMaintenanceEnabled(d.enabled);
+        setMaintenanceMsg(d.message);
+        setMaintenanceMsgDraft(d.message);
+      })
+      .catch(() => { setMaintenanceEnabled(false); });
+  }, []);
+
+  const toggleMaintenance = async () => {
+    setMaintenanceLoading(true);
+    try {
+      const base = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8001";
+      const token = localStorage.getItem("token") ?? "";
+      const res = await fetch(`${base}/admin/maintenance/toggle`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const d = await res.json();
+      setMaintenanceEnabled(d.enabled);
+      setMaintenanceMsg(d.message);
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  };
+
+  const saveMaintenanceMessage = async () => {
+    setMaintenanceLoading(true);
+    try {
+      const base = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8001";
+      const token = localStorage.getItem("token") ?? "";
+      const res = await fetch(`${base}/admin/maintenance/message`, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ message: maintenanceMsgDraft }) });
+      const d = await res.json();
+      setMaintenanceMsg(d.message);
+      setMaintenanceMsgDraft(d.message);
+      setMaintenanceMsgEditing(false);
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  };
+
   // Queries
   const { data: settings, refetch: refetchSettings } = useQuery<AccessControlSettings>({
     queryKey: ["access-settings"],
@@ -546,6 +596,47 @@ export default function AdminAccessControl() {
               </div>
             ) : (
               <div className="flex justify-center py-3"><Loader2 className="w-5 h-5 animate-spin text-indigo-400" /></div>
+            )}
+          </div>
+
+          {/* ── Maintenance Mode card ── */}
+          <div className="rounded-2xl p-5" style={{ background: maintenanceEnabled ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.04)", border: maintenanceEnabled ? "1px solid rgba(239,68,68,0.25)" : "1px solid rgba(255,255,255,0.08)", transition: "all 0.3s" }}>
+            <div className="flex items-center justify-between mb-3">
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: maintenanceEnabled ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={maintenanceEnabled ? "#f87171" : "#94a3b8"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                </div>
+                <p className="text-xs text-slate-500 uppercase tracking-wider">Maintenance Mode</p>
+              </div>
+              <button onClick={toggleMaintenance} disabled={maintenanceLoading || maintenanceEnabled === null} style={{ background: "none", border: "none", cursor: maintenanceLoading ? "not-allowed" : "pointer", opacity: maintenanceLoading ? 0.6 : 1 }}>
+                {maintenanceLoading ? (
+                  <Loader2 className="w-7 h-7 animate-spin text-indigo-400" />
+                ) : maintenanceEnabled ? (
+                  <ToggleRight className="w-10 h-10 text-red-400 hover:text-red-300 transition-colors" />
+                ) : (
+                  <ToggleLeft className="w-10 h-10 text-slate-500 hover:text-slate-400 transition-colors" />
+                )}
+              </button>
+            </div>
+            <div className="flex items-center gap-2 mb-3">
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: maintenanceEnabled ? "#f87171" : "#4ade80", boxShadow: maintenanceEnabled ? "0 0 6px #f87171" : "0 0 6px #4ade80", flexShrink: 0 }} />
+              <span className="text-sm font-semibold" style={{ color: maintenanceEnabled ? "#fca5a5" : "#86efac" }}>
+                {maintenanceEnabled === null ? "Checking…" : maintenanceEnabled ? "SITE IS DOWN" : "Site is Online"}
+              </span>
+            </div>
+            {!maintenanceMsgEditing ? (
+              <div className="flex items-start gap-2">
+                <p className="text-xs text-slate-500 flex-1" style={{ fontStyle: "italic", lineHeight: 1.5 }}>"{maintenanceMsg}"</p>
+                <button onClick={() => setMaintenanceMsgEditing(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", padding: 0 }}>Edit</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <textarea value={maintenanceMsgDraft} onChange={(e) => setMaintenanceMsgDraft(e.target.value)} rows={2} className="w-full rounded-xl text-xs text-white" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", padding: "8px 10px", outline: "none", fontFamily: "inherit", resize: "none" }} />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={saveMaintenanceMessage} disabled={maintenanceLoading} className="flex-1 rounded-xl py-1.5 text-xs font-semibold text-white" style={{ background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.4)", cursor: "pointer" }}>Save</button>
+                  <button onClick={() => { setMaintenanceMsgEditing(false); setMaintenanceMsgDraft(maintenanceMsg); }} className="rounded-xl px-3 py-1.5 text-xs font-medium text-slate-400" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer" }}>Cancel</button>
+                </div>
+              </div>
             )}
           </div>
         </div>

@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode, MouseEvent as RMouseEvent } from "react";
 import { Link } from "wouter";
-import { GraduationCap, Phone, Mail, Instagram, MapPin } from "lucide-react";
+import { GraduationCap, Phone, Mail, Instagram, MapPin, Calculator, BookOpen, PenTool, Rocket, Brain, Zap, FileText, Grid3X3, Sparkles } from "lucide-react";
 
 /** Dark premium footer — always-dark design that works on any page. */
 export default function Footer() {
@@ -14,20 +14,20 @@ export default function Footer() {
     purple2: "#a78bfa",
   };
 
-  const fontDisplay = "'Plus Jakarta Sans','Playfair Display',Georgia,serif";
+  const fontDisplay = "'Playfair Display',Georgia,serif";
   const fontMono    = "'DM Mono','JetBrains Mono',monospace";
   const fontBody    = "'DM Sans','Outfit',system-ui,sans-serif";
 
   const linkStyle: CSSProperties = {
-    display: "flex", alignItems: "center", gap: 8,
-    fontSize: 14, color: D.white2, textDecoration: "none",
-    marginBottom: 10, fontFamily: fontBody, transition: "color 0.2s",
+    display: "flex", alignItems: "center", gap: 7,
+    fontSize: 13.5, color: D.white2, textDecoration: "none",
+    marginBottom: 8, fontFamily: fontBody, transition: "color 0.2s",
   };
 
   const sectionLabel: CSSProperties = {
     fontFamily: fontMono, fontSize: 10, fontWeight: 600,
     letterSpacing: "0.14em", textTransform: "uppercase",
-    color: D.muted, marginBottom: 18,
+    color: D.muted, marginBottom: 14,
   };
 
   const contactBtn: CSSProperties = {
@@ -62,11 +62,11 @@ export default function Footer() {
   };
 
   return (
-    <footer style={{ background: D.bg, borderTop: `1px solid ${D.border}`, padding: "64px 24px 28px", fontFamily: fontBody }}>
+    <footer style={{ background: D.bg, borderTop: `1px solid ${D.border}`, padding: "40px 24px 20px", fontFamily: fontBody }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
         {/* Main grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: "48px 40px", marginBottom: 48 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: "32px 28px", marginBottom: 32 }}>
 
           {/* Brand */}
           <div>
@@ -92,18 +92,13 @@ export default function Footer() {
                 </div>
               </div>
               <div>
-                <div style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 16, color: D.white, lineHeight: 1.1 }}>Talent Hub</div>
-                <div style={{ fontFamily: fontMono, fontSize: 9, letterSpacing: "0.16em", color: D.muted, textTransform: "uppercase" }}>Excellence Lab</div>
+                <div style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 17, color: D.white, lineHeight: 1.1 }}>Talent Hub</div>
               </div>
             </div>
 
             <p style={{ fontSize: 13.5, color: D.white2, lineHeight: 1.72, maxWidth: 260, marginBottom: 18 }}>
               Transforming how children learn and think through proven, structured, and genuinely engaging programs since 2006.
             </p>
-
-            <div style={{ fontFamily: fontMono, fontSize: 11, color: D.muted, letterSpacing: "0.05em", marginBottom: 22 }}>
-              🏆 18+ Years &nbsp;·&nbsp; 👥 900+ Students &nbsp;·&nbsp; 📍 3 Branches
-            </div>
 
             {/* Contact buttons */}
             <div style={{ display: "flex", gap: 8 }}>
@@ -127,13 +122,15 @@ export default function Footer() {
           <div>
             <div style={sectionLabel}>Programs</div>
             {([
-              ["🧮 Study Abacus",  "/courses/abacus"],
-              ["🕉️ Vedic Maths",  "/courses/vedic-maths"],
-              ["✍️ Handwriting",  "/courses/handwriting"],
-              ["🤖 STEM",         "/courses/stem"],
-            ] as [string, string][]).map(([label, href]) => (
+              [Calculator, "Study Abacus",  "/courses/abacus"],
+              [BookOpen,   "Vedic Maths",   "/courses/vedic-maths"],
+              [PenTool,    "Handwriting",   "/courses/handwriting"],
+              [Rocket,     "STEM",          "/courses/stem"],
+            ] as [any, string, string][]).map(([Icon, label, href]) => (
               <Link href={href} key={href}>
-                <a style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>{label}</a>
+                <a style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
+                  <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
+                </a>
               </Link>
             ))}
           </div>
@@ -142,12 +139,14 @@ export default function Footer() {
           <div>
             <div style={sectionLabel}>Practice</div>
             {([
-              ["📄 Create Papers",   "/create"],
-              ["🧠 Mental Math",     "/mental"],
-              ["⚡ Burst Mode",      "/burst"],
-            ] as [string, string][]).map(([label, href]) => (
+              [FileText, "Create Papers",  "/create"],
+              [Brain,    "Mental Math",    "/mental"],
+              [Zap,      "Burst Mode",     "/burst"],
+            ] as [any, string, string][]).map(([Icon, label, href]) => (
               <Link href={href} key={label}>
-                <a style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>{label}</a>
+                <a style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
+                  <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
+                </a>
               </Link>
             ))}
           </div>
@@ -156,12 +155,14 @@ export default function Footer() {
           <div>
             <div style={sectionLabel}>Games</div>
             {([
-              ["🧮 Soroban Abacus",  "/tools/soroban"],
-              ["⊞ Vedic Grid",       "/tools/gridmaster"],
-              ["✨ Magic Square",    "/tools/gridmaster?tab=magic"],
-            ] as [string, string][]).map(([label, href]) => (
+              [Calculator, "Soroban Abacus",  "/tools/soroban"],
+              [Grid3X3,    "Vedic Grid",       "/tools/gridmaster"],
+              [Sparkles,   "Magic Square",    "/tools/gridmaster?tab=magic"],
+            ] as [any, string, string][]).map(([Icon, label, href]) => (
               <Link href={href} key={label}>
-                <a style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>{label}</a>
+                <a style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
+                  <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
+                </a>
               </Link>
             ))}
           </div>
@@ -186,17 +187,17 @@ export default function Footer() {
         </div>
 
         {/* Divider */}
-        <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${D.border} 20%,${D.border} 80%,transparent)`, marginBottom: 22 }} />
+        <div style={{ height: 1, background: `linear-gradient(90deg,transparent,${D.border} 20%,${D.border} 80%,transparent)`, marginBottom: 16 }} />
 
         {/* Bottom bar */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <div style={{ fontFamily: fontMono, fontSize: 12, color: D.muted }}>
-            © {new Date().getFullYear()} Talent Hub Excellence Lab. Made with ❤️ &amp; consistency.
+            © {new Date().getFullYear()} Talent Hub. Made with ❤️ &amp; consistency.
           </div>
-          <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {([
-              ["🔒 Privacy Policy",   "#"],
-              ["📜 Terms of Service", "#"],
+              ["Privacy Policy",   "#"],
+              ["Terms of Service", "#"],
             ] as [string, string][]).map(([label, href]) => (
               <a key={label} href={href}
                 style={{ fontFamily: fontMono, fontSize: 11.5, color: D.muted, textDecoration: "none", transition: "color 0.2s" }}

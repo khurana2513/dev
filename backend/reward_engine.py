@@ -109,11 +109,20 @@ class RewardEngine:
         db.add(event)
         db.flush()
 
-        # Check streak (will increment once per IST day when threshold met)
-        streak_updated = self.streak_service.check_and_update(db, student_id)
+        # Check streak (will increment once per IST day when threshold met).
+        # Returns (updated: bool, milestone_badges: List[dict]) — milestone badges
+        # are awarded inside check_and_update and must be merged here so they
+        # reach the caller; a second evaluate() call below would find them already
+        # in the awarded-set and not return them again.
+        streak_updated, milestone_badges = self.streak_service.check_and_update(db, student_id)
 
-        # Evaluate badges
-        badges_unlocked = self.badge_evaluator.evaluate(db, student_id)
+        # Evaluate session-level badges (cumulative_correct, multi_tool_same_day, etc.)
+        session_badges = self.badge_evaluator.evaluate(db, student_id)
+
+        # Deduplicate: milestone_badges take priority, skip any overlap from session_badges
+        awarded_keys = {b["badge_key"] for b in milestone_badges}
+        unique_session_badges = [b for b in session_badges if b["badge_key"] not in awarded_keys]
+        badges_unlocked = milestone_badges + unique_session_badges
 
         return RecordEventResult(
             points_awarded=points_earned,

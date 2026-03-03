@@ -43,7 +43,7 @@ export async function fetchStreak(): Promise<StreakResponse> {
 export async function fetchLeaderboard(
   period: string = "all_time",
   branch?: string,
-  limit = 20
+  limit = 100
 ): Promise<LeaderboardResponse> {
   const params = new URLSearchParams({ limit: String(limit), period });
   if (branch) params.set("branch", branch);

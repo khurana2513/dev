@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import { useSearch } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Award, Flame, Trophy, Clock, BarChart3 } from "lucide-react";
 import RewardsSummaryBar from "../components/rewards/RewardsSummaryBar";
@@ -32,7 +33,12 @@ export default function StudentRewards({
 }: {
   currentUserId?: number;
 }) {
-  const [activeTab, setActiveTab] = useState<Tab>("badges");
+  const search = useSearch();
+  const VALID_TABS: Tab[] = ["badges", "streak", "leaderboard", "weekly", "history"];
+  const tabParam = new URLSearchParams(search).get("tab") as Tab | null;
+  const [activeTab, setActiveTab] = useState<Tab>(
+    tabParam && VALID_TABS.includes(tabParam) ? tabParam : "badges"
+  );
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-6 md:px-8 md:py-8 max-w-5xl mx-auto space-y-6">

@@ -285,7 +285,7 @@ const WHY_ITEMS = [
 const TOOLKIT_ITEMS = [
   {
     icon: FileText, title: "Live Paper Attempt",
-    desc: "Exam-mode practice with real Abacus and Vedic Maths papers. Timed, scored, and reviewed instantly.",
+    desc: "Exam practice with Abacus and Vedic Maths papers. Timed, scored, and reviewed instantly.",
     color: "#7C3AED", cta: "Attempt Now", path: "/create", featured: true,
   },
   {
@@ -318,27 +318,27 @@ const TOOLKIT_ITEMS = [
 const TESTIMONIALS = [
   {
     quote: "Abacus is a very good and effective technique to speed up calculations. It has great advantages as it helps in perfecting the brain as a whole. The brain is sharpened which is not only useful for maths but other subjects as well.",
-    name: "Neha Khanna", role: "Parent · Rohini Sector 16 · 9 reviews", initials: "NK", course: "Abacus", courseColor: "#7C3AED", stars: 5,
+    name: "Neha Khanna", role: "Parent · Rohini Sector 16", initials: "NK", course: "Abacus", courseColor: "#7C3AED", stars: 5,
   },
   {
     quote: "Very good institute for Abacus and vedic maths. My son's numeracy skills have considerably developed under the guidance of Ms. Sunita Khurana. Personal attention is given to each kid and visible difference can be seen in the performance level at school.",
-    name: "Shikha Khandelwal", role: "Local Guide · 6 reviews", initials: "SK", course: "Abacus", courseColor: "#7C3AED", stars: 5,
+    name: "Shikha Khandelwal", role: "Parent · Rohini Sector 16", initials: "SK", course: "Abacus", courseColor: "#7C3AED", stars: 5,
   },
   {
     quote: "My child has learnt a lot from Sunita ma'am. She is one of the finest teachers at Talent Hub. Now Lavya can calculate orally bigger numbers too. Thanks ma'am for your support and dedication towards kids.",
-    name: "Lavya Singal", role: "Parent · 4 reviews", initials: "LS", course: "Abacus", courseColor: "#0FB8A0", stars: 5,
+    name: "Lavya Singal", role: "Parent · Rohini Sector 16", initials: "LS", course: "Abacus", courseColor: "#0FB8A0", stars: 5,
   },
   {
     quote: "I really want to thank Sunita ma'am for her efforts and guidance. Due to her hard work and support my son has developed a good understanding of the concepts and he has shown remarkable progress over the course.",
-    name: "Neha Sachdeva", role: "Parent · 2 reviews", initials: "NS", course: "Vedic Maths", courseColor: "#F59E0B", stars: 5,
+    name: "Neha Sachdeva", role: "Parent · Rohini Sector 16", initials: "NS", course: "Vedic Maths", courseColor: "#F59E0B", stars: 5,
   },
   {
     quote: "Children are being nurtured well, thanks for that. I hope that Talent Hub and parents continuously make sure that the children do not get prize-oriented alone, and are continually made aware of the need for practising human values.",
-    name: "Yash", role: "Student · 1 review", initials: "Y", course: "Abacus", courseColor: "#7C3AED", stars: 5,
+    name: "Yash", role: "Student · Rohini Sector 16", initials: "Y", course: "Abacus", courseColor: "#7C3AED", stars: 5,
   },
   {
     quote: "My Class 2 child enjoys attending abacus classes and has shown clear improvement in calculation speed, focus, and confidence in maths. The teacher is patient and explains concepts in a simple, engaging way. Highly recommend.",
-    name: "Mehak Garg", role: "Parent · 4 reviews · 1 month ago", initials: "MG", course: "Abacus", courseColor: "#EA580C", stars: 5,
+    name: "Mehak Garg", role: "Parent · Rohini Sector 16", initials: "MG", course: "Abacus", courseColor: "#EA580C", stars: 5,
   },
 ];
 
@@ -439,8 +439,11 @@ function Programs() {
                   <div style={{ position: "absolute", top: 18, right: 18, background: "rgba(234,88,12,0.1)", border: "1px solid rgba(234,88,12,0.25)", borderRadius: 8, padding: "4px 10px", fontFamily: "var(--th-font-mono)", fontSize: 10, color: "#EA580C", letterSpacing: "0.04em" }}>STEM · 5 Courses</div>
                 )}
 
-                <div style={{ width: 50, height: 50, borderRadius: 15, marginBottom: 18, background: course.dimColor, border: `1px solid ${course.borderColor}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-                  
+                <div style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 18, border: `1px solid ${course.borderColor}`, overflow: "hidden", flexShrink: 0, background: course.dimColor }}>
+                  {course.image
+                    ? <img src={course.image} alt={course.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><course.icon size={28} style={{ color: course.color }} /></div>
+                  }
                 </div>
 
                 <div style={{ fontFamily: "var(--th-font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", color: course.color, textTransform: "uppercase", marginBottom: 6 }}>{course.tag}</div>
@@ -448,12 +451,6 @@ function Programs() {
                 <div style={{ fontFamily: "var(--th-font-body)", fontSize: 13, fontWeight: 500, color: course.color, marginBottom: 14, opacity: 0.85 }}>{course.tagline}</div>
                 <p style={{ color: "var(--th-white2)", fontSize: 14, lineHeight: 1.65, marginBottom: 16 }}>{course.desc}</p>
 
-                {course.image && (
-                  <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 20, height: 140, position: "relative" }}>
-                    <img src={course.image} alt={course.name} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.5s ease", transform: hovered === i ? "scale(1.05)" : "scale(1)" }} />
-                    <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${course.dimColor.replace("0.10", "0.6")} 0%, transparent 60%)` }} />
-                  </div>
-                )}
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 18, borderTop: "1px solid var(--th-border)" }}>
                   <span style={{ fontFamily: "var(--th-font-mono)", fontSize: 11, color: "var(--th-muted)", letterSpacing: "0.05em" }}>{course.stat}</span>
@@ -833,7 +830,7 @@ export default function Home() {
       <div className="th-noise" />
 
       {/* ── HERO SECTION ──────────────────────────────────────────── */}
-      <section style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", overflow: "hidden", paddingTop: 80 }}>
+      <section style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", overflow: "hidden", paddingTop: 1 }}>
         <div style={{ position: "absolute", top: "8%", left: "3%", width: 650, height: 650, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.10) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", bottom: "8%", right: "3%", width: 420, height: 420, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)", backgroundSize: "60px 60px", maskImage: "radial-gradient(ellipse at 50% 50%, black 30%, transparent 80%)" }} />

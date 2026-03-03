@@ -62,6 +62,28 @@ function EventRow({ event, index }: { event: RewardEvent; index: number }) {
           {SOURCE_TOOL_LABELS[event.source_tool] || event.source_tool} &middot;{" "}
           {dateStr}
         </p>
+        {/* Session detail line for session_completed events */}
+        {event.event_type === "session_completed" && (
+          <p className="text-[10px] text-zinc-400 mt-0.5 truncate">
+            {event.event_metadata?.operation
+              ? String(event.event_metadata.operation).replace(/_/g, " ")
+              : ""}
+            {event.event_metadata?.correct_answers !== undefined
+              ? ` · ${event.event_metadata.correct_answers}${
+                  event.event_metadata.attempted_questions !== undefined
+                    ? `/${event.event_metadata.attempted_questions}`
+                    : ""
+                } correct`
+              : ""}
+          </p>
+        )}
+        {/* Streak detail */}
+        {(event.event_type === "streak_incremented" || event.event_type === "streak_milestone_reached") &&
+          event.event_metadata?.streak_days !== undefined && (
+          <p className="text-[10px] text-amber-500/80 mt-0.5">
+            🔥 {String(event.event_metadata.streak_days)} day streak
+          </p>
+        )}
       </div>
 
       <div className="text-right flex-shrink-0">

@@ -342,384 +342,266 @@ export default function StudentProfile() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background pt-32 pb-20 px-6 transition-colors duration-300">
-      <div className="container mx-auto">
-        {/* Page Header */}
-        <header className="mb-12">
-          <h1 className="text-5xl font-black tracking-tighter uppercase italic text-foreground mb-2">
-            Student Profile
-          </h1>
-          <p className="text-muted-foreground text-lg font-medium">
-            Manage your profile information and track your progress
-          </p>
-        </header>
+  const D = {
+    bg:      "#0c0e1a",
+    surf:    "#131629",
+    surf2:   "#181b2e",
+    border:  "rgba(255,255,255,0.08)",
+    border2: "rgba(255,255,255,0.14)",
+    purple:  "#7c5af6",
+    purpleDim: "rgba(124,90,246,0.13)",
+    green:   "#22c55e",
+    greenDim: "rgba(34,197,94,0.1)",
+    red:     "#f87171",
+    redDim:  "rgba(248,113,113,0.1)",
+    text:    "#e2e8f0",
+    muted:   "rgba(255,255,255,0.45)",
+    white2:  "rgba(255,255,255,0.7)",
+    font:    "'Playfair Display',Georgia,serif",
+    mono:    "'JetBrains Mono','DM Mono',monospace",
+  };
 
-        {/* Content Grid */}
-        <div className="grid lg:grid-cols-12 gap-12">
-          {/* Main Content */}
-          <div className="lg:col-span-8 space-y-12">
-            {/* Profile Header Card */}
-            <div className="bg-card border border-border rounded-[2.5rem] shadow-xl p-8">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground text-3xl font-black">
-                    {profile.display_name?.[0] || user?.name?.[0] || "?"}
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-black tracking-tighter uppercase italic text-card-foreground mb-1">
-                      {profile.display_name || user?.name || "Student Profile"}
-                    </h2>
-                    {profile.public_id && (
-                      <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">ID: {profile.public_id}</p>
-                    )}
-                  </div>
+  const inputStyle: React.CSSProperties = {
+    width: "100%", background: "rgba(255,255,255,0.05)",
+    border: `1px solid ${D.border2}`, borderRadius: 12,
+    padding: "10px 14px", color: D.text, fontSize: 13.5,
+    outline: "none", fontFamily: "inherit", transition: "border-color 0.2s",
+  };
+
+  const selectStyle: React.CSSProperties = {
+    ...inputStyle, background: "#12142a",
+    appearance: "none" as const,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 12px center",
+    paddingRight: 36,
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block", fontSize: 11, fontWeight: 600,
+    fontFamily: D.mono, letterSpacing: "0.1em",
+    textTransform: "uppercase", color: D.muted, marginBottom: 7,
+  };
+
+  const valueStyle: React.CSSProperties = {
+    fontSize: 14.5, color: D.text, fontWeight: 500,
+  };
+
+  const sectionCard: React.CSSProperties = {
+    background: D.surf, border: `1px solid ${D.border}`,
+    borderRadius: 20, padding: "24px 28px",
+  };
+
+  const sectionTitle = (icon: React.ReactNode, title: string) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22, paddingBottom: 14, borderBottom: `1px solid ${D.border}` }}>
+      <div style={{ width: 34, height: 34, borderRadius: 10, background: D.purpleDim, border: `1px solid rgba(124,90,246,0.28)`, display: "flex", alignItems: "center", justifyContent: "center", color: D.purple }}>
+        {icon}
+      </div>
+      <h3 style={{ fontFamily: D.font, fontSize: 17, fontWeight: 700, color: D.text, margin: 0 }}>{title}</h3>
+    </div>
+  );
+
+  return (
+    <>
+      <style>{`
+        .sp-input:focus { border-color: rgba(124,90,246,0.7) !important; box-shadow: 0 0 0 3px rgba(124,90,246,0.12); }
+        .sp-input:disabled { opacity: 0.45; cursor: not-allowed; }
+        .sp-select option { background: #12142a; color: #e2e8f0; }
+      `}</style>
+      <div style={{ minHeight: "100vh", background: D.bg, paddingTop: "7rem", paddingBottom: "4rem" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 1.5rem" }}>
+
+          {/* Page Header */}
+          <header style={{ marginBottom: "2.5rem" }}>
+            <h1 style={{ fontFamily: D.font, fontSize: "clamp(2rem,4vw,2.75rem)", fontWeight: 800, color: D.text, marginBottom: 6, lineHeight: 1.15 }}>
+              Student Profile
+            </h1>
+            <p style={{ color: D.muted, fontSize: 15 }}>Manage your profile information and track your progress</p>
+          </header>
+
+          {/* Profile Header Card */}
+          <div style={{ ...sectionCard, marginBottom: 20, borderTop: `3px solid ${D.purple}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <div style={{ width: 68, height: 68, borderRadius: "50%", background: "linear-gradient(135deg,#7c5af6,#a78bfa)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, fontWeight: 900, color: "#fff", flexShrink: 0 }}>
+                  {(profile.display_name?.[0] || user?.name?.[0] || "?").toUpperCase()}
                 </div>
-                {!editing && (
-                  <button
-                    onClick={handleEdit}
-                    className="flex items-center gap-2 px-8 py-4 bg-primary text-primary-foreground rounded-full font-black text-sm hover:scale-105 transition-all shadow-lg shadow-primary/20"
-                  >
-                    <Edit2 className="w-5 h-5" />
-                    Edit Profile
-                  </button>
-                )}
-                {editing && (
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleCancel}
-                      className="flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold transition-all bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                    >
-                      <X className="w-4 h-4" />
-                      Cancel
+                <div>
+                  <h2 style={{ fontFamily: D.font, fontSize: 22, fontWeight: 800, color: D.text, marginBottom: 4 }}>
+                    {profile.display_name || user?.name || "Student Profile"}
+                  </h2>
+                  {profile.public_id && (
+                    <span style={{ fontFamily: D.mono, fontSize: 11, color: D.purple, background: D.purpleDim, padding: "3px 10px", borderRadius: 100, border: `1px solid rgba(124,90,246,0.28)` }}>
+                      ID: {profile.public_id}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                {editing ? (
+                  <>
+                    <button onClick={handleCancel} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", border: `1px solid ${D.border2}`, borderRadius: 10, background: "rgba(255,255,255,0.05)", color: D.white2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                      <X size={15} /> Cancel
                     </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="flex items-center gap-2 px-8 py-4 bg-primary text-primary-foreground rounded-full font-black text-sm hover:scale-105 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {saving ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <Save className="w-5 h-5" />
-                      )}
+                    <button onClick={handleSave} disabled={saving} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", border: "none", borderRadius: 10, background: "linear-gradient(135deg,#4F46E5,#7C3AED)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.65 : 1, fontFamily: "inherit" }}>
+                      {saving ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Save size={15} />}
                       Save Changes
                     </button>
-                  </div>
-                )}
-              </div>
-
-              {success && (
-                <div className="p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-2xl flex items-center gap-3 text-green-700 dark:text-green-400">
-                  <CheckCircle2 className="w-6 h-6" />
-                  <span className="font-medium">{success}</span>
-                </div>
-              )}
-
-              {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-2xl flex items-center gap-3 text-red-700 dark:text-red-400">
-                  <AlertCircle className="w-6 h-6" />
-                  <span className="font-medium">{error}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Profile Details Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Basic Information */}
-              <div className="bg-card border border-border rounded-[2.5rem] shadow-xl p-8">
-                <h3 className="text-2xl font-black tracking-tighter uppercase italic text-card-foreground mb-6 flex items-center gap-3">
-                  <User className="w-6 h-6 text-primary" />
-                  Basic Information
-                </h3>
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-black uppercase tracking-widest text-muted-foreground mb-2">
-                      Display Name
-                    </label>
-                    {editing ? (
-                      <input
-                        type="text"
-                        value={formData.display_name || ""}
-                        onChange={(e) => handleInputChange("display_name", e.target.value)}
-                        minLength={2}
-                        maxLength={50}
-                        className="w-full px-4 py-3 bg-card border-2 border-border text-card-foreground rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                        placeholder="Name shown throughout the site"
-                        required
-                      />
-                    ) : (
-                      <p className="text-card-foreground font-medium">{profile.display_name || "—"}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-black uppercase tracking-widest text-muted-foreground mb-2">
-                      Class
-                    </label>
-                    {editing ? (
-                      <input
-                        type="number"
-                        value={formData.class_name || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === "" || (parseInt(val) >= 1 && parseInt(val) <= 12)) {
-                            handleInputChange("class_name", val);
-                          }
-                        }}
-                        min={1}
-                    max={12}
-                    className="w-full px-4 py-3 bg-slate-700 dark:bg-slate-700 text-white dark:text-white border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                    placeholder="1-12"
-                  />
+                  </>
                 ) : (
-                  <p className="text-card-foreground font-medium">{profile.class_name || "—"}</p>
+                  <button onClick={handleEdit} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", border: "none", borderRadius: 10, background: "linear-gradient(135deg,#4F46E5,#7C3AED)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    <Edit2 size={15} /> Edit Profile
+                  </button>
                 )}
               </div>
             </div>
+
+            {success && (
+              <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: D.greenDim, border: `1px solid rgba(34,197,94,0.3)`, borderRadius: 12, color: D.green, fontSize: 13, fontWeight: 500 }}>
+                <CheckCircle2 size={16} /> {success}
+              </div>
+            )}
+            {error && (
+              <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: D.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 12, color: D.red, fontSize: 13, fontWeight: 500 }}>
+                <AlertCircle size={16} /> {error}
+              </div>
+            )}
           </div>
 
-          {/* Course Information */}
-          <div className="bg-card border border-border rounded-[2.5rem] shadow-xl p-8">
-            <h3 className="text-2xl font-black tracking-tighter uppercase italic text-card-foreground mb-6 flex items-center gap-3">
-              <BookOpen className="w-6 h-6 text-primary" />
-              Course Information
-            </h3>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-black uppercase tracking-widest text-muted-foreground mb-2">
-                  Course
-                </label>
-                {editing && isAdmin ? (
-                  <select
-                    value={formData.course || ""}
-                    onChange={(e) => {
-                      const newCourse = e.target.value;
-                      const updatedFormData = { ...formData, course: newCourse, level: "" };
-                      setFormData(updatedFormData);
-                      setError(null);
-                      // The useEffect will automatically trigger loadValidLevels when course changes
-                    }}
-                    className="w-full px-4 py-3 bg-slate-700 dark:bg-slate-700 text-white dark:text-white border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  >
-                    <option value="" className="bg-slate-700 text-white">Select Course</option>
-                    {COURSES.map((course) => (
-                      <option key={course} value={course}>
-                        {course}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-card-foreground font-medium">{profile.course || "—"}</p>
-                )}
-              </div>
+          {/* 2-column grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 16 }}>
 
-              <div>
-                <label className="block text-sm font-black uppercase tracking-widest text-muted-foreground mb-2">
-                  Level Type
-                </label>
-                {editing && isAdmin ? (
-                  <select
-                    value={formData.level_type || ""}
-                    onChange={(e) => {
-                      const newLevelType = e.target.value;
-                      const updatedFormData = { ...formData, level_type: newLevelType, level: "" };
-                      setFormData(updatedFormData);
-                      setError(null);
-                      // The useEffect will automatically trigger loadValidLevels when level_type changes
-                    }}
-                    className="w-full px-4 py-3 bg-slate-700 dark:bg-slate-700 text-white dark:text-white border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  >
-                    <option value="" className="bg-slate-700 text-white">Select Level Type</option>
-                    {LEVEL_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-card-foreground font-medium">{profile.level_type || "—"}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-black uppercase tracking-widest text-muted-foreground mb-2">
-                  Level
-                </label>
-                {editing && isAdmin ? (
-                  <select
-                    value={formData.level || ""}
-                    onChange={(e) => handleInputChange("level", e.target.value)}
-                    disabled={!formData.course || !formData.level_type || loadingLevels || validLevels.length === 0}
-                    className="w-full px-4 py-3 bg-slate-700 dark:bg-slate-700 text-white dark:text-white border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:bg-slate-600 disabled:cursor-not-allowed"
-                  >
-                    <option value="" className="bg-slate-700 text-white">
-                      {!formData.course || !formData.level_type
-                        ? "Select Course and Level Type first"
-                        : loadingLevels
-                        ? "Loading levels..."
-                        : validLevels.length === 0
-                        ? "No levels available"
-                        : "Select Level"}
-                    </option>
-                    {validLevels.map((level) => (
-                      <option key={level} value={level}>
-                        {level}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-card-foreground font-medium">{profile.level || "—"}</p>
-                )}
+            {/* Basic Information */}
+            <div style={sectionCard}>
+              {sectionTitle(<User size={16} />, "Basic Information")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                <div>
+                  <label style={labelStyle}>Display Name</label>
+                  {editing ? (
+                    <input className="sp-input" style={inputStyle} type="text" value={formData.display_name || ""} onChange={(e) => handleInputChange("display_name", e.target.value)} minLength={2} maxLength={50} placeholder="Name shown throughout the site" required />
+                  ) : (
+                    <p style={valueStyle}>{profile.display_name || "—"}</p>
+                  )}
+                </div>
+                <div>
+                  <label style={labelStyle}>Class</label>
+                  {editing ? (
+                    <input className="sp-input" style={inputStyle} type="number" value={formData.class_name || ""} onChange={(e) => { const val = e.target.value; if (val === "" || (parseInt(val) >= 1 && parseInt(val) <= 12)) handleInputChange("class_name", val); }} min={1} max={12} placeholder="1 – 12" />
+                  ) : (
+                    <p style={valueStyle}>{profile.class_name || "—"}</p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Branch & Status */}
-          <div className="bg-card border border-border rounded-[2.5rem] shadow-xl p-8">
-            <h3 className="text-2xl font-black tracking-tighter uppercase italic text-card-foreground mb-6 flex items-center gap-3">
-              <MapPin className="w-6 h-6 text-primary" />
-              Branch & Status
-            </h3>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-black uppercase tracking-widest text-muted-foreground mb-2">
-                  Branch
-                </label>
-                {editing && isAdmin ? (
-                  <select
-                    value={formData.branch || ""}
-                    onChange={(e) => handleInputChange("branch", e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-700 dark:bg-slate-700 text-white dark:text-white border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  >
-                    <option value="" className="bg-slate-700 text-white">Select Branch</option>
-                    {BRANCHES.map((branch) => (
-                      <option key={branch} value={branch}>
-                        {branch}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-card-foreground font-medium">{profile.branch || "—"}</p>
-                )}
+            {/* Course Information */}
+            <div style={sectionCard}>
+              {sectionTitle(<BookOpen size={16} />, "Course Information")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                <div>
+                  <label style={labelStyle}>Course</label>
+                  {editing && isAdmin ? (
+                    <select className="sp-input sp-select" style={selectStyle} value={formData.course || ""} onChange={(e) => { const c = e.target.value; setFormData({ ...formData, course: c, level: "" }); setError(null); }}>
+                      <option value="">Select Course</option>
+                      {COURSES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <p style={valueStyle}>{profile.course || "—"}</p>
+                  )}
+                </div>
+                <div>
+                  <label style={labelStyle}>Level Type</label>
+                  {editing && isAdmin ? (
+                    <select className="sp-input sp-select" style={selectStyle} value={formData.level_type || ""} onChange={(e) => { const lt = e.target.value; setFormData({ ...formData, level_type: lt, level: "" }); setError(null); }}>
+                      <option value="">Select Level Type</option>
+                      {LEVEL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  ) : (
+                    <p style={valueStyle}>{profile.level_type || "—"}</p>
+                  )}
+                </div>
+                <div>
+                  <label style={labelStyle}>Level{loadingLevels ? " (loading…)" : ""}</label>
+                  {editing && isAdmin ? (
+                    <select className="sp-input sp-select" style={{ ...selectStyle, opacity: (!formData.course || !formData.level_type || loadingLevels || validLevels.length === 0) ? 0.5 : 1 }} value={formData.level || ""} onChange={(e) => handleInputChange("level", e.target.value)} disabled={!formData.course || !formData.level_type || loadingLevels || validLevels.length === 0}>
+                      <option value="">{!formData.course || !formData.level_type ? "Select Course & Level Type first" : loadingLevels ? "Loading…" : validLevels.length === 0 ? "No levels available" : "Select Level"}</option>
+                      {validLevels.map((l) => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  ) : (
+                    <p style={valueStyle}>{profile.level || "—"}</p>
+                  )}
+                </div>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-black uppercase tracking-widest text-muted-foreground mb-2">
-                  Status
-                </label>
-                {editing && isAdmin ? (
-                  <select
-                    value={formData.status || "active"}
-                    onChange={(e) => handleInputChange("status", e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-700 dark:bg-slate-700 text-white dark:text-white border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  >
-                    {STATUSES.map((status) => (
-                      <option key={status} value={status} className="bg-slate-700 text-white">
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-card-foreground font-medium">
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-sm font-bold uppercase tracking-widest ${
-                        profile.status === "active"
-                          ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
-                          : profile.status === "inactive"
-                          ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
-                          : "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
-                      }`}
-                    >
+            {/* Branch & Status */}
+            <div style={sectionCard}>
+              {sectionTitle(<MapPin size={16} />, "Branch & Status")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                <div>
+                  <label style={labelStyle}>Branch</label>
+                  {editing && isAdmin ? (
+                    <select className="sp-input sp-select" style={selectStyle} value={formData.branch || ""} onChange={(e) => handleInputChange("branch", e.target.value)}>
+                      <option value="">Select Branch</option>
+                      {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  ) : (
+                    <p style={valueStyle}>{profile.branch || "—"}</p>
+                  )}
+                </div>
+                <div>
+                  <label style={labelStyle}>Status</label>
+                  {editing && isAdmin ? (
+                    <select className="sp-input sp-select" style={selectStyle} value={formData.status || "active"} onChange={(e) => handleInputChange("status", e.target.value)}>
+                      {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                    </select>
+                  ) : (
+                    <span style={{ display: "inline-block", padding: "4px 14px", borderRadius: 100, fontSize: 13, fontWeight: 700, letterSpacing: "0.04em", background: profile.status === "active" ? "rgba(34,197,94,0.12)" : profile.status === "inactive" ? "rgba(245,158,11,0.12)" : "rgba(248,113,113,0.12)", color: profile.status === "active" ? "#22c55e" : profile.status === "inactive" ? "#f59e0b" : "#f87171", border: `1px solid ${profile.status === "active" ? "rgba(34,197,94,0.3)" : profile.status === "inactive" ? "rgba(245,158,11,0.3)" : "rgba(248,113,113,0.3)"}` }}>
                       {profile.status.charAt(0).toUpperCase() + profile.status.slice(1)}
                     </span>
-                  </p>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Dates & Contact */}
-          <div className="bg-card border border-border rounded-[2.5rem] shadow-xl p-8">
-            <h3 className="text-2xl font-black tracking-tighter uppercase italic text-card-foreground mb-6 flex items-center gap-3">
-              <Calendar className="w-6 h-6 text-primary" />
-              {isAdmin ? "Dates & Contact" : "Contact"}
-            </h3>
-            <div className="space-y-6">
-              {isAdmin && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Join Date
-                    </label>
-                    {editing ? (
-                      <input
-                        type="date"
-                        value={formData.join_date || ""}
-                        onChange={(e) => handleInputChange("join_date", e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent bg-slate-700 dark:bg-slate-700 text-white dark:text-white"
-                      />
-                    ) : (
-                      <p className="text-slate-900 dark:text-slate-100">
-                        {profile.join_date
-                          ? formatDateOnlyToIST(profile.join_date)
-                          : "—"}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Finish Date
-                    </label>
-                    {editing ? (
-                      <input
-                        type="date"
-                        value={formData.finish_date || ""}
-                        onChange={(e) => handleInputChange("finish_date", e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent bg-slate-700 dark:bg-slate-700 text-white dark:text-white"
-                      />
-                    ) : (
-                      <p className="text-slate-900 dark:text-slate-100">
-                        {profile.finish_date
-                          ? formatDateOnlyToIST(profile.finish_date)
-                          : "—"}
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label className="block text-sm font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
-                  <Phone className="w-4 h-4" />
-                  Parent Contact Number
-                </label>
-                {editing ? (
-                  <input
-                    type="tel"
-                    value={formData.parent_contact_number || ""}
-                    onChange={(e) => {
-                      // Only allow numeric digits, max 10 digits
-                      const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-                      handleInputChange("parent_contact_number", value);
-                    }}
-                    className="w-full px-4 py-3 bg-slate-700 dark:bg-slate-700 text-white dark:text-white border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                    placeholder="1234567890"
-                    maxLength={10}
-                    inputMode="numeric"
-                  />
-                ) : (
-                  <p className="text-card-foreground font-medium">{profile.parent_contact_number || "—"}</p>
+            {/* Dates & Contact */}
+            <div style={sectionCard}>
+              {sectionTitle(<Calendar size={16} />, isAdmin ? "Dates & Contact" : "Contact")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                {isAdmin && (
+                  <>
+                    <div>
+                      <label style={labelStyle}>Join Date</label>
+                      {editing ? (
+                        <input className="sp-input" style={{ ...inputStyle, colorScheme: "dark" }} type="date" value={formData.join_date || ""} onChange={(e) => handleInputChange("join_date", e.target.value)} />
+                      ) : (
+                        <p style={valueStyle}>{profile.join_date ? formatDateOnlyToIST(profile.join_date) : "—"}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Finish Date</label>
+                      {editing ? (
+                        <input className="sp-input" style={{ ...inputStyle, colorScheme: "dark" }} type="date" value={formData.finish_date || ""} onChange={(e) => handleInputChange("finish_date", e.target.value)} />
+                      ) : (
+                        <p style={valueStyle}>{profile.finish_date ? formatDateOnlyToIST(profile.finish_date) : "—"}</p>
+                      )}
+                    </div>
+                  </>
                 )}
+                <div>
+                  <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 6 }}><Phone size={11} />Parent Contact Number</label>
+                  {editing ? (
+                    <input className="sp-input" style={inputStyle} type="tel" value={formData.parent_contact_number || ""} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); handleInputChange("parent_contact_number", v); }} placeholder="1234567890" maxLength={10} inputMode="numeric" />
+                  ) : (
+                    <p style={valueStyle}>{profile.parent_contact_number || "—"}</p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

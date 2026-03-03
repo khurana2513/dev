@@ -232,7 +232,15 @@ if attendance_router:
 else:
     logger.warning("[STARTUP] attendance_router not available")
 
+maintenance_router = None
+try:
+    from maintenance_routes import router as maintenance_router
+    logger.info("[IMPORT] maintenance_routes loaded")
+except Exception as _maint_err:
+    logger.warning("[IMPORT] maintenance_routes failed: %s", str(_maint_err))
+
 for _name, _rtr in [
+    ("maintenance_router", maintenance_router),
     ("subscription_router", subscription_router),
     ("payment_router", payment_router),
     ("admin_access_router", admin_access_router),

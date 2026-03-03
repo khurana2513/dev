@@ -3,16 +3,15 @@ import { Link, useLocation } from "wouter";
 import {
   ChevronDown, ChevronRight, LogOut, BarChart3, Shield, GraduationCap,
   Calculator, BookOpen, PenTool, Rocket, Menu, X, Brain, FileText,
-  Trophy, User, Moon, Sun, ArrowRight, Lock, Zap, Calendar, Grid3X3,
+  Trophy, User, ArrowRight, Lock, Zap, Calendar, Grid3X3,
   Gamepad2, Sparkles, Award
 } from "lucide-react";
 import { useAuthSafe } from "../contexts/AuthContext";
-import { useTheme } from "../contexts/ThemeContext";
+import { motion } from "framer-motion";
 
 export default function Header() {
   const [coursesOpen, setCoursesOpen]         = useState(false);
   const [practiceOpen, setPracticeOpen]       = useState(false);
-  const [practiceSubOpen, setPracticeSubOpen] = useState(false);
   const [gamesOpen, setGamesOpen]             = useState(false);
   const [userMenuOpen, setUserMenuOpen]       = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen]   = useState(false);
@@ -27,7 +26,6 @@ export default function Header() {
 
   const coursesTimeoutRef     = useRef<NodeJS.Timeout | null>(null);
   const practiceTimeoutRef    = useRef<NodeJS.Timeout | null>(null);
-  const practiceSubTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const gamesTimeoutRef       = useRef<NodeJS.Timeout | null>(null);
   const userMenuTimeoutRef    = useRef<NodeJS.Timeout | null>(null);
 
@@ -36,7 +34,17 @@ export default function Header() {
   const logout          = auth?.logout ?? (() => {});
   const isAuthenticated = auth?.isAuthenticated ?? false;
   const isAdmin         = auth?.isAdmin ?? false;
-  const { theme, toggleTheme } = useTheme();
+
+  // Track streak changes for the pop-in animation on the badge number
+  const [streakAnimKey, setStreakAnimKey] = useState(0);
+  const prevStreakRef = useRef<number | null>(null);
+  useEffect(() => {
+    const currentStreak = (user as any)?.current_streak ?? 0;
+    if (prevStreakRef.current !== null && prevStreakRef.current !== currentStreak) {
+      setStreakAnimKey((k) => k + 1);
+    }
+    prevStreakRef.current = currentStreak;
+  }, [(user as any)?.current_streak]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -65,16 +73,7 @@ export default function Header() {
 
   const handlePracticeEnter = () => { clearRef(practiceTimeoutRef); setPracticeOpen(true); };
   const handlePracticeLeave = () => {
-    practiceTimeoutRef.current = setTimeout(() => { setPracticeOpen(false); setPracticeSubOpen(false); }, 200);
-  };
-
-  const handlePracticeSubEnter = () => {
-    clearRef(practiceSubTimeoutRef);
-    clearRef(practiceTimeoutRef);
-    setPracticeSubOpen(true);
-  };
-  const handlePracticeSubLeave = () => {
-    practiceSubTimeoutRef.current = setTimeout(() => setPracticeSubOpen(false), 150);
+    practiceTimeoutRef.current = setTimeout(() => setPracticeOpen(false), 200);
   };
 
   const handleGamesEnter = () => { clearRef(gamesTimeoutRef); setGamesOpen(true); };
@@ -89,12 +88,14 @@ export default function Header() {
 
   useEffect(() => {
     return () => {
-      [coursesTimeoutRef, practiceTimeoutRef, practiceSubTimeoutRef, gamesTimeoutRef, userMenuTimeoutRef]
+      [coursesTimeoutRef, practiceTimeoutRef, gamesTimeoutRef, userMenuTimeoutRef]
         .forEach(r => { if (r.current) clearTimeout(r.current); });
     };
   }, []);
 
   const isActive = (path: string) => location === path || location.startsWith(path + "/");
+
+  // Hide header completely on the sign-in page — Login is a full-screen overlay
 
   const CARD_STYLE = {
     background: "linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card)/0.95) 100%)",
@@ -110,10 +111,10 @@ export default function Header() {
 
   return (
     <header
-      className={`sticky top-0 z-[200] transition-all duration-500 ${
+      className={`sticky top-0 z-[200] py-4 transition-all duration-500 ${
         scrolled
-          ? "py-4 bg-background/80 backdrop-blur-xl border-b border-border/50 shadow-lg"
-          : "py-6 bg-transparent"
+          ? "bg-background/80 backdrop-blur-xl border-b border-border/50 shadow-lg"
+          : "bg-transparent"
       }`}
     >
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -137,10 +138,9 @@ export default function Header() {
                 <GraduationCap className="w-5 h-5 text-primary-foreground" />
               </div>
             </div>
-            <div>
-              <div className="text-xl font-extrabold text-foreground group-hover:text-primary transition-colors tracking-tight">Talent Hub</div>
-              <div className="text-[10px] text-muted-foreground font-bold tracking-[0.2em] uppercase leading-tight">Excellence Lab</div>
-            </div>
+            {/* <div>
+              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1.2 }} className="text-foreground group-hover:text-primary transition-colors">Talent Hub</div>
+            </div> */}
           </Link>
 
           {/* ── Center Nav Pill (Desktop) ─────────────────────────────── */}
@@ -189,45 +189,12 @@ export default function Header() {
                   style={{ ...CARD_STYLE, overflow: "visible" }} onMouseEnter={handlePracticeEnter} onMouseLeave={handlePracticeLeave}>
                   <div className="p-1.5">
 
-                    {/* Create Paper — nested flyout */}
-                    <div className="relative" onMouseEnter={handlePracticeSubEnter} onMouseLeave={handlePracticeSubLeave}>
-                      <div className={`px-4 py-3 text-sm font-medium flex items-center justify-between gap-2 cursor-default rounded-xl ${
-                        isActive("/create") || isActive("/vedic-maths")
-                          ? "text-primary bg-primary/10 shadow-sm" : "text-card-foreground hover:bg-primary/10 hover:shadow-sm"
-                      }`}>
-                        <div className="flex items-center gap-2"><FileText className="w-4 h-4" />Create Paper</div>
-                        <ChevronRight className="w-3.5 h-3.5 opacity-50 flex-shrink-0" />
+                    {/* Create Paper — direct link */}
+                    <Link href="/create/basic">
+                      <div className={navItem(isActive("/create") || isActive("/vedic-maths"))} onClick={() => setPracticeOpen(false)}>
+                        <FileText className="w-4 h-4" />Create Paper
                       </div>
-                      {practiceSubOpen && (
-                        <div className="absolute left-full top-0 ml-2 w-64 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl z-[210] overflow-hidden"
-                          style={CARD_STYLE} onMouseEnter={handlePracticeSubEnter} onMouseLeave={handlePracticeSubLeave}>
-                          <div className="p-1.5">
-                            <div className="px-4 py-2 text-[10px] font-black text-primary/70 uppercase tracking-[0.2em]">Abacus</div>
-                            <div className="px-4 py-3 text-sm font-medium flex items-center gap-2 rounded-xl text-card-foreground/40 cursor-not-allowed select-none">
-                              <Lock className="w-4 h-4 flex-shrink-0" /><span>Junior Level</span>
-                              <span className="text-[10px] text-muted-foreground ml-auto whitespace-nowrap">Coming Soon</span>
-                            </div>
-                            <Link href="/create/basic">
-                              <div className={navItem(isActive("/create/basic"))} onClick={() => { setPracticeOpen(false); setPracticeSubOpen(false); }}>
-                                <BookOpen className="w-4 h-4" />Basic Level
-                              </div>
-                            </Link>
-                            <Link href="/create/advanced">
-                              <div className={navItem(isActive("/create/advanced"))} onClick={() => { setPracticeOpen(false); setPracticeSubOpen(false); }}>
-                                <Trophy className="w-4 h-4" />Advanced Level
-                              </div>
-                            </Link>
-                            <div className="mt-1 pt-2 mx-4 border-t-2 border-border/50" />
-                            <div className="px-4 py-2 text-[10px] font-black text-primary/70 uppercase tracking-[0.2em]">Vedic Maths</div>
-                            <Link href="/vedic-maths/level-1">
-                              <div className={navItem(isActive("/vedic-maths"))} onClick={() => { setPracticeOpen(false); setPracticeSubOpen(false); }}>
-                                <BookOpen className="w-4 h-4" />Vedic Maths
-                              </div>
-                            </Link>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    </Link>
 
                     <Link href="/mental">
                       <div className={navItem(isActive("/mental"))} onClick={() => setPracticeOpen(false)}>
@@ -267,7 +234,7 @@ export default function Header() {
                     </Link>
                     <Link href="/tools/gridmaster">
                       <div className={navItem(isActive("/tools/gridmaster"))} onClick={() => setGamesOpen(false)}>
-                        <Grid3X3 className="w-4 h-4" />⊞ Vedic Grid
+                        <Grid3X3 className="w-4 h-4" />Vedic Grid
                       </div>
                     </Link>
                     <Link href="/tools/gridmaster?tab=magic">
@@ -284,14 +251,92 @@ export default function Header() {
 
           {/* ── Right side ───────────────────────────────────────────── */}
           <div className="flex items-center gap-3">
-            <button onClick={toggleTheme}
-              className="p-3 rounded-2xl hover:bg-secondary/80 transition-colors text-muted-foreground hover:text-foreground"
-              aria-label="Toggle dark mode">
-              {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
 
             {isAuthenticated && user ? (
               <>
+                {/* ── Streak Fire Badge ─────────────────────────────── */}
+                {(() => {
+                  const streak = (user as any).current_streak ?? 0;
+                  const hasStreak = streak > 0;
+                  const flameColor =
+                    streak >= 60 ? "#c084fc" :
+                    streak >= 30 ? "#facc15" :
+                    streak >= 14 ? "#fb923c" :
+                    streak >= 7  ? "#f97316" :
+                    streak >= 3  ? "#ef4444" :
+                    streak >= 1  ? "#f97316" : "#64748b";
+                  return (
+                    <motion.button
+                      onClick={() => setLocation("/rewards?tab=streak")}
+                      title={`${streak}-day streak — click to view`}
+                      whileHover={{ scale: 1.08, y: -1 }}
+                      whileTap={{ scale: 0.94 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 22 }}
+                      className={hasStreak ? "streak-badge-active" : "streak-badge-zero"}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                        padding: "0.3rem 0.65rem 0.3rem 0.5rem",
+                        borderRadius: "999px",
+                        border: `1.5px solid ${flameColor}55`,
+                        background: hasStreak
+                          ? `linear-gradient(135deg, ${flameColor}26 0%, ${flameColor}14 100%)`
+                          : "rgba(100,116,139,0.10)",
+                        cursor: "pointer",
+                        userSelect: "none",
+                        backdropFilter: "blur(4px)",
+                        WebkitBackdropFilter: "blur(4px)",
+                        position: "relative",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* Ambient glow layer */}
+                      {hasStreak && (
+                        <motion.span
+                          animate={{ opacity: [0.12, 0.28, 0.12] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            borderRadius: "999px",
+                            background: `radial-gradient(circle at 35% 50%, ${flameColor}55 0%, transparent 70%)`,
+                            pointerEvents: "none",
+                          }}
+                        />
+                      )}
+                      {/* Fire icon with flicker animation */}
+                      <span
+                        className="streak-fire-icon"
+                        style={{
+                          fontSize: "1.05rem",
+                          filter: hasStreak ? `drop-shadow(0 0 5px ${flameColor}cc)` : undefined,
+                          lineHeight: 1,
+                        }}
+                      >
+                        🔥
+                      </span>
+                      {/* Streak number */}
+                      <span
+                        key={streakAnimKey}
+                        className={streakAnimKey > 0 ? "streak-number-pop" : ""}
+                        style={{
+                          fontSize: "0.875rem",
+                          fontWeight: 800,
+                          color: hasStreak ? flameColor : "#64748b",
+                          letterSpacing: "-0.02em",
+                          lineHeight: 1,
+                          textShadow: hasStreak ? `0 0 10px ${flameColor}88` : undefined,
+                          fontVariantNumeric: "tabular-nums",
+                          minWidth: "1ch",
+                        }}
+                      >
+                        {streak}
+                      </span>
+                    </motion.button>
+                  );
+                })()}
+
                 {(() => {
                   const displayName = (user as any).display_name || user.name;
                   return (
@@ -395,22 +440,12 @@ export default function Header() {
               </Link>
               <div className="border-t border-border my-2" />
               <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Practice</div>
-              <div className="px-2 py-1">
-                <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Abacus</div>
-                <div className="px-4 py-2 text-sm font-medium text-card-foreground opacity-50 cursor-not-allowed rounded-lg flex items-center gap-3">
-                  <Lock className="w-4 h-4" /><span>Junior Level</span><span className="text-[10px] text-muted-foreground ml-auto">Coming Soon</span>
-                </div>
-                <Link href="/create/basic" onClick={() => setMobileMenuOpen(false)}>
-                  <div className="px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><BookOpen className="w-4 h-4" />Basic Level</div>
-                </Link>
-                <Link href="/create/advanced" onClick={() => setMobileMenuOpen(false)}>
-                  <div className="px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Trophy className="w-4 h-4" />Advanced Level</div>
-                </Link>
-                <div className="px-2 py-1 mt-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Vedic Maths</div>
-                <Link href="/vedic-maths/level-1" onClick={() => setMobileMenuOpen(false)}>
-                  <div className="px-4 py-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><BookOpen className="w-4 h-4" />Vedic Maths</div>
-                </Link>
-              </div>
+              <Link href="/create/basic" onClick={() => setMobileMenuOpen(false)}>
+                <div className={`px-4 py-2.5 text-sm font-medium rounded-lg flex items-center gap-3 transition-colors ${
+                  isActive("/create") || isActive("/vedic-maths")
+                    ? "text-primary bg-primary/10" : "text-card-foreground hover:bg-secondary"
+                }`}><FileText className="w-4 h-4" />Create Paper</div>
+              </Link>
               <Link href="/mental" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Brain className="w-4 h-4" />Mental Math</div>
               </Link>

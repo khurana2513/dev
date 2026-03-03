@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { SubscriptionProvider } from "./contexts/SubscriptionContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import MaintenancePage from "./pages/MaintenancePage";
+import { useEffect, useState } from "react";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import GraceBanner from "./components/GraceBanner";
@@ -33,6 +35,7 @@ import StudentRewards from "./pages/StudentRewards";
 import AdminRewards from "./pages/AdminRewards";
 import LeaderboardComingSoon from "./pages/LeaderboardComingSoon";
 import BadgeUnlockCinematic from "./components/rewards/BadgeUnlockCinematic";
+import StreakCelebrationOverlay from "./components/rewards/StreakCelebrationOverlay";
 import { ReactNode } from "react";
 import { useScrollRestoration } from "./hooks/useScrollRestoration";
 import { useInactivityDetection } from "./hooks/useInactivityDetection";
@@ -100,9 +103,25 @@ function AdminRoute({ children }: { children: ReactNode }) {
 function AppContent() {
   // Handle scroll restoration based on page type
   useScrollRestoration();
-  
+
   // Track user inactivity (30 minute warning)
   const { showInactivityWarning, dismissWarning } = useInactivityDetection();
+
+  // ── Maintenance mode gate ──────────────────────────────────────────────
+  const { isAdmin } = useAuth();
+  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    const baseUrl = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8001";
+    fetch(`${baseUrl}/public/maintenance-status`)
+      .then((r) => r.json())
+      .then((d) => setMaintenance(d))
+      .catch(() => setMaintenance({ enabled: false, message: "" })); // fail open
+  }, []);
+
+  if (maintenance?.enabled && !isAdmin) {
+    return <MaintenancePage message={maintenance.message} />;
+  }
 
   return (
     <ErrorBoundary>
@@ -206,6 +225,7 @@ function AppContent() {
         <Footer />
       </div>
       <BadgeUnlockCinematic />
+      <StreakCelebrationOverlay />
     </ErrorBoundary>
   );
 }

@@ -46,23 +46,30 @@ def log_points(
 def get_points_summary(db: Session, user_id: int) -> Dict[str, Any]:
     """
     Get points summary for a user (checksum verification).
-    
+
+    Uses RewardEvent as the single authoritative ledger — the same source used
+    by reward_engine.rebuild_user_points().  This ensures that login bonuses,
+    streak bonuses, burst bonuses, and admin adjustments are all reflected,
+    eliminating the mismatch that occurred when only PointsLog was summed.
+
     Returns:
         Dict with total_points_from_logs and total_points_from_user for comparison
     """
     from sqlalchemy import func
-    
-    # Sum all points from logs
-    total_from_logs = db.query(func.sum(PointsLog.points)).filter(
-        PointsLog.user_id == user_id
+    from reward_models import RewardEvent
+
+    # Sum all non-voided reward events (authoritative ledger)
+    total_from_logs = db.query(func.sum(RewardEvent.points_delta)).filter(
+        RewardEvent.student_id == user_id,
+        RewardEvent.is_voided == False,
     ).scalar() or 0
-    
+
     # Get current user points
     user = db.query(User).filter(User.id == user_id).first()
     total_from_user = user.total_points if user else 0
-    
+
     return {
         "total_points_from_logs": int(total_from_logs),
         "total_points_from_user": total_from_user,
-        "match": total_from_logs == total_from_user
+        "match": int(total_from_logs) == total_from_user
     }

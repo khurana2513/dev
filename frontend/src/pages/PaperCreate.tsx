@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Plus, Trash2, Eye, EyeOff, FileDown, XCircle, GripVertical, Copy, ChevronUp, ChevronDown, Play, ChevronDown as ChevronDownIcon } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Eye, EyeOff, FileDown, XCircle, GripVertical, Copy, ChevronUp, ChevronDown, Play, ChevronDown as ChevronDownIcon, Lock } from "lucide-react";
 import { previewPaper, generatePdf, PaperConfig, BlockConfig, GeneratedBlock } from "@/lib/api";
 import MathQuestion from "@/components/MathQuestion";
 
@@ -1300,6 +1300,86 @@ export default function PaperCreate() {
           </div>
         </div>
       </header>
+      {/* ── Mode Toggle Bar ─────────────────────────────────────────────── */}
+      <div style={{
+        position:'sticky',top:72,zIndex:35,
+        background:'rgba(8,9,20,0.96)',
+        backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+        borderBottom:'1px solid rgba(255,255,255,0.06)',
+        padding:'0 28px',
+      }}>
+        <div style={{maxWidth:1100,margin:'0 auto',display:'flex',alignItems:'center',gap:6,padding:'10px 0',flexWrap:'wrap'}}>
+          {/* Abacus group label */}
+          <span style={{fontSize:10,fontWeight:700,color:'#7B5CE5',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.12em',textTransform:'uppercase',marginRight:2,flexShrink:0}}>Abacus</span>
+          {/* Junior — locked */}
+          <div
+            title="Coming Soon"
+            style={{
+              display:'flex',alignItems:'center',gap:5,
+              padding:'5px 13px',borderRadius:999,
+              fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",
+              background:'rgba(255,255,255,0.02)',
+              border:'1.5px solid rgba(255,255,255,0.05)',
+              color:'#3D4260',cursor:'not-allowed',userSelect:'none',
+            }}
+          >
+            <Lock style={{width:11,height:11,flexShrink:0}} />
+            Junior
+          </div>
+          {/* Basic */}
+          <button
+            onClick={() => setLocation('/create/basic')}
+            style={{
+              display:'flex',alignItems:'center',gap:5,
+              padding:'5px 13px',borderRadius:999,
+              fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",
+              background:isBasicPage?'rgba(123,92,229,0.22)':'rgba(255,255,255,0.04)',
+              border:isBasicPage?'1.5px solid rgba(123,92,229,0.55)':'1.5px solid rgba(255,255,255,0.07)',
+              color:isBasicPage?'#C4A8FF':'#9DA3BC',
+              cursor:'pointer',transition:'all 0.18s',outline:'none',
+            }}
+          >Basic</button>
+          {/* Advanced */}
+          <button
+            onClick={() => setLocation('/create/advanced')}
+            style={{
+              display:'flex',alignItems:'center',gap:5,
+              padding:'5px 13px',borderRadius:999,
+              fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",
+              background:isAdvancedPage?'rgba(123,92,229,0.22)':'rgba(255,255,255,0.04)',
+              border:isAdvancedPage?'1.5px solid rgba(123,92,229,0.55)':'1.5px solid rgba(255,255,255,0.07)',
+              color:isAdvancedPage?'#C4A8FF':'#9DA3BC',
+              cursor:'pointer',transition:'all 0.18s',outline:'none',
+            }}
+          >Advanced</button>
+
+          {/* Divider */}
+          <div style={{width:1,height:18,background:'rgba(255,255,255,0.10)',margin:'0 6px',flexShrink:0}} />
+
+          {/* Vedic Maths group label */}
+          <span style={{fontSize:10,fontWeight:700,color:'#7B5CE5',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.12em',textTransform:'uppercase',marginRight:2,flexShrink:0}}>Vedic Maths</span>
+          {([1,2,3,4] as const).map(lvl => {
+            const path = `/vedic-maths/level-${lvl}` as const;
+            const active = location === path;
+            return (
+              <button
+                key={lvl}
+                onClick={() => setLocation(path)}
+                style={{
+                  display:'flex',alignItems:'center',
+                  padding:'5px 13px',borderRadius:999,
+                  fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",
+                  background:active?'rgba(123,92,229,0.22)':'rgba(255,255,255,0.04)',
+                  border:active?'1.5px solid rgba(123,92,229,0.55)':'1.5px solid rgba(255,255,255,0.07)',
+                  color:active?'#C4A8FF':'#9DA3BC',
+                  cursor:'pointer',transition:'all 0.18s',outline:'none',
+                }}
+              >Level {lvl}</button>
+            );
+          })}
+        </div>
+      </div>
+
       <div style={{maxWidth:1100,margin:'0 auto',padding:'32px 24px'}}>
 
         {step === 1 && (

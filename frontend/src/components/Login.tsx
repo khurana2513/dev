@@ -279,7 +279,7 @@ export default function Login() {
 
       {/* ── Full Page Shell ── */}
       <div style={{
-        position: "fixed", inset: 0, overflow: "hidden",
+        position: "fixed", inset: 0, overflow: "hidden", zIndex: 10,
         background: "var(--lg-bg)",
         display: "flex", alignItems: "center", justifyContent: "center",
         fontFamily: "'DM Sans', sans-serif",
@@ -567,7 +567,7 @@ export default function Login() {
         </div>
 
         {/* ── Connection Status Widget ── */}
-        <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 200 }}>
+        <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 200, maxWidth: "calc(100vw - 40px)", width: "min(380px, calc(100vw - 40px))" }}>
           <div className={showBackendTest ? "lg-conn-expanded" : ""} style={{
             background: "rgba(15,17,32,.85)",
             backdropFilter: "blur(20px)",
@@ -610,7 +610,10 @@ export default function Login() {
             {showBackendTest && (
               <div style={{
                 borderTop: "1px solid rgba(255,255,255,.07)",
-                padding: 16, maxWidth: 320,
+                padding: 16,
+                maxWidth: 360,
+                width: "min(360px, calc(100vw - 56px))",
+                overflowX: "hidden",
                 animation: "lg-fade-in .2s ease both",
               }}>
                 <BackendTest />

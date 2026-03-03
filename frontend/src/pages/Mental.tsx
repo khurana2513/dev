@@ -3,6 +3,8 @@ import { ArrowLeft, CheckCircle2, XCircle, Clock, Trophy, X, Sparkles, Play, Zap
 import { Link } from "wouter";
 import { useAuth } from "../contexts/AuthContext";
 import { savePracticeSession, PracticeSessionData } from "../lib/userApi";
+import { useBadgeUnlockStore } from "../stores/badgeUnlockStore";
+import { useStreakCelebrationStore } from "../stores/streakCelebrationStore";
 import { usePointRules, buildPointsLookup } from "../hooks/usePointRules";
 import TimeLimitSlider from "../components/TimeLimitSlider";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -556,6 +558,13 @@ export default function Mental() {
     if (op === "square_root" || op === "cube_root") return `${rootDigits}d`;
     if (op === "percentage") return `${percentageNumberDigits}d`;
     if (op === "tables") return "1x1";
+    // add_sub / integer_add_sub: derive tier from actual row count
+    if (op === "add_sub" || op === "integer_add_sub") {
+      const rows = op === "add_sub" ? addSubRows : integerAddSubRows;
+      if (rows <= 5) return "rows_3_5";
+      if (rows <= 9) return "rows_6_9";
+      return "rows_10_up";
+    }
     return "";
   };
 
@@ -738,6 +747,8 @@ export default function Mental() {
       if (state.divisorDigits !== undefined) setDivisorDigits(state.divisorDigits);
       if (state.addSubDigits !== undefined) setAddSubDigits(state.addSubDigits);
       if (state.addSubRows !== undefined) setAddSubRows(state.addSubRows);
+      if (state.integerAddSubDigits !== undefined) setIntegerAddSubDigits(state.integerAddSubDigits);
+      if (state.integerAddSubRows !== undefined) setIntegerAddSubRows(state.integerAddSubRows);
       if (state.timeLimit !== undefined) setTimeLimit(state.timeLimit);
       if (state.addSubRowTime !== undefined) setAddSubRowTime(state.addSubRowTime);
       
@@ -1685,8 +1696,13 @@ export default function Mental() {
           : undefined;
 
         // Determine the preset_key to send
+        // For add_sub/integer_add_sub, always derive from actual row count so
+        // the correct tier (rows_3_5 / rows_6_9 / rows_10_up) is sent even though
+        // there are no longer any preset "tiles" to set selectedPresetKey.
         const effectivePresetKey = configMode === "standard"
-          ? (selectedPresetKey || derivePresetKey())
+          ? ((operationType === "add_sub" || operationType === "integer_add_sub")
+              ? derivePresetKey()
+              : (selectedPresetKey || derivePresetKey()))
           : undefined; // custom → backend resolves to 0 pts
 
         // When configMode is "standard", ensure difficulty_mode is never "custom"
@@ -1712,6 +1728,7 @@ export default function Mental() {
         };
         
         console.log("🟢 [PRACTICE] Session data prepared, calling savePracticeSession...");
+        let streakUpdated = false;
         try {
           const savedSession = await savePracticeSession(sessionData);
           console.log("✅ [PRACTICE] Session saved successfully!", savedSession);
@@ -1719,6 +1736,12 @@ export default function Mental() {
           if (savedSession.points_earned != null) {
             setPointsEarned(savedSession.points_earned);
           }
+          // Trigger badge cinematic for any newly unlocked badges
+          const rewardBadges = savedSession?.reward_data?.badges_unlocked;
+          if (rewardBadges && rewardBadges.length > 0) {
+            useBadgeUnlockStore.getState().enqueue(rewardBadges);
+          }
+          streakUpdated = savedSession?.reward_data?.streak_updated ?? false;
           setSessionSaved(true);
         } catch (saveError) {
           // Save failed, but still show points
@@ -1733,6 +1756,12 @@ export default function Mental() {
           try {
             await refreshUser();
             console.log("✅ [PRACTICE] User data refreshed!");
+            // Fire streak celebration AFTER refresh so current_streak is up-to-date
+            if (streakUpdated) {
+              const freshUser = JSON.parse(localStorage.getItem("user_data") || "{}");
+              const newStreak = freshUser?.current_streak ?? 1;
+              useStreakCelebrationStore.getState().trigger(newStreak);
+            }
           } catch (refreshError) {
             console.error("⚠️ [PRACTICE] Failed to refresh user data:", refreshError);
             // Don't fail the whole process if refresh fails
@@ -2748,55 +2777,89 @@ export default function Mental() {
           {/* Right Column */}
           <div className="mm-fade-up" style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr)",borderRadius:20,padding:28,display:"flex",flexDirection:"column",gap:20,animationDelay:".2s"}}>
 
-            {/* ── STANDARD MODE: Preset Grid ── */}
+            {/* ── STANDARD MODE: Preset Grid OR Add/Sub Inputs ── */}
             {configMode === "standard" && (() => {
               const presets = MENTAL_PRESETS[operationType] || [];
               const engineOp = toEngineOp(operationType);
+              const isAddSub = operationType === "add_sub" || operationType === "integer_add_sub";
+              const curDigits = operationType === "add_sub" ? addSubDigits : integerAddSubDigits;
+              const setDigits = operationType === "add_sub" ? setAddSubDigits : setIntegerAddSubDigits;
+              const curRows = operationType === "add_sub" ? addSubRows : integerAddSubRows;
+              const setRows = operationType === "add_sub" ? setAddSubRows : setIntegerAddSubRows;
               return (
                 <>
-                  <div>
-                    <label style={{display:"flex",alignItems:"center",gap:6,fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"var(--mm-muted)",marginBottom:10}}>
-                      <Star style={{width:12,height:12,color:"#F59E0B"}} />
-                      Select Difficulty Preset
-                    </label>
-                    <div style={{display:"grid",gridTemplateColumns: presets.length <= 4 ? "1fr 1fr" : "1fr 1fr 1fr",gap:10}}>
-                      {presets.map(p => {
-                        const active = selectedPresetKey === p.presetKey;
-                        const pts = getPresetPoints(engineOp, p.presetKey) || p.points;
-                        return (
-                          <button
-                            key={p.presetKey}
-                            onClick={() => {
-                              setSelectedPresetKey(p.presetKey);
-                              applyPreset(p);
-                            }}
-                            style={{
-                              position:"relative",
-                              padding:"16px 10px 14px",
-                              borderRadius:14,
-                              border: active ? "2px solid var(--mm-pur2)" : "1.5px solid var(--mm-bdr2)",
-                              background: active ? "rgba(123,92,229,.15)" : "var(--mm-surf2)",
-                              cursor:"pointer",
-                              transition:"all .2s",
-                              textAlign:"center",
-                              boxShadow: active ? "0 0 16px rgba(123,92,229,.25)" : "none",
-                            }}
-                          >
-                            <div style={{fontFamily:"var(--mm-fd)",fontSize:16,fontWeight:800,color: active ? "var(--mm-pur2)" : "var(--mm-whi)",letterSpacing:"-.01em"}}>{p.label}</div>
-                            <div style={{
-                              position:"absolute",top:6,right:8,
-                              padding:"2px 7px",borderRadius:8,
-                              fontSize:10,fontWeight:700,fontFamily:"var(--mm-fm)",
-                              background: pts >= 8 ? "rgba(245,158,11,.18)" : pts >= 5 ? "rgba(16,185,129,.18)" : "rgba(123,92,229,.18)",
-                              color: pts >= 8 ? "#F59E0B" : pts >= 5 ? "#10B981" : "var(--mm-pur2)",
-                            }}>
-                              +{pts}
-                            </div>
-                          </button>
-                        );
-                      })}
+                  {isAddSub ? (
+                    /* Add/Sub & Integer Add/Sub: free-form digit + row inputs */
+                    <>
+                      <div>
+                        <label style={{display:"block",fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"var(--mm-muted)",marginBottom:8}}>Number of Digits <span style={{fontWeight:400,opacity:.6}}>(1–10)</span></label>
+                        <NumericInput
+                          value={curDigits}
+                          onChange={setDigits}
+                          min={1}
+                          max={10}
+                          className="mm-form-input"
+                          style={{width:"100%",padding:"12px 16px",background:"var(--mm-surf2)",border:"1.5px solid var(--mm-bdr2)",borderRadius:12,fontFamily:"var(--mm-fm)",fontSize:14,fontWeight:600,color:"var(--mm-whi)",outline:"none",boxSizing:"border-box" as const}}
+                        />
+                      </div>
+                      <div>
+                        <label style={{display:"block",fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"var(--mm-muted)",marginBottom:8}}>Number of Rows <span style={{fontWeight:400,opacity:.6}}>(3–20)</span></label>
+                        <NumericInput
+                          value={curRows}
+                          onChange={setRows}
+                          min={3}
+                          max={20}
+                          className="mm-form-input"
+                          style={{width:"100%",padding:"12px 16px",background:"var(--mm-surf2)",border:"1.5px solid var(--mm-bdr2)",borderRadius:12,fontFamily:"var(--mm-fm)",fontSize:14,fontWeight:600,color:"var(--mm-whi)",outline:"none",boxSizing:"border-box" as const}}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    /* All other operations: preset tile grid */
+                    <div>
+                      <label style={{display:"flex",alignItems:"center",gap:6,fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"var(--mm-muted)",marginBottom:10}}>
+                        <Star style={{width:12,height:12,color:"#F59E0B"}} />
+                        Select Difficulty Preset
+                      </label>
+                      <div style={{display:"grid",gridTemplateColumns: presets.length <= 4 ? "1fr 1fr" : "1fr 1fr 1fr",gap:10}}>
+                        {presets.map(p => {
+                          const active = selectedPresetKey === p.presetKey;
+                          const pts = getPresetPoints(engineOp, p.presetKey) || p.points;
+                          return (
+                            <button
+                              key={p.presetKey}
+                              onClick={() => {
+                                setSelectedPresetKey(p.presetKey);
+                                applyPreset(p);
+                              }}
+                              style={{
+                                position:"relative",
+                                padding:"16px 10px 14px",
+                                borderRadius:14,
+                                border: active ? "2px solid var(--mm-pur2)" : "1.5px solid var(--mm-bdr2)",
+                                background: active ? "rgba(123,92,229,.15)" : "var(--mm-surf2)",
+                                cursor:"pointer",
+                                transition:"all .2s",
+                                textAlign:"center",
+                                boxShadow: active ? "0 0 16px rgba(123,92,229,.25)" : "none",
+                              }}
+                            >
+                              <div style={{fontFamily:"var(--mm-fd)",fontSize:16,fontWeight:800,color: active ? "var(--mm-pur2)" : "var(--mm-whi)",letterSpacing:"-.01em"}}>{p.label}</div>
+                              <div style={{
+                                position:"absolute",top:6,right:8,
+                                padding:"2px 7px",borderRadius:8,
+                                fontSize:10,fontWeight:700,fontFamily:"var(--mm-fm)",
+                                background: pts >= 8 ? "rgba(245,158,11,.18)" : pts >= 5 ? "rgba(16,185,129,.18)" : "rgba(123,92,229,.18)",
+                                color: pts >= 8 ? "#F59E0B" : pts >= 5 ? "#10B981" : "var(--mm-pur2)",
+                              }}>
+                                +{pts}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Points Preview Card */}
                   <div style={{

@@ -2,7 +2,7 @@
 Session Validator — enforces minimum-attempt thresholds before awarding points.
 
 Rules:
-  - Practice Paper:  minimum 30 questions answered to earn points
+  - Practice Paper:  minimum 15 questions answered to earn points
   - Mental Math:     minimum 10 questions answered to earn points
   - Burst Mode:      no minimum (time-gated by 60s timer)
   - Add/Sub family:  minimum 3 rows to earn points
@@ -13,7 +13,7 @@ from typing import Tuple
 class SessionValidator:
     """Validates whether a session meets the requirements for earning points."""
 
-    PAPER_MIN_QUESTIONS = 30
+    PAPER_MIN_QUESTIONS = 15
     MENTAL_MIN_QUESTIONS = 10
     ADD_SUB_MIN_ROWS = 3
 
@@ -29,7 +29,7 @@ class SessionValidator:
     ) -> Tuple[bool, str]:
         """
         Returns (is_valid, reason).
-        Practice papers must have ≥30 total questions.
+        Practice papers must have ≥15 total questions.
         """
         if total_questions < self.PAPER_MIN_QUESTIONS:
             return (

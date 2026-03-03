@@ -3,6 +3,8 @@ import { Zap, ArrowLeft, CheckCircle2, XCircle, Clock, Trophy, Flame, RotateCcw,
 import { Link } from "wouter";
 import { useAuth } from "../contexts/AuthContext";
 import { savePracticeSession, PracticeSessionData } from "../lib/userApi";
+import { useBadgeUnlockStore } from "../stores/badgeUnlockStore";
+import { useStreakCelebrationStore } from "../stores/streakCelebrationStore";
 import { usePointRules, buildPointsLookup } from "../hooks/usePointRules";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -697,8 +699,22 @@ export default function BurstMode() {
       if (savedSession && savedSession.points_earned != null) {
         setBackendPoints(savedSession.points_earned);
       }
+      // Trigger badge cinematic for any newly unlocked badges
+      const rewardBadges = savedSession?.reward_data?.badges_unlocked;
+      if (rewardBadges && rewardBadges.length > 0) {
+        useBadgeUnlockStore.getState().enqueue(rewardBadges);
+      }
+      const streakUpdated = savedSession?.reward_data?.streak_updated;
       setSessionSaved(true);
-      if (refreshUser) await refreshUser();
+      if (refreshUser) {
+        await refreshUser();
+        // Fire streak celebration AFTER refresh so current_streak is up-to-date
+        if (streakUpdated) {
+          const freshUser = JSON.parse(localStorage.getItem("user_data") || "{}");
+          const newStreak = freshUser?.current_streak ?? 1;
+          useStreakCelebrationStore.getState().trigger(newStreak);
+        }
+      }
     } catch (err) {
       console.error("Failed to save burst mode session:", err);
       savingRef.current = false;  // allow retry on genuine failure

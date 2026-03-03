@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
-import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, getPointsLogs, PointsSummaryResponse, PointsLogEntry, StudentDashboardData, getOverallLeaderboard, getWeeklyLeaderboard, LeaderboardEntry, getMyCertificates, CertificateRecord } from "../lib/userApi";
+import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, StudentDashboardData, getOverallLeaderboard, getWeeklyLeaderboard, LeaderboardEntry, getMyCertificates, CertificateRecord, getPointsLogs, PointsSummaryResponse } from "../lib/userApi";
 import { PaperAttempt, getPaperAttempt, PaperAttemptDetail, getPaperAttemptCount } from "../lib/api";
 import { Trophy, Target, Zap, CheckCircle2, XCircle, BarChart3, History, X, Eye, ChevronDown, ChevronUp, RotateCcw, Clock, Loader2, RefreshCw, Award, Calendar } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { formatDateToIST } from "../lib/timezoneUtils";
 import MathQuestion from "../components/MathQuestion";
+import PointsHistoryList from "../components/rewards/PointsHistoryList";
 
 type SessionFilter = "overall" | "mental_math" | "practice_paper" | "burst_mode";
 
@@ -83,8 +84,8 @@ export default function StudentDashboard() {
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery<StudentDashboardData>({
     queryKey: ["studentDashboard"],
     queryFn: getStudentDashboardData,
-    staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh, no refetch
-    refetchOnMount: false,     // Prevent duplicate fetch in React StrictMode
+    staleTime: 0,          // Always re-fetch — sessions recorded elsewhere must appear immediately
+    refetchOnMount: true,  // Always refetch when navigating back to dashboard
     refetchOnWindowFocus: false,
     retry: 2,
   });
@@ -379,7 +380,12 @@ export default function StudentDashboard() {
         return String(questionData);
       }
     }
-    
+
+    // Burst mode and any question with a pre-rendered text field — use it directly
+    if (questionData.text) {
+      return String(questionData.text);
+    }
+
     if (operationType === "add_sub" || operationType === "integer_add_sub") {
       const numbers = questionData.numbers || [];
       const operators = questionData.operators || [];
@@ -523,8 +529,8 @@ export default function StudentDashboard() {
               try {
                 const data = await getPointsLogs(500, 0);
                 setPointsLogData(data);
-              } catch (error) {
-                console.error("Failed to load points log:", error);
+              } catch (e) {
+                console.error("Failed to load points log:", e);
               } finally {
                 setLoadingPointsLog(false);
               }
@@ -547,13 +553,13 @@ export default function StudentDashboard() {
             <div style={{fontSize:"1.75rem",fontWeight:900,color:DB.purple,fontFamily:DB.font,animation:"db-count-up 0.5s ease 0.15s both"}}>{stats.overall_accuracy.toFixed(1)}%</div>
           </div>
 
-          {/* Total Questions */}
+          {/* Questions Attempted */}
           <div className="db-stat-card" style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",padding:"1.75rem",position:"relative",overflow:"hidden",animation:"db-fade-up 0.5s ease 0.15s both",borderTop:`3px solid ${DB.teal}`}}>
             <div style={{width:"2.5rem",height:"2.5rem",background:DB.tealDim,borderRadius:"0.75rem",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:"1.25rem",border:`1px solid rgba(20,184,166,0.25)`}}>
               <Zap style={{width:"1.25rem",height:"1.25rem",color:DB.teal}} />
             </div>
-            <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>Total Questions</div>
-            <div style={{fontSize:"1.75rem",fontWeight:900,color:DB.teal,fontFamily:DB.font,animation:"db-count-up 0.5s ease 0.2s both"}}>{(stats.total_questions || 0).toLocaleString()}</div>
+            <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>Questions Attempted</div>
+            <div style={{fontSize:"1.75rem",fontWeight:900,color:DB.teal,fontFamily:DB.font,animation:"db-count-up 0.5s ease 0.2s both"}}>{((stats.total_correct || 0) + (stats.total_wrong || 0)).toLocaleString()}</div>
           </div>
 
           {/* Total Sessions */}
@@ -738,8 +744,8 @@ export default function StudentDashboard() {
             <h2 style={{fontFamily:DB.font,fontSize:"1.125rem",fontWeight:900,color:DB.text,marginBottom:"1.25rem"}}>Quick Stats</h2>
             <div style={{display:"flex",flexDirection:"column",gap:"0.875rem"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <span style={{fontSize:"0.8rem",fontWeight:700,color:DB.muted}}>Total Questions</span>
-                <span style={{fontWeight:900,color:DB.text}}>{stats.total_questions}</span>
+                <span style={{fontSize:"0.8rem",fontWeight:700,color:DB.muted}}>Questions Attempted</span>
+                <span style={{fontWeight:900,color:DB.text}}>{(stats.total_correct || 0) + (stats.total_wrong || 0)}</span>
               </div>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <span style={{fontSize:"0.8rem",fontWeight:700,color:DB.muted}}>Correct</span>
@@ -992,146 +998,54 @@ export default function StudentDashboard() {
 
 {/* Points Log Modal */}
       {showPointsLog && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}} onClick={() => setShowPointsLog(false)}>
-          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderTop:`3px solid ${DB.purple}`,borderRadius:"1.5rem",boxShadow:"0 32px 80px rgba(0,0,0,0.6)",maxWidth:"56rem",width:"100%",maxHeight:"90vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={(e) => e.stopPropagation()}>
-            <div style={{padding:"1.5rem",borderBottom:`1px solid ${DB.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div>
-                <h2 style={{fontFamily:DB.font,fontSize:"1.5rem",fontWeight:900,color:DB.text,marginBottom:"0.375rem"}}>Points Transaction Log</h2>
-                <p style={{fontSize:"0.8rem",color:DB.muted}}>
-                  Complete history of all point transactions with checksum verification
-                </p>
-              </div>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"4.5rem 1rem 2rem"}} onClick={() => setShowPointsLog(false)}>
+          <div style={{maxWidth:"48rem",width:"100%"}} onClick={(e) => e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:"0.5rem"}}>
               <button
                 onClick={() => setShowPointsLog(false)}
-                style={{padding:"0.5rem",background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"0.75rem",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+                style={{padding:"0.375rem 0.875rem",background:"rgba(0,0,0,0.55)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:"0.75rem",cursor:"pointer",display:"flex",alignItems:"center",gap:"0.375rem",color:"rgba(255,255,255,0.7)",fontSize:"0.75rem",fontWeight:600}}
               >
-                <X style={{width:"1.25rem",height:"1.25rem",color:DB.muted}} />
+                <X style={{width:"0.875rem",height:"0.875rem"}} /> Close
               </button>
             </div>
-            
-            <div className="db-scrollbar" style={{padding:"1.5rem",overflowY:"auto",flex:1}}>
-              {loadingPointsLog ? (
-                <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"3rem"}}>
-                  <Loader2 style={{width:"2rem",height:"2rem",animation:"spin 1s linear infinite",color:DB.purple}} />
-                  <span style={{marginLeft:"0.75rem",color:DB.muted}}>Loading points log...</span>
-                </div>
-              ) : pointsLogData ? (
-                <>
-                  {/* Checksum Summary */}
-                  <div style={{marginBottom:"1.5rem",padding:"1rem",background:DB.purpleDim,borderRadius:"1rem",border:`1px solid rgba(124,90,246,0.2)`}}>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"1rem",textAlign:"center"}}>
-                      <div>
-                        <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>From Logs</div>
-                        <div style={{fontSize:"1.5rem",fontWeight:900,color:DB.text}}>{pointsLogData.total_points_from_logs.toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>Current Total</div>
-                        <div style={{fontSize:"1.5rem",fontWeight:900,color:DB.text}}>{pointsLogData.total_points_from_user.toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div style={{fontSize:"0.65rem",fontWeight:900,textTransform:"uppercase",letterSpacing:"0.1em",color:DB.muted,marginBottom:"0.375rem"}}>Status</div>
-                        <div style={{fontSize:"1.5rem",fontWeight:900,color:pointsLogData.match?DB.green:"#f87171"}}>
-                          {pointsLogData.match ? "✓ Match" : "✕ Mismatch"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Points Log Entries */}
-                  <div style={{display:"flex",flexDirection:"column",gap:"0.625rem"}}>
-                    <div style={{fontSize:"0.8rem",fontWeight:700,color:DB.muted,marginBottom:"0.75rem"}}>
-                      {pointsLogData.total_entries} total entries (showing {pointsLogData.logs.length})
-                    </div>
-                    {pointsLogData.logs.map((log: PointsLogEntry) => {
-                      const meta = log.extra_data || {};
-                      // source type label
-                      const sourceLabel = log.source_type
-                        .split("_")
-                        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-                        .join(" ");
-                      return (
-                      <div
-                        key={log.id}
-                        style={{padding:"1rem",borderRadius:"0.75rem",border:`1px solid ${log.points >= 0 ? "rgba(34,197,94,0.2)" : "rgba(248,113,113,0.2)"}`,background:log.points >= 0 ? "rgba(34,197,94,0.06)" : "rgba(248,113,113,0.06)",animation:"db-slide-row 0.3s ease both"}}
-                      >
-                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:"1rem"}}>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{display:"flex",alignItems:"flex-start",gap:"0.75rem",marginBottom:"0.5rem"}}>
-                              <span style={{fontSize:"1.1rem",fontWeight:900,fontVariantNumeric:"tabular-nums",flexShrink:0,color:log.points >= 0 ? DB.green : "#f87171"}}>
-                                {log.points >= 0 ? "+" : ""}{(log.points ?? 0).toLocaleString()}
-                              </span>
-                              <span style={{fontSize:"0.8rem",fontWeight:600,color:DB.text,lineHeight:1.4}}>{log.description}</span>
-                            </div>
-                            <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"0.5rem",fontSize:"0.7rem",color:DB.muted}}>
-                              <span style={{padding:"0.15rem 0.5rem",background:DB.purpleDim,borderRadius:"0.375rem",color:DB.purple,fontWeight:600,flexShrink:0}}>
-                                {sourceLabel}
-                              </span>
-                              <span style={{display:"flex",alignItems:"center",gap:"0.25rem",flexShrink:0}}>
-                                <Clock style={{width:"0.7rem",height:"0.7rem"}} />
-                                {new Date(log.created_at).toLocaleString("en-IN", {
-                                  timeZone: "Asia/Kolkata",
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit"
-                                })}
-                              </span>
-                              {meta.operation_type && (
-                                <span style={{padding:"0.15rem 0.5rem",background:DB.surf2,borderRadius:"0.25rem",border:`1px solid ${DB.border}`}}>
-                                  {String(meta.operation_type).replace(/_/g, " ")}
-                                </span>
-                              )}
-                              {meta.difficulty_mode && (
-                                <span style={{padding:"0.15rem 0.5rem",background:DB.surf2,borderRadius:"0.25rem",border:`1px solid ${DB.border}`}}>
-                                  {String(meta.difficulty_mode)}
-                                </span>
-                              )}
-                              {meta.streak_days !== undefined && (
-                                <span style={{padding:"0.15rem 0.5rem",background:"rgba(245,158,11,0.1)",color:DB.gold,borderRadius:"0.25rem",border:`1px solid rgba(245,158,11,0.2)`}}>
-                                  🔥 {meta.streak_days}d streak
-                                </span>
-                              )}
-                              {meta.correct_answers !== undefined && (
-                                <span style={{padding:"0.15rem 0.5rem",background:DB.greenDim,color:DB.green,borderRadius:"0.25rem",border:`1px solid rgba(34,197,94,0.2)`}}>
-                                  ✓ {meta.correct_answers}/{meta.attempted_questions ?? meta.total_questions}
-                                </span>
-                              )}
-                              {meta.paper_title && (
-                                <span style={{padding:"0.15rem 0.5rem",background:"rgba(14,165,233,0.1)",color:"#38bdf8",borderRadius:"0.25rem",border:"1px solid rgba(14,165,233,0.2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"12rem"}}>
-                                  📄 {String(meta.paper_title)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {(meta.balance_after !== undefined) && (
-                            <div style={{textAlign:"right",flexShrink:0}}>
-                              <div style={{fontSize:"0.65rem",color:DB.muted}}>Balance</div>
-                              <div style={{fontSize:"0.875rem",fontWeight:900,color:DB.text,fontVariantNumeric:"tabular-nums"}}>
-                                {Number(meta.balance_after).toLocaleString()}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <div style={{textAlign:"center",padding:"3rem",color:DB.muted}}>
-                  <p>No points log data available</p>
+            {/* Balance Verification Banner */}
+            {loadingPointsLog ? (
+              <div style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"1rem",padding:"1rem 1.25rem",marginBottom:"0.75rem",display:"flex",alignItems:"center",gap:"0.75rem"}}>
+                <Loader2 style={{width:"1rem",height:"1rem",color:DB.purple,animation:"spin 1s linear infinite"}} />
+                <span style={{fontSize:"0.8rem",color:DB.muted,fontWeight:600}}>Verifying points balance…</span>
+              </div>
+            ) : pointsLogData ? (
+              <div style={{background: pointsLogData.match ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)", border:`1px solid ${pointsLogData.match ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.3)"}`, borderRadius:"1rem", padding:"1rem 1.25rem", marginBottom:"0.75rem"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"0.625rem",marginBottom: pointsLogData.match ? 0 : "0.625rem"}}>
+                  {pointsLogData.match
+                    ? <CheckCircle2 style={{width:"1.125rem",height:"1.125rem",color:DB.green,flexShrink:0}} />
+                    : <XCircle style={{width:"1.125rem",height:"1.125rem",color:"#f87171",flexShrink:0}} />
+                  }
+                  <span style={{fontWeight:800,fontSize:"0.875rem",color: pointsLogData.match ? DB.green : "#f87171"}}>
+                    {pointsLogData.match ? "Balance Verified — all logs match" : "Balance Mismatch Detected"}
+                  </span>
+                  <span style={{marginLeft:"auto",fontSize:"0.7rem",color:DB.muted,fontFamily:"monospace"}}>{pointsLogData.total_entries} log entries</span>
                 </div>
-              )}
-            </div>
+                {!pointsLogData.match && (
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem",paddingTop:"0.5rem",borderTop:"1px solid rgba(239,68,68,0.15)"}}>
+                    <div style={{fontSize:"0.75rem",color:DB.muted}}>Points from logs: <strong style={{color:DB.text}}>{pointsLogData.total_points_from_logs.toLocaleString()}</strong></div>
+                    <div style={{fontSize:"0.75rem",color:DB.muted}}>Points on account: <strong style={{color:DB.text}}>{pointsLogData.total_points_from_user.toLocaleString()}</strong></div>
+                    <div style={{fontSize:"0.75rem",color:"#f87171",gridColumn:"1/-1"}}>Difference: <strong>{Math.abs(pointsLogData.total_points_from_logs - pointsLogData.total_points_from_user).toLocaleString()} pts</strong></div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            <PointsHistoryList />
           </div>
         </div>
       )}
 
       {/* Session Detail Modal */}
       {selectedSession && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}} onClick={() => setSelectedSession(null)}>
-          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderTop:`3px solid ${DB.purple}`,borderRadius:"1.5rem",boxShadow:"0 32px 80px rgba(0,0,0,0.6)",maxWidth:"56rem",width:"100%",maxHeight:"90vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={(e) => e.stopPropagation()}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"4.5rem 1rem 2rem"}} onClick={() => setSelectedSession(null)}>
+          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderTop:`3px solid ${DB.purple}`,borderRadius:"1.5rem",boxShadow:"0 32px 80px rgba(0,0,0,0.6)",maxWidth:"56rem",width:"100%",maxHeight:"calc(100vh - 5.5rem)",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={(e) => e.stopPropagation()}>
             <div style={{padding:"1.5rem",borderBottom:`1px solid ${DB.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div>
                 <h2 style={{fontFamily:DB.font,fontSize:"1.375rem",fontWeight:900,color:DB.text,marginBottom:"0.25rem"}}>Practice Session Details</h2>
@@ -1196,8 +1110,8 @@ export default function StudentDashboard() {
 
       {/* Paper Attempt Detail Modal */}
       {selectedPaperAttempt && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}} onClick={() => setSelectedPaperAttempt(null)}>
-          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderTop:`3px solid ${DB.teal}`,borderRadius:"1.5rem",boxShadow:"0 32px 80px rgba(0,0,0,0.6)",maxWidth:"56rem",width:"100%",maxHeight:"90vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={(e) => e.stopPropagation()}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"4.5rem 1rem 2rem"}} onClick={() => setSelectedPaperAttempt(null)}>
+          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderTop:`3px solid ${DB.teal}`,borderRadius:"1.5rem",boxShadow:"0 32px 80px rgba(0,0,0,0.6)",maxWidth:"56rem",width:"100%",maxHeight:"calc(100vh - 5.5rem)",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={(e) => e.stopPropagation()}>
             <div style={{padding:"1.5rem",borderBottom:`1px solid ${DB.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div>
                 <h2 style={{fontFamily:DB.font,fontSize:"1.375rem",fontWeight:900,color:DB.text,marginBottom:"0.25rem"}}>Practice Paper Details</h2>

@@ -1,4 +1,5 @@
 """API routes for user authentication, progress tracking, and dashboards."""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
@@ -6,8 +7,11 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 import time
 from timezone_utils import get_ist_now, get_utc_now
+
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
+logger = logging.getLogger(__name__)
 
 from models import User, PracticeSession, Attempt, PaperAttempt, Paper, StudentProfile, ProfileAuditLog, VacantId, PointsLog, Certificate, get_db
 from auth import get_current_user, get_current_admin, verify_google_token, create_access_token
@@ -194,7 +198,7 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
                 user_dict["total_points"] = user.total_points
                 print(f"🎁 [LOGIN] Daily login bonus: +{login_bonus_points} pts for user {user.id}")
         except Exception as _login_err:
-            logger.warning("[REWARD] daily login bonus failed: %s", _login_err)
+            logger.warning("[REWARD] daily login bonus failed: %s", _login_err, exc_info=True)
         
         print(f"✅ [LOGIN] Login successful for user: {user.email}, access_token and refresh_token generated")
         return LoginResponse(
@@ -2610,22 +2614,86 @@ async def get_points_logs(
     limit: Optional[int] = Query(100, ge=1, le=1000),
     offset: Optional[int] = Query(0, ge=0)
 ):
-    """Get points transaction log with checksum verification."""
+    """Get points transaction log with checksum verification.
+    
+    Uses RewardEvent as the authoritative ledger so that daily login bonuses,
+    streak bonuses, burst bonuses, and admin adjustments are all visible.
+    """
     from points_logger import get_points_summary
-    
-    # Get points logs
-    logs = db.query(PointsLog).filter(
-        PointsLog.user_id == current_user.id
-    ).order_by(PointsLog.created_at.desc()).offset(offset).limit(limit).all()
-    
-    # Get summary with checksum
+    from reward_models import RewardEvent as _RewardEvent
+
+    _EVENT_TYPE_LABELS = {
+        "daily_login": "Daily Login Bonus",
+        "streak_bonus": "Streak Bonus",
+        "streak_milestone": "Streak Milestone Badge",
+        "session_completed": "Practice Session",
+        "burst_mode_completed": "Burst Mode Completion",
+        "admin_points_adjustment": "Admin Adjustment",
+        "monthly_snapshot_created": "Monthly Snapshot",
+        "badge_awarded": "Badge Awarded",
+    }
+
+    def _make_description(evt: _RewardEvent) -> str:
+        label = _EVENT_TYPE_LABELS.get(evt.event_type, evt.event_type.replace("_", " ").title())
+        meta = evt.event_metadata or {}
+        if evt.event_type == "session_completed":
+            tool = (evt.source_tool or "").replace("_", " ").title()
+            correct = meta.get("correct_answers", "")
+            if correct != "":
+                return f"{label} — {tool}, {correct} correct"
+            return f"{label} — {tool}"
+        if evt.event_type == "admin_points_adjustment":
+            reason = meta.get("reason", "")
+            admin = meta.get("admin_name", "Admin")
+            return f"{label} by {admin}" + (f": {reason}" if reason else "")
+        if evt.event_type == "streak_bonus":
+            streak = meta.get("streak_day", "")
+            return f"{label}" + (f" (Day {streak})" if streak else "")
+        return label
+
+    # Get all non-voided reward events ordered by timestamp desc
+    events = (
+        db.query(_RewardEvent)
+        .filter(
+            _RewardEvent.student_id == current_user.id,
+            _RewardEvent.is_voided == False,
+        )
+        .order_by(_RewardEvent.event_timestamp.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    total_entries = (
+        db.query(func.count(_RewardEvent.id))
+        .filter(
+            _RewardEvent.student_id == current_user.id,
+            _RewardEvent.is_voided == False,
+        )
+        .scalar()
+        or 0
+    )
+
     summary = get_points_summary(db, current_user.id)
-    
+
+    log_responses = [
+        PointsLogResponse(
+            id=evt.id,
+            points=evt.points_delta,
+            source_type=evt.event_type,
+            description=_make_description(evt),
+            source_id=(evt.event_metadata or {}).get("session_id"),
+            extra_data=evt.event_metadata,
+            created_at=evt.event_timestamp,
+        )
+        for evt in events
+    ]
+
     return PointsSummaryResponse(
         total_points_from_logs=summary["total_points_from_logs"],
         total_points_from_user=summary["total_points_from_user"],
         match=summary["match"],
-        logs=[PointsLogResponse.model_validate(log) for log in logs],
-        total_entries=db.query(PointsLog).filter(PointsLog.user_id == current_user.id).count()
+        logs=log_responses,
+        total_entries=total_entries,
     )
 
