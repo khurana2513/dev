@@ -48,7 +48,7 @@ export default function BadgeGrid() {
   for (const cat of CATEGORY_ORDER) {
     badgesByCategory.set(cat.key, []);
   }
-  for (const badge of data.badges) {
+  for (const badge of data.badges.filter((b) => !b.badge_key.startsWith("super_"))) {
     const list = badgesByCategory.get(badge.category as BadgeCategory);
     if (list) list.push(badge);
   }
