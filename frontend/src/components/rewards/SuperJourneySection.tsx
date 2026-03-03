@@ -219,10 +219,14 @@ function MilestoneNode({
 export default function SuperJourneySection() {
   const [data, setData] = useState<SuperJourneyResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchSuperJourney().then(setData).catch(console.error).finally(() => setLoading(false));
+    fetchSuperJourney()
+      .then(setData)
+      .catch((err) => { console.error("[SuperJourney]", err); setFetchError(true); })
+      .finally(() => setLoading(false));
   }, []);
 
   /* Auto-scroll active milestone into view */
@@ -292,7 +296,52 @@ export default function SuperJourneySection() {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div
+        style={{
+          background: "linear-gradient(160deg, rgba(8,5,20,0.99), rgba(12,8,28,0.99))",
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: 28,
+          padding: "32px 26px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 16,
+          minHeight: 180,
+          justifyContent: "center",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ display: "flex", gap: 12 }}>
+          {LETTERS.map((l) => (
+            <div
+              key={l}
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.03)",
+                border: `2px solid ${LETTER_META[l].color}33`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 22,
+                fontWeight: 900,
+                fontFamily: "'Playfair Display', Georgia, serif",
+                color: `${LETTER_META[l].color}55`,
+              }}
+            >
+              {l}
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 13, color: "#334155", fontFamily: "JetBrains Mono, monospace" }}>
+          {fetchError ? "Could not load SUPER Journey — try refreshing" : "Loading SUPER Journey…"}
+        </div>
+      </div>
+    );
+  }
 
   const { milestones, next_milestone, total_points, all_letters_done } = data;
 
