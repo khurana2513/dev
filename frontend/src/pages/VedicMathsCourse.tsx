@@ -268,7 +268,7 @@ function CounterCell({ label, end, suffix = "" }: { label: string; end: number; 
 
 function StatsBar() {
   return (
-    <div style={{ background:"var(--vd-surface)", border:"1px solid var(--vd-border)", borderRadius:20, display:"grid", gridTemplateColumns:"repeat(4,1fr)", overflow:"hidden" }}>
+    <div className="rsp-stats-grid" style={{ background:"var(--vd-surface)", border:"1px solid var(--vd-border)", borderRadius:20, display:"grid", gridTemplateColumns:"repeat(4,1fr)", overflow:"hidden" }}>
       <CounterCell end={16}  label="Sacred Sutras" />
       <CounterCell end={4}   label="Mastery Levels" />
       <CounterCell end={18}  suffix="yrs" label="Years of Teaching" />
@@ -316,7 +316,7 @@ function Hero() {
         <div key={i} style={{ position:"absolute", width:p.w, height:p.h, borderRadius:"50%", background:p.color, top:p.top, left:(p as any).left||"auto", right:(p as any).right||"auto", animation:`vd-glow-pulse ${p.dur} ease-in-out infinite ${p.delay}`, pointerEvents:"none" }} />
       ))}
 
-      <div style={{ maxWidth:1200, margin:"0 auto", padding:"80px 24px", width:"100%", display:"grid", gridTemplateColumns:"55% 45%", gap:64, alignItems:"center" }}>
+      <div className="rsp-hero-grid" style={{ maxWidth:1200, margin:"0 auto", padding:"80px 24px", width:"100%", display:"grid", gridTemplateColumns:"55% 45%", gap:64, alignItems:"center" }}>
 
         {/* ── LEFT ── */}
         <div>
@@ -358,7 +358,7 @@ function Hero() {
         </div>
 
         {/* ── RIGHT — Calculation showcase card ── */}
-        <div style={{ opacity:loaded?1:0, transform:loaded?"none":"translateX(32px)", transition:"all .9s cubic-bezier(.4,0,.2,1) .28s", position:"relative" }}>
+        <div className="rsp-hero-right" style={{ opacity:loaded?1:0, transform:loaded?"none":"translateX(32px)", transition:"all .9s cubic-bezier(.4,0,.2,1) .28s", position:"relative" }}>
           <div style={{ background:"linear-gradient(145deg,var(--vd-s2),var(--vd-bg3))", border:"1px solid var(--vd-b2)", borderRadius:28, padding:"36px", position:"relative", overflow:"hidden", boxShadow:"0 44px 110px rgba(0,0,0,.6), 0 0 70px rgba(212,160,23,.08)" }}>
             {/* Top gold accent */}
             <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:"linear-gradient(90deg,var(--vd-gold),transparent)" }} />
@@ -436,7 +436,7 @@ function SutrasShowcase() {
 
       <div style={{ maxWidth:1200, margin:"0 auto", padding:"0 24px" }}>
         <FadeIn>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:48, alignItems:"flex-end", marginBottom:56 }}>
+          <div className="rsp-header-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:48, alignItems:"flex-end", marginBottom:56 }}>
             <div>
               <div className="vd-lbl" style={{ marginBottom:16 }}>The Foundation</div>
               <h2 style={{ fontFamily:"var(--vd-font-s)", fontSize:"clamp(28px,3.5vw,52px)", fontWeight:900, letterSpacing:"-.02em", lineHeight:1.1, color:"var(--vd-cream)" }}>
@@ -449,7 +449,7 @@ function SutrasShowcase() {
           </div>
         </FadeIn>
 
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, alignItems:"flex-start" }}>
+        <div className="rsp-vd-content" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, alignItems:"flex-start" }}>
 
           {/* Left: scrollable sutra list */}
           <FadeIn dir="left">
@@ -537,7 +537,7 @@ function LevelsSection() {
 
         {/* Level tabs */}
         <FadeIn delay={0.1}>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:32 }}>
+          <div className="rsp-vd-tabs" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:32 }}>
             {LEVELS.map((lvl, i) => (
               <button key={i} onClick={() => setActive(i)} style={{ padding:"16px", borderRadius:16, background:active===i?"rgba(212,160,23,.12)":"var(--vd-surface)", border:`1px solid ${active===i?"rgba(212,160,23,.32)":"var(--vd-border)"}`, cursor:"pointer", textAlign:"left", transition:"all .28s ease", boxShadow:active===i?"0 0 32px rgba(212,160,23,.06)":"none" }}>
                 <div style={{ fontFamily:"var(--vd-font-m)", fontSize:10, color:active===i?"var(--vd-gold2)":"var(--vd-muted)", letterSpacing:".13em", marginBottom:7 }}>LEVEL {lvl.num}</div>
@@ -549,7 +549,7 @@ function LevelsSection() {
         </FadeIn>
 
         {/* Detail grid */}
-        <div key={active} style={{ animation:"vd-pop-in .35s ease both", display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+        <div key={active} className="rsp-vd-content" style={{ animation:"vd-pop-in .35s ease both", display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
           <FadeIn dir="left">
             <div style={{ background:"var(--vd-surface)", border:"1px solid rgba(212,160,23,.22)", borderRadius:24, padding:"36px", position:"relative", overflow:"hidden" }}>
               <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,${cur.color},transparent)` }} />
@@ -613,7 +613,7 @@ function Outcomes() {
             </h2>
           </div>
         </FadeIn>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16 }}>
+        <div className="rsp-3col" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16 }}>
           {OUTCOMES.map((o, i) => (
             <FadeIn key={i} delay={i*0.08}>
               <div className="vd-card" style={{ padding:"30px" }}>
@@ -672,7 +672,7 @@ function CTABanner() {
     <section style={{ padding:"80px 24px", background:"var(--vd-bg2)" }}>
       <div style={{ maxWidth:1200, margin:"0 auto" }}>
         <FadeIn>
-          <div style={{ position:"relative", borderRadius:28, overflow:"hidden", background:"linear-gradient(135deg,#1a1200 0%,#0e0900 50%,#080600 100%)", border:"1px solid rgba(212,160,23,.22)", padding:"72px 64px", boxShadow:"0 44px 110px rgba(0,0,0,.5)" }}>
+          <div className="rsp-cta-inner" style={{ position:"relative", borderRadius:28, overflow:"hidden", background:"linear-gradient(135deg,#1a1200 0%,#0e0900 50%,#080600 100%)", border:"1px solid rgba(212,160,23,.22)", padding:"72px 64px", boxShadow:"0 44px 110px rgba(0,0,0,.5)" }}>
             <div style={{ position:"absolute", top:-80, left:-80, width:320, height:320, borderRadius:"50%", background:"radial-gradient(circle,rgba(212,160,23,.2),transparent 70%)", pointerEvents:"none" }} />
             <div style={{ position:"absolute", bottom:-60, right:-60, width:260, height:260, borderRadius:"50%", background:"radial-gradient(circle,rgba(212,160,23,.09),transparent 70%)", pointerEvents:"none" }} />
             <div style={{ position:"absolute", inset:0, backgroundImage:"linear-gradient(rgba(212,160,23,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(212,160,23,.025) 1px,transparent 1px)", backgroundSize:"48px 48px", pointerEvents:"none" }} />

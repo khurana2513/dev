@@ -375,7 +375,7 @@ function StatsBar() {
   return (
     <section style={{ padding: "72px 24px", background: "var(--th-bg)" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, borderRadius: 20, overflow: "hidden", border: "1px solid var(--th-border)" }}>
+        <div className="rsp-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, borderRadius: 20, overflow: "hidden", border: "1px solid var(--th-border)" }}>
           {STATS.map((stat, i) => (
             <InView key={i} delay={i * 0.1}>
               <div style={{ background: "var(--th-surface)", padding: "36px 28px", borderRight: i < 3 ? "1px solid var(--th-border)" : "none", textAlign: "center" }}>
@@ -416,7 +416,7 @@ function Programs() {
           </div>
         </InView>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 18 }}>
+        <div className="rsp-2col" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 18 }}>
           {COURSES.map((course, i) => (
             <InView key={course.id} delay={i * 0.1} direction={i % 2 === 0 ? "left" : "right"}>
               <div
@@ -495,7 +495,7 @@ function WhySection() {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {WHY_ITEMS.map((item, i) => (
             <InView key={i} delay={i * 0.12}>
-              <div style={{
+              <div className="rsp-why-row" style={{
                 display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 40, alignItems: "center",
                 padding: "36px 36px", background: "var(--th-surface)", borderRadius: 20, border: "1px solid var(--th-border)", cursor: "default",
                 transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
@@ -547,7 +547,7 @@ function Toolkit() {
           </div>
         </InView>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+        <div className="rsp-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
           {TOOLKIT_ITEMS.map((item, i) => (
             <InView key={i} delay={i * 0.08}>
               <div
@@ -612,13 +612,13 @@ function AchievementsSection() {
           </div>
         </InView>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+        <div className="rsp-4col" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
           {ACHIEVEMENTS.map((a, i) => (
             <InView key={i} delay={i * 0.1}>
               <div
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
-                style={{ position: "relative", height: 360, borderRadius: 22, overflow: "hidden", border: "1px solid var(--th-border)", cursor: "pointer", transition: "all 0.35s cubic-bezier(.4,0,.2,1)", transform: hovered === i ? "translateY(-5px)" : "none", boxShadow: hovered === i ? "0 24px 64px rgba(0,0,0,0.5), 0 0 48px rgba(124,58,237,0.1)" : "none" }}
+                className="rsp-achieve-card" style={{ position: "relative", height: 360, borderRadius: 22, overflow: "hidden", border: "1px solid var(--th-border)", cursor: "pointer", transition: "all 0.35s cubic-bezier(.4,0,.2,1)", transform: hovered === i ? "translateY(-5px)" : "none", boxShadow: hovered === i ? "0 24px 64px rgba(0,0,0,0.5), 0 0 48px rgba(124,58,237,0.1)" : "none" }}
               >
                 <img src={a.image} alt={a.title} loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: hovered === i ? "scale(1.06)" : "scale(1)", transition: "transform 0.6s cubic-bezier(.4,0,.2,1)" }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(7,8,15,0.95) 0%, rgba(7,8,15,0.4) 50%, transparent 100%)" }} />
@@ -663,7 +663,7 @@ function Testimonials() {
           </div>
         </InView>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+        <div className="rsp-test-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
           {/* Featured quote */}
           <InView direction="left">
             <div style={{ background: "linear-gradient(145deg, var(--th-surface), var(--th-bg3))", border: "1px solid var(--th-border2)", borderRadius: 22, padding: "36px", gridRow: "span 2", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 340, position: "relative", overflow: "hidden" }}>
@@ -738,7 +738,7 @@ function CTABanner() {
     <section style={{ padding: "72px 24px", background: "var(--th-bg)" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <InView>
-          <div style={{ position: "relative", borderRadius: 26, overflow: "hidden", background: "linear-gradient(135deg, #2d1a6e 0%, #1a1040 40%, #0d0820 100%)", border: "1px solid rgba(124,58,237,0.25)", padding: "64px 56px", boxShadow: "0 48px 100px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
+          <div className="rsp-cta-inner" style={{ position: "relative", borderRadius: 26, overflow: "hidden", background: "linear-gradient(135deg, #2d1a6e 0%, #1a1040 40%, #0d0820 100%)", border: "1px solid rgba(124,58,237,0.25)", padding: "64px 56px", boxShadow: "0 48px 100px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
             <div style={{ position: "absolute", top: -80, left: -80, width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.28) 0%, transparent 70%)", pointerEvents: "none" }} />
             <div style={{ position: "absolute", bottom: -60, right: -60, width: 240, height: 240, borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
             <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)", backgroundSize: "48px 48px", pointerEvents: "none" }} />
@@ -835,7 +835,7 @@ export default function Home() {
         <div style={{ position: "absolute", bottom: "8%", right: "3%", width: 420, height: 420, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)", backgroundSize: "60px 60px", maskImage: "radial-gradient(ellipse at 50% 50%, black 30%, transparent 80%)" }} />
 
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", width: "100%", display: "grid", gridTemplateColumns: "55% 42%", gap: 60, alignItems: "center" }}>
+        <div className="rsp-hero-grid" style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", width: "100%", display: "grid", gridTemplateColumns: "55% 42%", gap: 60, alignItems: "center" }}>
           <div>
             <div style={{ opacity: loaded ? 1 : 0, transform: loaded ? "none" : "translateY(14px)", transition: "all 0.6s cubic-bezier(.4,0,.2,1) 0.1s", display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(124,58,237,0.10)", border: "1px solid rgba(124,58,237,0.22)", borderRadius: 100, padding: "7px 14px", marginBottom: 24 }}>
               <span style={{ color: "var(--th-purple2)", fontSize: 11 }}>✦</span>

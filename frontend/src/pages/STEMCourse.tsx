@@ -257,7 +257,7 @@ function StatCell({ end, suffix="", label, last=false }: { end:number;suffix?:st
 }
 function StatsBar() {
   return (
-    <div style={{ background:"var(--st-surf)", border:"1px solid var(--st-bdr)", borderRadius:18, display:"grid", gridTemplateColumns:"repeat(4,1fr)", overflow:"hidden" }}>
+    <div className="rsp-stats-grid" style={{ background:"var(--st-surf)", border:"1px solid var(--st-bdr)", borderRadius:18, display:"grid", gridTemplateColumns:"repeat(4,1fr)", overflow:"hidden" }}>
       <StatCell end={5}   label="Courses Available" />
       <StatCell end={15}  suffix=" yrs" label="Age Span (4–18)" />
       <StatCell end={3}   label="Delhi Branches" />
@@ -298,7 +298,7 @@ function Hero() {
         <div key={i} style={{ position:"absolute", width:p.w, height:p.h, borderRadius:"50%", background:p.c, top:p.top, left:(p as any).left||"auto", right:(p as any).right||"auto", animation:`st-float ${p.dur} ease-in-out infinite ${p.d}`, pointerEvents:"none" }} />
       ))}
 
-      <div style={{ maxWidth:1200, margin:"0 auto", padding:"80px 24px", width:"100%", display:"grid", gridTemplateColumns:"55% 45%", gap:56, alignItems:"center" }}>
+      <div className="rsp-hero-grid" style={{ maxWidth:1200, margin:"0 auto", padding:"80px 24px", width:"100%", display:"grid", gridTemplateColumns:"55% 45%", gap:56, alignItems:"center" }}>
         {/* ── LEFT ── */}
         <div>
           {/* Terminal boot block */}
@@ -339,7 +339,7 @@ function Hero() {
         </div>
 
         {/* ── RIGHT — course pathway card ── */}
-        <div style={{ opacity:loaded?1:0, transform:loaded?"none":"translateX(32px)", transition:"all .9s cubic-bezier(.4,0,.2,1) .3s", position:"relative" }}>
+        <div className="rsp-hero-right" style={{ opacity:loaded?1:0, transform:loaded?"none":"translateX(32px)", transition:"all .9s cubic-bezier(.4,0,.2,1) .3s", position:"relative" }}>
           <div className="st-scanlines" style={{ background:"linear-gradient(145deg,var(--st-surf2),var(--st-bg2))", border:"1px solid var(--st-bdr2)", borderRadius:28, padding:"32px", position:"relative", overflow:"hidden", boxShadow:"0 40px 100px rgba(0,0,0,.65), 0 0 60px rgba(224,92,40,.07)" }}>
             {/* Top glow stripe */}
             <div style={{ position:"absolute", top:-60, right:-60, width:200, height:200, borderRadius:"50%", background:"radial-gradient(circle,rgba(224,92,40,.14),transparent 70%)", pointerEvents:"none" }} />
@@ -419,7 +419,7 @@ function CourseDetails() {
         </FadeIn>
 
         {/* Detail panel */}
-        <div key={active} style={{ animation:"st-pop .35s ease both", display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
+        <div key={active} className="rsp-2col" style={{ animation:"st-pop .35s ease both", display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
           {/* Main */}
           <div style={{ background:"var(--st-surf)", borderRadius:24, padding:"36px", border:`1px solid ${c.bdr}`, position:"relative", overflow:"hidden", boxShadow:`0 0 60px ${c.dim}` }}>
             <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${c.color},transparent)` }} />
@@ -466,7 +466,7 @@ function CourseDetails() {
             </div>
             <div className="st-card" style={{ padding:"22px" }}>
               <div className="st-lbl" style={{ color:c.color, marginBottom:12 }}>Key Outcomes</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <div className="rsp-stem-skill-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                 {c.outcomes.map((o, i) => (
                   <div key={i} style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"var(--st-white2)", fontWeight:300 }}>
                     <span style={{ color:c.color, fontSize:10 }}>✓</span>{o}
@@ -478,7 +478,7 @@ function CourseDetails() {
         </div>
 
         {/* 5-card mini grid */}
-        <div style={{ marginTop:18, display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
+        <div className="rsp-stem-tabs" style={{ marginTop:18, display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
           {COURSES.map((tab, i) => (
             <FadeIn key={i} delay={i*.07}>
               <div onClick={() => setActive(i)} style={{ background:active===i?tab.dim:"var(--st-surf)", border:`1px solid ${active===i?tab.bdr:"var(--st-bdr)"}`, borderRadius:16, padding:"18px 12px", textAlign:"center", cursor:"pointer", transition:"all .25s ease", boxShadow:active===i?`0 0 28px ${tab.dim}`:"none" }}
@@ -515,7 +515,7 @@ function Why() {
             </p>
           </div>
         </FadeIn>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14 }}>
+        <div className="rsp-2col" style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14 }}>
           {DIFFERENTIATORS.map((d, i) => (
             <FadeIn key={i} delay={i*.1} dir={i%2===0?"left":"right"}>
               <div className="st-card" style={{ padding:"30px", display:"flex", gap:20, alignItems:"flex-start" }}>
@@ -552,7 +552,7 @@ function Pathway() {
           {/* Connecting gradient line */}
           <div style={{ position:"absolute", top:"45%", left:"5%", right:"5%", height:2, background:"linear-gradient(90deg,var(--st-teal),var(--st-o2),var(--st-p),var(--st-amber),var(--st-red))", opacity:.22, pointerEvents:"none" }} />
 
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:14, position:"relative" }}>
+          <div className="rsp-5col" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:14, position:"relative" }}>
             {COURSES.map((c, i) => (
               <FadeIn key={i} delay={i*.1}>
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"center", textAlign:"center" }}>
@@ -589,12 +589,12 @@ function CTABanner() {
     <section style={{ padding:"80px 24px", background:"var(--st-bg)" }}>
       <div style={{ maxWidth:1200, margin:"0 auto" }}>
         <FadeIn>
-          <div className="st-scanlines" style={{ position:"relative", borderRadius:28, overflow:"hidden", background:"linear-gradient(135deg,#1a0e06,#0e0905,var(--st-bg))", border:"1px solid rgba(224,92,40,.22)", padding:"72px 60px", boxShadow:"0 40px 100px rgba(0,0,0,.55)" }}>
+          <div className="st-scanlines rsp-cta-inner" style={{ position:"relative", borderRadius:28, overflow:"hidden", background:"linear-gradient(135deg,#1a0e06,#0e0905,var(--st-bg))", border:"1px solid rgba(224,92,40,.22)", padding:"72px 60px", boxShadow:"0 40px 100px rgba(0,0,0,.55)" }}>
             <div className="st-circuit" style={{ position:"absolute", inset:0 }} />
             <div style={{ position:"absolute", top:-80, left:-80, width:280, height:280, borderRadius:"50%", background:"radial-gradient(circle,rgba(224,92,40,.18),transparent 70%)", pointerEvents:"none" }} />
             <div style={{ position:"absolute", bottom:-60, right:-60, width:220, height:220, borderRadius:"50%", background:"radial-gradient(circle,rgba(0,217,192,.07),transparent 70%)", pointerEvents:"none" }} />
 
-            <div style={{ position:"relative", display:"grid", gridTemplateColumns:"1fr 1fr", gap:56, alignItems:"center" }}>
+            <div className="rsp-2col" style={{ position:"relative", display:"grid", gridTemplateColumns:"1fr 1fr", gap:56, alignItems:"center" }}>
               {/* Left */}
               <div>
                 <div style={{ fontFamily:"var(--st-font-m)", fontSize:10, color:"var(--st-o2)", letterSpacing:".16em", textTransform:"uppercase", marginBottom:18, display:"flex", alignItems:"center", gap:8 }}>

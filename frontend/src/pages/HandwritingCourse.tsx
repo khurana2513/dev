@@ -264,7 +264,7 @@ function StatCell({ end, suffix="", label, last=false }: { end:number; suffix?:s
 }
 function StatsBar() {
   return (
-    <div style={{ background:"var(--hw-surface)", border:"1px solid var(--hw-border)", borderRadius:18, display:"grid", gridTemplateColumns:"repeat(4,1fr)", overflow:"hidden" }}>
+    <div className="rsp-stats-grid" style={{ background:"var(--hw-surface)", border:"1px solid var(--hw-border)", borderRadius:18, display:"grid", gridTemplateColumns:"repeat(4,1fr)", overflow:"hidden" }}>
       <StatCell end={12}  suffix=" wks" label="Programme Length" />
       <StatCell end={2}   label="Script Languages" />
       <StatCell end={3}   suffix=" wks" label="Visible Results In" />
@@ -308,7 +308,7 @@ function Hero() {
         <div key={i} style={{ position:"absolute", width:p.w, height:p.h, borderRadius:"50%", background:p.c, top:p.top, left:(p as any).left||"auto", right:(p as any).right||"auto", animation:`hw-float ${p.dur} ease-in-out infinite ${p.d}`, pointerEvents:"none" }} />
       ))}
 
-      <div style={{ maxWidth:1200, margin:"0 auto", padding:"80px 24px", width:"100%", display:"grid", gridTemplateColumns:"52% 48%", gap:56, alignItems:"center" }}>
+      <div className="rsp-hero-grid" style={{ maxWidth:1200, margin:"0 auto", padding:"80px 24px", width:"100%", display:"grid", gridTemplateColumns:"52% 48%", gap:56, alignItems:"center" }}>
 
         {/* ── LEFT ── */}
         <div>
@@ -344,7 +344,7 @@ function Hero() {
         </div>
 
         {/* ── RIGHT — writing showcase card ── */}
-        <div style={{ opacity:loaded?1:0, transform:loaded?"none":"translateX(32px)", transition:"all .9s cubic-bezier(.4,0,.2,1) .28s", position:"relative" }}>
+        <div className="rsp-hero-right" style={{ opacity:loaded?1:0, transform:loaded?"none":"translateX(32px)", transition:"all .9s cubic-bezier(.4,0,.2,1) .28s", position:"relative" }}>
           <div className="hw-paper hw-ruled" style={{ borderRadius:26, padding:"36px", position:"relative", overflow:"hidden", border:"1px solid rgba(12,11,9,.1)", boxShadow:"0 28px 80px rgba(0,0,0,.1), 0 2px 8px rgba(0,0,0,.06)" }}>
             {/* Paper corner fold decoration */}
             <div style={{ position:"absolute", top:14, right:14, fontFamily:"var(--hw-font-m)", fontSize:9, color:"rgba(10,122,106,.35)", letterSpacing:".1em" }}>TALENT HUB · HANDWRITING</div>
@@ -435,7 +435,7 @@ function BilingualTracks() {
 
       <div style={{ maxWidth:1200, margin:"0 auto" }}>
         <FadeIn>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:48, alignItems:"flex-end", marginBottom:52 }}>
+          <div className="rsp-header-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:48, alignItems:"flex-end", marginBottom:52 }}>
             <div>
               <div className="hw-lbl-d" style={{ marginBottom:16 }}>Course Structure</div>
               <h2 style={{ fontFamily:"var(--hw-font-s)", fontSize:"clamp(28px,3.5vw,52px)", fontWeight:700, letterSpacing:"-.02em", lineHeight:1.1, color:"white", fontStyle:"italic" }}>
@@ -470,7 +470,7 @@ function BilingualTracks() {
           <div style={{ display:"flex", flexDirection:"column" }}>
             {curriculum.map((item, i) => (
               <FadeIn key={i} delay={i*0.07}>
-                <div style={{ display:"grid", gridTemplateColumns:"170px 1fr", gap:24, padding:"20px 0 20px 54px", position:"relative", borderBottom:i<curriculum.length-1?"1px solid rgba(255,255,255,.04)":"none", cursor:"default", animation:`hw-step-in .35s ease ${i*0.07}s both` }}
+                <div className="rsp-levels-grid" style={{ display:"grid", gridTemplateColumns:"170px 1fr", gap:24, padding:"20px 0 20px 54px", position:"relative", borderBottom:i<curriculum.length-1?"1px solid rgba(255,255,255,.04)":"none", cursor:"default", animation:`hw-step-in .35s ease ${i*0.07}s both` }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background="rgba(10,122,106,.04)"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background="transparent"; }}>
                   {/* Timeline dot */}
@@ -509,7 +509,7 @@ function BeforeAfter() {
 
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           {/* Header row */}
-          <div style={{ display:"grid", gridTemplateColumns:"190px 1fr 1fr 90px", gap:20, padding:"0 20px 12px", borderBottom:"2px solid rgba(12,11,9,.1)" }}>
+          <div className="rsp-hw-table-hdr" style={{ display:"grid", gridTemplateColumns:"190px 1fr 1fr 90px", gap:20, padding:"0 20px 12px", borderBottom:"2px solid rgba(12,11,9,.1)" }}>
             <span style={{ fontFamily:"var(--hw-font-m)", fontSize:10, color:"var(--hw-ink2)", letterSpacing:".12em", textTransform:"uppercase" }}>Aspect</span>
             <span style={{ fontFamily:"var(--hw-font-m)", fontSize:10, color:"rgba(12,11,9,.3)", letterSpacing:".12em", textTransform:"uppercase" }}>Before</span>
             <span style={{ fontFamily:"var(--hw-font-m)", fontSize:10, color:"var(--hw-teal)", letterSpacing:".12em", textTransform:"uppercase" }}>After 12 Weeks</span>
@@ -518,7 +518,7 @@ function BeforeAfter() {
 
           {BEFORE_AFTER.map((row, i) => (
             <FadeIn key={i} delay={i*0.08}>
-              <div className="hw-card-l" style={{ display:"grid", gridTemplateColumns:"190px 1fr 1fr 90px", gap:20, padding:"18px 20px", alignItems:"center" }}
+              <div className="hw-card-l rsp-hw-table-row" style={{ display:"grid", gridTemplateColumns:"190px 1fr 1fr 90px", gap:20, padding:"18px 20px", alignItems:"center" }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor="rgba(10,122,106,.22)"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor="var(--hw-border)"; }}>
                 <div style={{ fontFamily:"var(--hw-font-d)", fontSize:14, fontWeight:700, color:"var(--hw-ink)" }}>{row.label}</div>
@@ -561,7 +561,7 @@ function Outcomes() {
             </p>
           </div>
         </FadeIn>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+        <div className="rsp-3col" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
           {OUTCOMES.map((o, i) => (
             <FadeIn key={i} delay={i*0.08}>
               <div className="hw-card-d" style={{ padding:"28px" }}>
@@ -617,14 +617,14 @@ function CTABanner() {
     <section style={{ padding:"80px 24px", background:"var(--hw-dark)" }}>
       <div style={{ maxWidth:1200, margin:"0 auto" }}>
         <FadeIn>
-          <div style={{ position:"relative", borderRadius:26, overflow:"hidden", border:"1px solid rgba(10,153,128,.18)", padding:"68px 56px", background:"var(--hw-dark2)", boxShadow:"0 40px 100px rgba(0,0,0,.4)", backgroundImage:"repeating-linear-gradient(transparent, transparent 47px, rgba(10,122,106,.04) 47px, rgba(10,122,106,.04) 48px)", backgroundSize:"100% 48px" }}>
+          <div className="rsp-cta-inner" style={{ position:"relative", borderRadius:26, overflow:"hidden", border:"1px solid rgba(10,153,128,.18)", padding:"68px 56px", background:"var(--hw-dark2)", boxShadow:"0 40px 100px rgba(0,0,0,.4)", backgroundImage:"repeating-linear-gradient(transparent, transparent 47px, rgba(10,122,106,.04) 47px, rgba(10,122,106,.04) 48px)", backgroundSize:"100% 48px" }}>
             {/* Margin rule inside CTA */}
             <div style={{ position:"absolute", top:0, bottom:0, left:"7%", width:1, background:"rgba(200,40,40,.09)" }} />
             {/* Glows */}
             <div style={{ position:"absolute", top:-80, right:-80, width:280, height:280, borderRadius:"50%", background:"radial-gradient(circle,rgba(10,122,106,.1),transparent 70%)", pointerEvents:"none" }} />
             <div style={{ position:"absolute", bottom:-60, left:-60, width:220, height:220, borderRadius:"50%", background:"radial-gradient(circle,rgba(10,122,106,.06),transparent 70%)", pointerEvents:"none" }} />
 
-            <div style={{ position:"relative", display:"grid", gridTemplateColumns:"1fr 1fr", gap:56, alignItems:"center" }}>
+            <div className="rsp-2col" style={{ position:"relative", display:"grid", gridTemplateColumns:"1fr 1fr", gap:56, alignItems:"center" }}>
               {/* Left */}
               <div>
                 <div className="hw-lbl-d" style={{ marginBottom:20 }}>English & Hindi Available</div>

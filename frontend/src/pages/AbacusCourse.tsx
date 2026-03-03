@@ -288,7 +288,7 @@ function CounterCell({ label, end, suffix = "", delay = 0 }: { label:string; end
 
 function StatsBar() {
   return (
-    <div style={{ background:"var(--ab-surface)", border:"1px solid var(--ab-border)", borderRadius:20, display:"grid", gridTemplateColumns:"repeat(4,1fr)", overflow:"hidden", margin:"0 24px" }}>
+    <div className="rsp-stats-grid" style={{ background:"var(--ab-surface)", border:"1px solid var(--ab-border)", borderRadius:20, display:"grid", gridTemplateColumns:"repeat(4,1fr)", overflow:"hidden", margin:"0 24px" }}>
       <CounterCell end={10}  suffix="+"  label="Levels of Mastery" delay={0} />
       <CounterCell end={800} suffix="+"  label="Students Trained"   delay={0.1} />
       <CounterCell end={18}  suffix="yrs" label="Years of Excellence" delay={0.2} />
@@ -346,7 +346,7 @@ function LevelMap() {
         </FadeIn>
 
         {/* Main layout */}
-        <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:24 }}>
+        <div className="rsp-levels-grid" style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:24 }}>
           {/* Level list */}
           <FadeIn direction="left">
             <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
@@ -480,7 +480,7 @@ function Outcomes() {
           </div>
         </FadeIn>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16 }}>
+        <div className="rsp-3col" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16 }}>
           {OUTCOMES.map((o, i) => (
             <FadeIn key={i} delay={i*0.08}>
               <div className="ab-card" style={{ padding:"30px" }}>
@@ -514,7 +514,7 @@ function HowItWorks() {
           </div>
         </FadeIn>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, position:"relative" }}>
+        <div className="rsp-4col" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, position:"relative" }}>
           {/* Connector */}
           <div style={{ position:"absolute", top:42, left:"12.5%", right:"12.5%", height:1, background:`linear-gradient(90deg,#7B5CE5,#C4ADFF,${HOW_STEPS[3].color})`, opacity:.25, pointerEvents:"none" }} />
 
@@ -553,7 +553,7 @@ function KitSection() {
           </div>
         </FadeIn>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16 }}>
+        <div className="rsp-4col" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16 }}>
           {KIT_ITEMS.map((item, i) => (
             <FadeIn key={i} delay={i*0.1}>
               <div className="ab-card" style={{ padding:"32px 24px", textAlign:"center" }}>
@@ -611,7 +611,7 @@ function CTABanner() {
     <section style={{ padding:"80px 24px", background:"var(--ab-bg)" }}>
       <div style={{ maxWidth:1200, margin:"0 auto" }}>
         <FadeIn>
-          <div style={{ position:"relative", borderRadius:28, overflow:"hidden", background:"linear-gradient(135deg,#1e1050 0%,#110a38 50%,#0a061f 100%)", border:"1px solid rgba(123,92,229,.25)", padding:"72px 64px", boxShadow:"0 40px 100px rgba(0,0,0,.45)" }}>
+          <div className="rsp-cta-inner" style={{ position:"relative", borderRadius:28, overflow:"hidden", background:"linear-gradient(135deg,#1e1050 0%,#110a38 50%,#0a061f 100%)", border:"1px solid rgba(123,92,229,.25)", padding:"72px 64px", boxShadow:"0 40px 100px rgba(0,0,0,.45)" }}>
             {/* Glows */}
             <div style={{ position:"absolute", top:-80, left:-80, width:320, height:320, borderRadius:"50%", background:"radial-gradient(circle,rgba(123,92,229,.28),transparent 70%)", pointerEvents:"none" }} />
             <div style={{ position:"absolute", bottom:-60, right:-60, width:260, height:260, borderRadius:"50%", background:"radial-gradient(circle,rgba(157,127,240,.14),transparent 70%)", pointerEvents:"none" }} />
@@ -671,7 +671,7 @@ function Hero() {
         <div key={i} style={{ position:"absolute", width:p.w, height:p.h, borderRadius:"50%", background:p.color, top:p.top, left:(p as any).left||"auto", right:(p as any).right||"auto", animation:`ab-glow-orb ${p.dur} ease-in-out infinite ${p.delay}`, pointerEvents:"none" }} />
       ))}
 
-      <div style={{ maxWidth:1200, margin:"0 auto", padding:"80px 24px", width:"100%", display:"grid", gridTemplateColumns:"55% 45%", gap:64, alignItems:"center" }}>
+      <div className="rsp-hero-grid" style={{ maxWidth:1200, margin:"0 auto", padding:"80px 24px", width:"100%", display:"grid", gridTemplateColumns:"55% 45%", gap:64, alignItems:"center" }}>
         {/* ── LEFT ── */}
         <div>
           {/* Tag pill */}
@@ -711,7 +711,7 @@ function Hero() {
         </div>
 
         {/* ── RIGHT — Abacus visualizer card ── */}
-        <div style={{ opacity:loaded?1:0, transform:loaded?"none":"translateX(32px)", transition:"all .9s cubic-bezier(.4,0,.2,1) .28s", position:"relative" }}>
+        <div className="rsp-hero-right" style={{ opacity:loaded?1:0, transform:loaded?"none":"translateX(32px)", transition:"all .9s cubic-bezier(.4,0,.2,1) .28s", position:"relative" }}>
           <div style={{ background:"linear-gradient(145deg,var(--ab-surface2),var(--ab-bg2))", border:"1px solid var(--ab-border2)", borderRadius:28, padding:"36px 28px", position:"relative", overflow:"hidden", boxShadow:"0 44px 110px rgba(0,0,0,.55), 0 0 70px rgba(123,92,229,.1)" }}>
             {/* Inner glow */}
             <div style={{ position:"absolute", top:-60, right:-60, width:230, height:230, borderRadius:"50%", background:"radial-gradient(circle,rgba(123,92,229,.22),transparent 70%)", pointerEvents:"none" }} />
