@@ -429,8 +429,8 @@ def get_super_journey(
     # Get all awarded super badges for this student
     awarded_keys = set(
         row.badge_key
-        for row in db.query(StudentBadgeAward.badge_key)
-        .join(BadgeDefinition, StudentBadgeAward.badge_id == BadgeDefinition.id)
+        for row in db.query(BadgeDefinition.badge_key)
+        .join(StudentBadgeAward, StudentBadgeAward.badge_id == BadgeDefinition.id)
         .filter(
             StudentBadgeAward.student_id == student_id,
             StudentBadgeAward.is_active == True,
