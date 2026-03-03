@@ -5,16 +5,17 @@ Streak increments once per calendar day (IST) when a student completes
 ≥15 qualifying questions.  Qualifying questions include:
   • Mental Math/Burst Mode: rows in `attempts` table
         (session.difficulty_mode != 'custom')
-  • Practice Paper: all submitted questions
-        (paper_attempts.correct_answers + paper_attempts.wrong_answers)
+  • Practice Paper (Vedic Math only): submitted questions from papers with
+        paper_level starting with "Vedic-Level-" (e.g. Vedic-Level-1 … 4).
+        Abacus papers (Junior, Advanced, AB-1 … AB-10) do NOT count.
 
 Streak milestones (3, 7, 14, 30, 60, 100 days) award bonus points and
 may unlock badges via the BadgeEvaluator.
 """
 
 import logging
-from datetime import datetime, time, timedelta
-from typing import List, Optional, Tuple
+from datetime import datetime, time, timedelta, timezone as _utc_tz
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, update as sa_update
@@ -30,15 +31,49 @@ logger = logging.getLogger(__name__)
 
 STREAK_THRESHOLD = 15  # Minimum qualifying questions per day
 
+
+def _to_ist_date(val):
+    """
+    Normalise a stored last_practice_date value to a plain IST calendar date.
+
+    The column stores naive datetimes.  Two formats exist:
+      • Legacy (pre-fix): raw UTC timestamp, e.g. datetime(2026, 3, 3, 21, 54, 8)
+      • New (post-fix):   midnight-IST stored naively, e.g. datetime(2026, 3, 4, 0, 0, 0)
+
+    Both are treated as UTC and converted to IST so that .date() always returns
+    the correct IST calendar date.  This matters in the 00:00–05:30 IST window
+    where UTC date != IST date — without this a session at e.g. 02:00 IST (=
+    20:30 UTC previous day) would yield UTC-date = yesterday, causing the
+    idempotency guard (last_date == today_ist) to fail and the streak to
+    increment on every subsequent session within the same IST day.
+
+    Handles:
+      • None                     → None
+      • plain date               → returned as-is
+      • naive datetime           → treated as UTC, converted to IST → .date()
+      • timezone-aware datetime  → converted to IST → .date()
+    """
+    if val is None:
+        return None
+    if not hasattr(val, "hour"):
+        return val  # already a plain date object
+    # Attach UTC tzinfo if naive, then convert to IST
+    aware = val if val.tzinfo is not None else val.replace(tzinfo=_utc_tz.utc)
+    return aware.astimezone(IST_TIMEZONE).date()
+
+# Only Vedic Math practice papers count toward the streak.
+# Abacus papers (Junior, Advanced, AB-1 … AB-10, Custom) are excluded.
+VEDIC_MATH_LEVEL_PREFIX = "Vedic-Level-"
+
 STREAK_MILESTONES = frozenset({3, 7, 14, 30, 60, 100})
 
 _MILESTONE_RULE_MAP = {
-    3:   "streak_3_day",
-    7:   "streak_7_day",
-    14:  "streak_14_day",
-    30:  "streak_30_day",
-    60:  "streak_60_day",
-    100: "streak_100_day",
+    3:   "streak_milestone_3",
+    7:   "streak_milestone_7",
+    14:  "streak_milestone_14",
+    30:  "streak_milestone_30",
+    60:  "streak_milestone_60",
+    100: "streak_milestone_100",
 }
 
 
@@ -78,7 +113,8 @@ class StreakService:
             .scalar()
         ) or 0
 
-        # Practice Paper: aggregate (correct_answers + wrong_answers)
+        # Practice Paper (Vedic Math only): aggregate (correct_answers + wrong_answers)
+        # Abacus papers (Junior, Advanced, AB-*) are intentionally excluded.
         paper_counts = (
             db.query(
                 func.coalesce(
@@ -91,57 +127,69 @@ class StreakService:
                 PaperAttempt.completed_at.isnot(None),
                 PaperAttempt.completed_at >= utc_start,
                 PaperAttempt.completed_at < utc_end,
+                PaperAttempt.paper_level.like(VEDIC_MATH_LEVEL_PREFIX + "%"),
             )
             .scalar()
         ) or 0
 
         return mental_burst_count + paper_counts
 
-    def check_and_update(self, db: Session, student_id: int) -> bool:
+    def check_and_update(self, db: Session, student_id: int) -> Tuple[bool, List[Dict]]:
         """
         Check if the student has crossed the daily threshold and update streak.
 
         Called after every qualifying correct answer.
 
-        Returns True if streak was just incremented on this call.
+        Returns (streak_was_incremented, milestone_badges_unlocked).
+
+        IMPORTANT: Uses populate_existing() to bypass SQLAlchemy's identity-map
+        cache.  Without this, a Core sa_update() earlier in the same DB session
+        (e.g. from a previous check_and_update call triggered by _award_milestone
+        → record_event) leaves the ORM object stale, causing the
+        "already incremented today" guard to silently fail and the streak to
+        increment multiple times per day.
         """
-        user = db.query(User).filter(User.id == student_id).first()
+        user = (
+            db.query(User)
+            .populate_existing()          # always read fresh from DB
+            .filter(User.id == student_id)
+            .first()
+        )
         if not user:
-            return False
+            return False, []
 
         today_ist = get_ist_now().date()
 
-        # If already incremented today, skip
-        if user.last_practice_date is not None:
-            last_date = user.last_practice_date
-            if hasattr(last_date, "date"):
-                last_date = last_date.date()
-            if last_date == today_ist:
-                return False
+        last_date = _to_ist_date(user.last_practice_date)
+
+        # If already incremented today, skip (idempotency guard)
+        if last_date == today_ist:
+            return False, []
 
         # Count qualifying questions today
         count = self.count_qualifying_today(db, student_id)
         if count < STREAK_THRESHOLD:
-            return False
+            return False, []
 
         # Determine if streak should continue or reset
         yesterday = today_ist - timedelta(days=1)
-        last_date = user.last_practice_date
-        if last_date is not None:
-            if hasattr(last_date, "date"):
-                last_date = last_date.date()
 
         if last_date == yesterday:
             # Consecutive day → increment
             new_streak = user.current_streak + 1
         elif last_date == today_ist:
             # Already counted — shouldn't reach here but safety
-            return False
+            return False, []
         else:
-            # Gap → restart from 1
+            # Gap or first time → restart from 1
             new_streak = 1
 
         new_longest = max(user.longest_streak, new_streak)
+
+        # Store midnight of the IST calendar day as a naive datetime.
+        # This ensures .date() always returns the correct IST date regardless
+        # of how psycopg2 handles timezone stripping on read-back.
+        ist_midnight_naive = datetime.combine(today_ist, time.min)
 
         db.execute(
             sa_update(User)
@@ -149,7 +197,7 @@ class StreakService:
             .values(
                 current_streak=new_streak,
                 longest_streak=new_longest,
-                last_practice_date=get_ist_now(),
+                last_practice_date=ist_midnight_naive,
             )
         )
         db.flush()
@@ -162,10 +210,11 @@ class StreakService:
         # Record streak event + check milestones
         self._record_streak_event(db, student_id, new_streak)
 
+        milestone_badges: List[Dict] = []
         if new_streak in STREAK_MILESTONES:
-            self._award_milestone(db, student_id, new_streak)
+            milestone_badges = self._award_milestone(db, student_id, new_streak)
 
-        return True
+        return True, milestone_badges
 
     def handle_day_end_reset(self, db: Session) -> dict:
         """
@@ -186,9 +235,7 @@ class StreakService:
         )
 
         for user in active_users:
-            last_date = user.last_practice_date
-            if last_date is not None and hasattr(last_date, "date"):
-                last_date = last_date.date()
+            last_date = _to_ist_date(user.last_practice_date)
 
             if last_date == today_ist:
                 # Student DID practice today — streak is safe
@@ -243,14 +290,14 @@ class StreakService:
         )
         db.add(event)
 
-    def _award_milestone(self, db, student_id: int, streak: int):
-        """Award streak milestone bonus points via the RewardEngine."""
+    def _award_milestone(self, db, student_id: int, streak: int) -> List[Dict]:
+        """Award streak milestone bonus points via the RewardEngine. Returns list of badges unlocked."""
         rule_key = _MILESTONE_RULE_MAP.get(streak)
         if not rule_key:
-            return
+            return []
 
         from reward_engine import reward_engine
-        reward_engine.record_event(
+        result = reward_engine.record_event(
             db=db,
             student_id=student_id,
             event_type="streak_milestone_reached",
@@ -262,6 +309,7 @@ class StreakService:
             "[STREAK_MILESTONE] student_id=%s milestone=%s rule_key=%s",
             student_id, streak, rule_key,
         )
+        return result.badges_unlocked if result else []
 
 
 # Singleton
