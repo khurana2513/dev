@@ -11,29 +11,6 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Design tokens
-// ─────────────────────────────────────────────────────────────────────────────
-const DB = {
-  bg:        "#0c0e1a",
-  surf:      "#131629",
-  surf2:     "#181b2e",
-  border:    "rgba(255,255,255,0.07)",
-  purple:    "#7c5af6",
-  purpleDim: "rgba(124,90,246,0.13)",
-  gold:      "#f59e0b",
-  goldDim:   "rgba(245,158,11,0.13)",
-  green:     "#22c55e",
-  greenDim:  "rgba(34,197,94,0.13)",
-  red:       "#f87171",
-  redDim:    "rgba(248,113,113,0.13)",
-  teal:      "#14b8a6",
-  tealDim:   "rgba(20,184,166,0.13)",
-  text:      "#e2e8f0",
-  muted:     "#64748b",
-  font:      "'Playfair Display',Georgia,serif",
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -202,6 +179,13 @@ const STATUS_CELL_BG: Record<AttendanceStatus, string> = {
   absent:   "     bg-rose-950/25",
   on_break: "    bg-amber-950/25",
   leave:    "     bg-blue-950/25",
+};
+
+const STATUS_COLORS: Record<AttendanceStatus, { bg: string; text: string; dot: string }> = {
+  present:  { bg: "bg-emerald-950/40", text: "text-emerald-400", dot: "bg-emerald-500" },
+  absent:   { bg: "bg-rose-950/40",    text: "text-rose-400",    dot: "bg-rose-500"    },
+  on_break: { bg: "bg-amber-950/40",   text: "text-amber-400",   dot: "bg-amber-500"   },
+  leave:    { bg: "bg-blue-950/40",    text: "text-blue-400",    dot: "bg-blue-500"    },
 };
 
 function DayCell({ day, isToday, isPadding, session, isExpanded, onClick }: DayCellProps) {

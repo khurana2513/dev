@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  ChevronDown, ChevronRight, LogOut, BarChart3, Shield, GraduationCap,
+  ChevronDown, LogOut, BarChart3, Shield, GraduationCap,
   Calculator, BookOpen, PenTool, Rocket, Menu, X, Brain, FileText,
-  Trophy, User, ArrowRight, Lock, Zap, Calendar, Grid3X3,
+  User, ArrowRight, Lock, Zap, Calendar, Grid3X3,
   Gamepad2, Sparkles, Award
 } from "lucide-react";
 import { useAuthSafe } from "../contexts/AuthContext";

@@ -10,7 +10,7 @@ import {
   StudentProfile as StudentProfileType,
   StudentProfileUpdate,
 } from "../lib/userApi";
-import { formatDateToIST, formatDateOnlyToIST } from "../lib/timezoneUtils";
+import { formatDateOnlyToIST } from "../lib/timezoneUtils";
 
 import {
   User,

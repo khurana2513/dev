@@ -69,16 +69,16 @@ function EventRow({ event, index }: { event: RewardEvent; index: number }) {
               ? String(event.event_metadata.operation).replace(/_/g, " ")
               : ""}
             {event.event_metadata?.correct_answers !== undefined
-              ? ` · ${event.event_metadata.correct_answers}${
+              ? ` · ${String(event.event_metadata.correct_answers)}${
                   event.event_metadata.attempted_questions !== undefined
-                    ? `/${event.event_metadata.attempted_questions}`
+                    ? `/${String(event.event_metadata.attempted_questions)}`
                     : ""
                 } correct`
               : ""}
           </p>
         )}
         {/* Badge detail */}
-        {event.event_type === "badge_earned" && event.event_metadata?.badge_name && (
+        {event.event_type === "badge_earned" && event.event_metadata?.badge_name !== undefined && (
           <p className="text-[10px] text-violet-400/80 mt-0.5 truncate">
             🏅 {String(event.event_metadata.badge_name)}
           </p>

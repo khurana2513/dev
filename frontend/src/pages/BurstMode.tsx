@@ -719,9 +719,9 @@ export default function BurstMode() {
       }
       // Trigger SUPER letter unlock cinematic
       const _superLetterMap: Record<string, string> = { super_letter_s: "S", super_letter_u: "U", super_letter_p: "P", super_letter_e: "E", super_letter_r: "R" };
-      const superLetters = (rewardBadges || []).filter(b => b.badge_key.startsWith("super_letter_"));
+      const superLetters = (rewardBadges || []).filter((b: { badge_key: string }) => b.badge_key.startsWith("super_letter_"));
       if (superLetters.length > 0) {
-        useSuperLetterStore.getState().enqueue(superLetters.map(b => ({
+        useSuperLetterStore.getState().enqueue(superLetters.map((b: { badge_key: string }) => ({
           letter: _superLetterMap[b.badge_key] ?? b.badge_key,
           badge_key: b.badge_key,
           isAllDone: b.badge_key === "super_letter_r",
@@ -790,7 +790,6 @@ export default function BurstMode() {
   const wrongCount = results.length - correctCount;
   const accuracy = results.length > 0 ? Math.round((correctCount / results.length) * 100) : 0;
   const timerPercent = (timeLeft / BURST_DURATION) * 100;
-  const timerColor = timeLeft <= 10 ? "text-red-500" : timeLeft <= 20 ? "text-amber-500" : "text-emerald-400";
 
   // ── Render ───────────────────────────────────────────────────────────────
 

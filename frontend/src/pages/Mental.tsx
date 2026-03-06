@@ -348,6 +348,7 @@ function NumericInput({
   className = "",
   errorMessage,
   disabled = false,
+  style,
 }: {
   value: number;
   onChange: (val: number) => void;
@@ -356,6 +357,7 @@ function NumericInput({
   className?: string;
   errorMessage?: string;
   disabled?: boolean;
+  style?: React.CSSProperties;
 }) {
   const [displayValue, setDisplayValue] = useState<string>(String(value));
   const [error, setError] = useState<string>("");
@@ -438,6 +440,7 @@ function NumericInput({
           }
         }}
         className={className}
+        style={style}
       />
       {(error || errorMessage) && (
         <p className="mt-1 text-sm  text-red-400">{error || errorMessage}</p>
@@ -597,7 +600,7 @@ export default function Mental() {
   
   // Add/Sub specific state
   const [addSubDisplayIndex, setAddSubDisplayIndex] = useState(0); // Which row is currently being shown
-  const [addSubDisplayedNumbers, setAddSubDisplayedNumbers] = useState<string>(""); // What's currently displayed
+  const [_addSubDisplayedNumbers, setAddSubDisplayedNumbers] = useState<string>(""); // What's currently displayed
   const [addSubCurrentItem, setAddSubCurrentItem] = useState<string>(""); // Current item being shown in big text
   const [addSubDisplayedItems, setAddSubDisplayedItems] = useState<string[]>([]); // Items that have been shown (for side view)
   const [isShowingAnswerTime, setIsShowingAnswerTime] = useState(false);
@@ -631,13 +634,13 @@ export default function Mental() {
   const sessionStartTimeRef = useRef<number>(0);
   const attemptTimesRef = useRef<Map<number, number>>(new Map()); // question index -> start time
   const [pointsEarned, setPointsEarned] = useState<number | null>(null);
-  const [sessionSaved, setSessionSaved] = useState(false);
+  const [_sessionSaved, setSessionSaved] = useState(false);
   const [sessionElapsedTime, setSessionElapsedTime] = useState<number>(0); // Session timer in seconds
   const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Session state persistence
   const SESSION_STORAGE_KEY = "mental_math_session_state";
-  const [sessionState, setSessionState] = useState<"idle" | "started" | "in_progress" | "completed" | "aborted" | "recovered">("idle");
+  const [_sessionState, setSessionState] = useState<"idle" | "started" | "in_progress" | "completed" | "aborted" | "recovered">("idle");
   
   // Save session state to localStorage
   const saveSessionState = () => {
@@ -1443,10 +1446,6 @@ export default function Mental() {
       return;
     }
     
-    // Calculate time taken for this question
-    const questionStartTime = attemptTimesRef.current.get(currentIndex) || sessionStartTimeRef.current;
-    const timeTaken = (Date.now() - questionStartTime) / 1000; // in seconds
-    
     // Get user answer (empty string becomes null)
     // For large integers, compare as strings to avoid precision loss
     let userAns: number | null = null;
@@ -1535,11 +1534,6 @@ export default function Mental() {
     }
   };
 
-  const handleTimeUp = () => {
-    // Time up = auto-submit (allow empty answers)
-    processAnswerSubmission(true);
-  };
-  
   // Get time limit based on mode and operation type
   const getTimeLimitForMode = (mode: DifficultyMode, opType: OperationType): number => {
     if (mode === "custom") {
@@ -1654,7 +1648,6 @@ export default function Mental() {
         console.log("🟢 [PRACTICE] Total session time:", totalTime, "seconds");
         const correctAnswers = finalResults.filter(r => r.isCorrect).length;
         const attemptedWrong = finalResults.length - correctAnswers;
-        const unansweredQuestions = numQuestions - finalResults.length;
         // Wrong answers = only attempted wrong (unattempted should not be counted as wrong)
         const wrongAnswers = attemptedWrong;
         // Accuracy calculated using total questions (including unanswered)
@@ -1744,9 +1737,9 @@ export default function Mental() {
           }
           // Trigger SUPER letter unlock cinematic
           const _superLetterMap: Record<string, string> = { super_letter_s: "S", super_letter_u: "U", super_letter_p: "P", super_letter_e: "E", super_letter_r: "R" };
-          const superLetters = (rewardBadges || []).filter(b => b.badge_key.startsWith("super_letter_"));
+          const superLetters = (rewardBadges || []).filter((b: { badge_key: string }) => b.badge_key.startsWith("super_letter_"));
           if (superLetters.length > 0) {
-            useSuperLetterStore.getState().enqueue(superLetters.map(b => ({
+            useSuperLetterStore.getState().enqueue(superLetters.map((b: { badge_key: string }) => ({
               letter: _superLetterMap[b.badge_key] ?? b.badge_key,
               badge_key: b.badge_key,
               isAllDone: b.badge_key === "super_letter_r",
@@ -2189,7 +2182,7 @@ export default function Mental() {
                 const allQuestions = questionsRef.current.length > 0 ? questionsRef.current : questions;
                 
                 // Find unattempted questions (questions not in results)
-                const unattemptedQuestions = allQuestions.filter((q, idx) => {
+                const unattemptedQuestions = allQuestions.filter((q, _idx) => {
                   // Check if this question is in results by comparing key properties
                   return !results.some(r => {
                     if (q.type === "multiplication" && r.question.type === "multiplication") {

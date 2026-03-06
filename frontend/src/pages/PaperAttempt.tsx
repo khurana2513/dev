@@ -7,7 +7,6 @@ import {
   getPaperAttempt,
   validatePaperAttempt,
   PaperAttempt as PaperAttemptType,
-  PaperAttemptDetail,
   PaperAttemptCreate,
   GeneratedBlock,
   Question,
@@ -58,7 +57,7 @@ export default function PaperAttempt() {
   
   // Session state persistence
   const PAPER_SESSION_STORAGE_KEY = "paper_attempt_session_state";
-  const [sessionState, setSessionState] = useState<"idle" | "started" | "in_progress" | "completed" | "aborted" | "recovered">("idle");
+  const [, setSessionState] = useState<"idle" | "started" | "in_progress" | "completed" | "aborted" | "recovered">("idle");
 
   // ── Design-system CSS injection ──────────────────────────────────────────
   useEffect(() => {

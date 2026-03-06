@@ -58,11 +58,6 @@ function formatNumber(num: number): string {
 }
 
 export default function MathQuestion({ question, showAnswer = false, hideSerialNumber = false, largeFont = false, smallHorizontalFont = false }: Props) {
-  // Premium serial number styling
-  const serialNumber = (
-    <span className="font-bold text-sm  text-blue-400 mr-2">{question.id}.</span>
-  );
-  
   // Memoize decimal conversion to prevent log spam on every render
   const processedDecimalLines = React.useMemo(() => {
     // PRIMARY CHECK: If backend-provided text contains '.', and question is vertical, it's decimal_add_sub.
@@ -93,11 +88,6 @@ export default function MathQuestion({ question, showAnswer = false, hideSerialN
     }
     return null;
   }, [question.text, question.isVertical, question.operator, question.operands]);
-  
-  // For decimal_add_sub, use the text field directly (it's already formatted with decimals)
-  // Check for decimal_add_sub by operator "±" (Unicode: U+00B1, char code 177)
-  const operatorStr = String(question.operator || "");
-  const operatorCharCode = operatorStr.length > 0 ? operatorStr.charCodeAt(0) : -1;
   
   // PRIORITY: If vertical question has text with decimals, treat as decimal_add_sub
   // OR if operands are in decimal format (NOT multiples of 10)

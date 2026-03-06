@@ -31,7 +31,6 @@ export default function OptimizedImage({
   className = '',
   priority = false,
   loading = 'lazy',
-  quality = 85,
   sizes,
   onLoad,
   onError

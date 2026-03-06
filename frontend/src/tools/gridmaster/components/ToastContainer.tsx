@@ -1,4 +1,3 @@
-import React from 'react';
 import { Toast } from '../hooks/useToast';
 import styles from './Toast.module.css';
 

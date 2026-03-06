@@ -215,7 +215,7 @@ const MARQUEE_ITEMS = [
 ];
 
 // ─── ABACUS BEAD GRID COMPONENT ──────────────────────────────────────────────
-function BeadGrid({ activeRow = -1 }: { activeRow?: number }) {
+function BeadGrid() {
   const ROWS = [
     [1,0,1,1,0,1,1,0,1,0],
     [0,1,1,0,1,0,1,1,0,1],
@@ -277,7 +277,7 @@ function CounterCell({ label, end, suffix = "", delay = 0 }: { label:string; end
   const { ref, inView } = useInView();
   const count = useCounter(end, 1600, inView);
   return (
-    <div ref={ref} style={{ textAlign:"center", padding:"28px 20px", borderRight:"1px solid var(--ab-border)" }}>
+    <div ref={ref} style={{ textAlign:"center", padding:"28px 20px", borderRight:"1px solid var(--ab-border)", animationDelay:`${delay}s` }}>
       <div style={{ fontFamily:"var(--ab-font-d)", fontSize:"clamp(28px,4vw,44px)", fontWeight:800, letterSpacing:"-.04em", color:"var(--ab-white)", lineHeight:1 }}>
         <span className="ab-grad-text">{count}{suffix}</span>
       </div>

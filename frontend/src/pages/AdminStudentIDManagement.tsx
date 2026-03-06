@@ -2,21 +2,18 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getAllStudents,
-  StudentIDInfo,
-  UpdateStudentIDRequest,
-  UpdateStudentIDResponse,
   getVacantIds,
   VacantId,
   updateStudentPublicId,
   generateNextStudentId,
   deleteVacantId
 } from "../lib/userApi";
-import { User, Edit2, Save, X, AlertCircle, CheckCircle2, Loader2, Search, RefreshCw, Users, IdCard, Plus, Eye, Archive } from "lucide-react";
+import { Edit2, Save, X, AlertCircle, CheckCircle2, Loader2, Search, RefreshCw, Users, IdCard, Plus, Archive } from "lucide-react";
 import Skeleton from "../components/Skeleton";
 import { useLocation } from "wouter";
 
 export default function AdminStudentIDManagement() {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const [, setLocation] = useLocation();
 
   const [students, setStudents] = useState<any[]>([]);
@@ -28,11 +25,9 @@ export default function AdminStudentIDManagement() {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
-  const [showStudentDetails, setShowStudentDetails] = useState(false);
   const [vacantIds, setVacantIds] = useState<VacantId[]>([]);
   const [showVacantIds, setShowVacantIds] = useState(false);
-  const [loadingVacantIds, setLoadingVacantIds] = useState(false);
+  const [_loadingVacantIds, setLoadingVacantIds] = useState(false);
   const [showVacantIdsModal, setShowVacantIdsModal] = useState(false);
   const [deletingVacantId, setDeletingVacantId] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<"id" | "name" | "not_assigned" | "assigned">("id");

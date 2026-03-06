@@ -70,7 +70,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function AdminRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, loading, isAdmin, user } = useAuth();
+  const { isAuthenticated, loading, isAdmin } = useAuth();
   
   if (loading) {
     return (

@@ -153,7 +153,7 @@ export default function Login() {
     } else {
       // Script already loaded, trigger onload manually
       if (window.google) {
-        script.onload?.();
+        script.onload?.(new Event('load'));
       }
     }
 

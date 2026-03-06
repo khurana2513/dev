@@ -1,7 +1,18 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 
+// ─── TYPES ───────────────────────────────────────────────────────────────────
+interface RodState { upper: boolean; lower: number; }
+type SetRods = React.Dispatch<React.SetStateAction<RodState[]>>;
+type Friend = {
+  id: string; category: string; type: string; n: number; formula: string;
+  emoji: string; color: string; bg: string; funFact: string; rule: string;
+  startState: RodState[]; endState: RodState[];
+  watchSteps: { description: string; boardState: RodState[]; highlight: number[] }[];
+  tryHint: string;
+};
+
 // ─── HELPERS ────────────────────────────────────────────────────────────────
-const rs = (upper, lower) => ({ upper, lower });
+const rs = (upper: boolean, lower: number): RodState => ({ upper, lower });
 
 // ─── BIG FRIENDS (sum = 10) ──────────────────────────────────────────────────
 const BIG_POSITIVE = [
@@ -369,7 +380,7 @@ const MIX_NEGATIVE = [
 const ALL_FRIENDS = [...BIG_POSITIVE, ...BIG_NEGATIVE, ...SMALL_POSITIVE, ...SMALL_NEGATIVE, ...MIX_POSITIVE, ...MIX_NEGATIVE];
 
 // ─── LAYOUT ──────────────────────────────────────────────────────────────────
-function getLayout(n) {
+function getLayout(n: number) {
   const bw = n<=7?42:n<=10?38:n<=13?34:n<=16?30:26;
   const gap = n<=7?16:n<=10?13:n<=13?11:n<=16?9:7;
   const sp = bw+gap, px = 52;
@@ -382,15 +393,15 @@ const TOTAL_H=TOP_H+UPPER_H+DIV_H+LOWER_H+BOT_H;
 const HB_REST=TOP_H+5, HB_ACT=DIV_Y-BEAD_H-3;
 const EB_ACT_Y0=DIV_Y+DIV_H+3, EB_RST_Y3=DIV_Y+DIV_H+LOWER_H-BEAD_H-4;
 
-function targetEarthY(bi, cnt) {
+function targetEarthY(bi: number, cnt: number) {
   if (bi < cnt) return EB_ACT_Y0 + bi*BEAD_H;
   const ri = bi-cnt, tr = 4-cnt;
   return EB_RST_Y3 - (tr-1-ri)*BEAD_H;
 }
 
 // ─── SOROBAN LOGIC ───────────────────────────────────────────────────────────
-function rv(r) { return (r.upper ? 5 : 0) + r.lower; }
-function computeValue(rods, mode) {
+function rv(r: RodState) { return (r.upper ? 5 : 0) + r.lower; }
+function computeValue(rods: RodState[], mode: string) {
   const n = rods.length;
   if (mode === 'positional') return rods.reduce((s,r,i) => s + rv(r)*Math.pow(10,n-i-1), 0);
   let total=0, lp=1;
@@ -402,8 +413,8 @@ function computeValue(rods, mode) {
   }
   return total;
 }
-const POS = {0:'1',1:'10',2:'100',3:'1K',4:'10K',5:'100K',6:'1M',7:'10M',8:'100M',9:'1B'};
-function placeLabel(i, n, mode) {
+const POS: Record<number, string> = {0:'1',1:'10',2:'100',3:'1K',4:'10K',5:'100K',6:'1M',7:'10M',8:'100M',9:'1B'};
+function placeLabel(i: number, n: number, mode: string) {
   if (mode === 'positional') return POS[n-i-1] || ('e'+(n-i-1));
   let lp=1;
   for (let j=n-1; j>=0; j--) {
@@ -414,9 +425,9 @@ function placeLabel(i, n, mode) {
   }
   return '1';
 }
-function dotColor(i, n) { const e=n-i-1; if(e===0)return'red'; if(e%3===0)return'blue'; return null; }
-function emptyRods(n) { return Array.from({length:n}, ()=>({upper:false,lower:0})); }
-function bk(rod, bead) { return rod*5+bead; }
+function dotColor(i: number, n: number) { const e=n-i-1; if(e===0)return'red'; if(e%3===0)return'blue'; return null; }
+function emptyRods(n: number): RodState[] { return Array.from({length:n}, ()=>({upper:false,lower:0})); }
+function bk(rod: number, bead: number) { return rod*5+bead; }
 
 // ─── SPRING HOOK ─────────────────────────────────────────────────────────────
 //
@@ -435,10 +446,10 @@ function bk(rod, bead) { return rod*5+bead; }
 //   generation it exits immediately (stale). This eliminates the race
 //   entirely — there is always exactly one live loop per rods change.
 //
-function useBeadSprings(rods) {
+function useBeadSprings(rods: RodState[]) {
   // animY maps spring key → current Y pixel position (used by renderer)
-  const [animY, setAnimY] = useState(() => {
-    const m = {};
+  const [animY, setAnimY] = useState<Record<number, number>>(() => {
+    const m: Record<number, number> = {};
     rods.forEach((r, i) => {
       m[bk(i, 0)] = r.upper ? HB_ACT : HB_REST;
       [0, 1, 2, 3].forEach(bi => { m[bk(i, bi + 1)] = targetEarthY(bi, r.lower); });
@@ -447,7 +458,7 @@ function useBeadSprings(rods) {
   });
 
   // spR: the spring state objects (mutated in-place by the RAF loop)
-  const spR  = useRef({});
+  const spR  = useRef<Record<string, { y: number; vy: number; target: number }>>({});
   // rafR: the current requestAnimationFrame handle (so we can cancel)
   const rafR = useRef(0);
   // genR: monotonically-increasing generation counter
@@ -490,7 +501,7 @@ function useBeadSprings(rods) {
 
     let last = performance.now();
 
-    function tick(now) {
+    function tick(now: number) {
       // Stale-loop guard: if a newer generation has started, stop immediately
       if (myGen !== genR.current) return;
 
@@ -541,13 +552,13 @@ function useBeadSprings(rods) {
 // ─── SOUND HOOK ──────────────────────────────────────────────────────────────
 function useSound() {
   const [enabled, setEnabled] = useState(false);
-  const cR = useRef(null);
-  function gc() {
+  const cR = useRef<AudioContext | null>(null);
+  function gc(): AudioContext {
     if (!cR.current) cR.current = new AudioContext();
     if (cR.current.state === 'suspended') cR.current.resume();
-    return cR.current;
+    return cR.current!;
   }
-  const play = useCallback((isH) => {
+  const play = useCallback((isH: boolean) => {
     if (!enabled) return;
     try {
       const ctx=gc(), t=ctx.currentTime, bl=ctx.sampleRate*0.08;
@@ -588,7 +599,7 @@ function useSound() {
       s.connect(lp); lp.connect(e); e.connect(ctx.destination); s.start(t);
     } catch(_) {}
   }, [enabled]);
-  const playTink = useCallback((ri) => {
+  const playTink = useCallback((ri: number) => {
     if (!enabled) return;
     try {
       const ctx=gc(), t=ctx.currentTime+0.012, bf=1400+ri*28;
@@ -601,10 +612,10 @@ function useSound() {
 }
 
 // ─── SWEEP HOOK ──────────────────────────────────────────────────────────────
-function useSweep(setRods, playSwipe, playTink) {
-  const tR = useRef([]);
+function useSweep(setRods: SetRods, playSwipe: () => void, playTink: (ri: number) => void) {
+  const tR = useRef<ReturnType<typeof setTimeout>[]>([]);
   const cancel = useCallback(() => { tR.current.forEach(clearTimeout); tR.current = []; }, []);
-  const sweep = useCallback((n, onDone) => {
+  const sweep = useCallback((n: number, onDone?: () => void) => {
     cancel();
     setRods(Array.from({length:n}, ()=>({upper:true,lower:4})));
     const STG = Math.max(28, Math.min(48, 380/n));
@@ -628,14 +639,14 @@ const GAP_AFTER_WATCH_MS = 1000;
 const GAP_AFTER_TRY_MS = 600;
 const WATCH_STEP_MS = 2000;
 
-function useTutorial(setRods, playSuccess, rodCount) {
+function useTutorial(setRods: SetRods, playSuccess: () => void, rodCount: number) {
   const [active, setActive] = useState(false);
-  const [friendId, setFriendId] = useState(null);
+  const [friendId, setFriendId] = useState<string | null>(null);
   const [phase, setPhase] = useState('intro');
   const [watchIdx, setWatchIdx] = useState(0);
-  const [completed, setCompleted] = useState([]);
+  const [completed, setCompleted] = useState<string[]>([]);
   const [celebKey, setCelebKey] = useState(0);
-  const timersRef = useRef([]);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const friend = ALL_FRIENDS.find(f => f.id === friendId) || null;
 
@@ -644,13 +655,7 @@ function useTutorial(setRods, playSuccess, rodCount) {
     timersRef.current = [];
   }, []);
 
-  const after = useCallback((ms, fn) => {
-    const t = setTimeout(fn, ms);
-    timersRef.current.push(t);
-    return t;
-  }, []);
-
-  const applyState = useCallback((state) => {
+  const applyState = useCallback((state: RodState[]) => {
     setRods(prev => {
       const next = [...prev];
       state.forEach((s, ti) => {
@@ -662,7 +667,7 @@ function useTutorial(setRods, playSuccess, rodCount) {
   }, [setRods, rodCount]);
 
   // runWatch — takes a friend snapshot to avoid stale closure
-  const runWatch = useCallback((f, fromIdx) => {
+  const runWatch = useCallback((f: Friend, fromIdx: number) => {
     const steps = f.watchSteps;
     let i = fromIdx;
     const run = () => {
@@ -680,7 +685,7 @@ function useTutorial(setRods, playSuccess, rodCount) {
     run();
   }, [applyState]);
 
-  const startFriend = useCallback((id) => {
+  const startFriend = useCallback((id: string) => {
     clearTimers();
     const f = ALL_FRIENDS.find(x => x.id === id);
     if (!f) return;
@@ -733,7 +738,7 @@ function useTutorial(setRods, playSuccess, rodCount) {
     timersRef.current.push(t1);
   }, [friend, clearTimers, applyState]);
 
-  const checkMove = useCallback((changedIdx, newState, allRods) => {
+  const checkMove = useCallback((changedIdx: number, newState: RodState, allRods: RodState[]) => {
     if (phase !== 'try' || !friend) return;
     const match = friend.endState.every((es, ti) => {
       const ai = ti===0 ? rodCount-2 : rodCount-1;
@@ -805,7 +810,7 @@ export default function Soroban() {
   tutPhaseRef.current = tut.phase;
   const tutCheckMove = tut.checkMove;
 
-  const patch = useCallback((i, p) => {
+  const patch = useCallback((i: number, p: Partial<RodState>) => {
     setRods(prev => {
       const next = [...prev];
       const ns = { ...next[i], ...p };
@@ -823,7 +828,7 @@ export default function Soroban() {
   const closeAll = useCallback(() => { setCfgOpen(false); setGuideOpen(false); setTutOpen(false); setPracticeOpen(false); }, []);
 
   // highlighted rods for tutorial
-  let hiRods = [];
+  let hiRods: number[] = [];
   if (tut.active && tut.friend) {
     if (tut.phase === 'watching') {
       hiRods = (tut.friend.watchSteps[tut.watchIdx]?.highlight || []).map(r => r===0 ? rodCount-2 : rodCount-1);
@@ -873,19 +878,19 @@ export default function Soroban() {
 }
 
 // ─── TUTORIAL HUD ────────────────────────────────────────────────────────────
-function TutorialHUD({ tut, onShowMenu }) {
+function TutorialHUD({ tut, onShowMenu }: { tut: ReturnType<typeof useTutorial>; onShowMenu: () => void }) {
   const { friend, phase, watchIdx, beginWatch, watchAgain, beginTry } = tut;
   if (!friend) return null;
 
   if (phase === 'gap-before') return (
-    <div className="hud hud-gap" style={{'--hc':friend.color}}>
+    <div className="hud hud-gap" style={{'--hc':friend.color} as React.CSSProperties}>
       <div className="hud-gap-dot" style={{background:friend.color}}/>
       <span className="hud-gap-txt">Get ready…</span>
     </div>
   );
 
   if (phase === 'gap-after-watch') return (
-    <div className="hud" style={{'--hc':friend.color,'--hb':friend.bg}}>
+    <div className="hud" style={{'--hc':friend.color,'--hb':friend.bg} as React.CSSProperties}>
       <div className="hud-gap-watch-done">
         <span className="hud-gap-wd-emoji">{friend.emoji}</span>
         <div>
@@ -901,14 +906,14 @@ function TutorialHUD({ tut, onShowMenu }) {
   );
 
   if (phase === 'gap-after-try') return (
-    <div className="hud hud-gap" style={{'--hc':friend.color}}>
+    <div className="hud hud-gap" style={{'--hc':friend.color} as React.CSSProperties}>
       <div className="hud-gap-dot" style={{background:'#4ade80'}}/>
       <span className="hud-gap-txt" style={{color:'#4ade80'}}>Correct! ✓</span>
     </div>
   );
 
   if (phase === 'intro') return (
-    <div className="hud" style={{'--hc':friend.color,'--hb':friend.bg}}>
+    <div className="hud" style={{'--hc':friend.color,'--hb':friend.bg} as React.CSSProperties}>
       <div className="hud-topbar">
         <span className="hud-tag" style={{background:friend.bg,borderColor:friend.color,color:friend.color}}>
           {friend.category==='big'?'🔵 Big':friend.category==='small'?'🟡 Small':'🟠 Mix'}
@@ -934,7 +939,7 @@ function TutorialHUD({ tut, onShowMenu }) {
     const step = friend.watchSteps[watchIdx];
     const isLast = watchIdx === friend.watchSteps.length - 1;
     return (
-      <div className="hud" style={{'--hc':friend.color,'--hb':friend.bg}}>
+      <div className="hud" style={{'--hc':friend.color,'--hb':friend.bg} as React.CSSProperties}>
         <div className="hud-topbar">
           <span className="hud-formula-sm" style={{color:friend.color}}>{friend.formula}</span>
           <button className="hud-back" onClick={onShowMenu}>← Menu</button>
@@ -968,7 +973,7 @@ function TutorialHUD({ tut, onShowMenu }) {
   }
 
   if (phase === 'try') return (
-    <div className="hud hud-try-border" style={{'--hc':friend.color,'--hb':friend.bg}}>
+    <div className="hud hud-try-border" style={{'--hc':friend.color,'--hb':friend.bg} as React.CSSProperties}>
       <div className="hud-topbar">
         <span className="hud-formula-sm" style={{color:friend.color}}>{friend.formula}</span>
         <button className="hud-back" onClick={onShowMenu}>← Menu</button>
@@ -995,7 +1000,7 @@ function TutorialHUD({ tut, onShowMenu }) {
     const idx = ALL_FRIENDS.findIndex(f => f.id === friend.id);
     const next = idx >= 0 && idx < ALL_FRIENDS.length-1 ? ALL_FRIENDS[idx+1] : null;
     return (
-      <div className="hud hud-success-border" style={{'--hc':friend.color}}>
+      <div className="hud hud-success-border" style={{'--hc':friend.color} as React.CSSProperties}>
         <div className="hud-success-stars">⭐⭐⭐</div>
         <div className="hud-success-title" style={{color:friend.color}}>{friend.emoji} You got it!</div>
         <div className="hud-formula-box" style={{borderColor:friend.color,background:friend.bg}}>
@@ -1023,7 +1028,7 @@ function TutorialHUD({ tut, onShowMenu }) {
 }
 
 // ─── FRIENDS MENU ────────────────────────────────────────────────────────────
-function FriendsMenu({ open, tut, onStartFriend }) {
+function FriendsMenu({ open, tut, onStartFriend }: { open: boolean; tut: ReturnType<typeof useTutorial>; onStartFriend: (id: string) => void }) {
   const [tab, setTab] = useState('big');
   const [sub, setSub] = useState('positive');
 
@@ -1039,7 +1044,7 @@ function FriendsMenu({ open, tut, onStartFriend }) {
       all: [...MIX_POSITIVE, ...MIX_NEGATIVE] },
   ];
 
-  const cat = CATS.find(c => c.key === tab);
+  const cat = CATS.find(c => c.key === tab)!;
   const shown = cat.all.filter(f => f.type === sub);
   const doneAll = ALL_FRIENDS.filter(f => tut.completed.includes(f.id)).length;
 
@@ -1096,7 +1101,7 @@ function FriendsMenu({ open, tut, onStartFriend }) {
             return (
               <button key={f.id}
                 className={'fm-card'+(done?' fm-done':'')+(isActive?' fm-active':'')}
-                style={{'--fc':f.color,'--fb':f.bg}}
+                style={{'--fc':f.color,'--fb':f.bg} as React.CSSProperties}
                 onClick={() => onStartFriend(f.id)}>
                 <span className="fm-card-emoji">{f.emoji}</span>
                 <span className="fm-card-formula" style={{color:f.color}}>{f.formula}</span>
@@ -1112,7 +1117,7 @@ function FriendsMenu({ open, tut, onStartFriend }) {
 }
 
 // ─── PRACTICE PANEL ──────────────────────────────────────────────────────────
-function PracticePanel({ open, tut, onPickFriend }) {
+function PracticePanel({ open, tut, onPickFriend }: { open: boolean; tut: ReturnType<typeof useTutorial>; onPickFriend: (id: string) => void }) {
   if (!open) return null;
   const noCompleted = tut.completed.length < 1;
 
@@ -1186,7 +1191,7 @@ function PracticePanel({ open, tut, onPickFriend }) {
                 if (!f) return null;
                 return (
                   <button key={id} className="prac-retry-btn"
-                    style={{'--bc':f.color,'--bb':f.bg}}
+                    style={{'--bc':f.color,'--bb':f.bg} as React.CSSProperties}
                     onClick={() => onPickFriend(id)}>
                     <span style={{fontSize:18}}>{f.emoji}</span>
                     <span style={{color:f.color,fontFamily:'monospace',fontSize:12,fontWeight:700}}>{f.formula}</span>
@@ -1203,7 +1208,7 @@ function PracticePanel({ open, tut, onPickFriend }) {
 }
 
 // ─── CELEBRATION ─────────────────────────────────────────────────────────────
-function Celebration({ friend }) {
+function Celebration({ friend }: { friend: Friend }) {
   const [on, setOn] = useState(true);
   const pts = useRef(Array.from({length:20}, (_,i) => ({
     id:i, x:Math.random()*100, delay:Math.random()*0.5,
@@ -1229,7 +1234,14 @@ function Celebration({ friend }) {
 
 // ─── HEADER ──────────────────────────────────────────────────────────────────
 function Header({ mode, onModeChange, rodCount, cfgOpen, onCfgToggle, guideOpen, onGuideToggle,
-                  soundOn, onSoundToggle, tutOpen, onTutToggle, practiceOpen, onPracticeToggle }) {
+                  soundOn, onSoundToggle, tutOpen, onTutToggle, practiceOpen, onPracticeToggle }: {
+  mode: string; onModeChange: (m: string) => void; rodCount: number;
+  cfgOpen: boolean; onCfgToggle: () => void;
+  guideOpen: boolean; onGuideToggle: () => void;
+  soundOn: boolean; onSoundToggle: () => void;
+  tutOpen: boolean; onTutToggle: () => void;
+  practiceOpen: boolean; onPracticeToggle: () => void;
+}) {
   return (
     <header className="hdr">
       <div className="hdr-brand">
@@ -1277,7 +1289,7 @@ function Header({ mode, onModeChange, rodCount, cfgOpen, onCfgToggle, guideOpen,
 }
 
 // ─── GUIDE PANEL ─────────────────────────────────────────────────────────────
-function GuidePanel({ open, onClose }) {
+function GuidePanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <div className={'drawer-wrap'+(open?' drawer-open':'')} style={{maxWidth:660}}>
       <div className="drawer-card">
@@ -1317,7 +1329,7 @@ function GuidePanel({ open, onClose }) {
 }
 
 // ─── CONFIG PANEL ─────────────────────────────────────────────────────────────
-function ConfigPanel({ open, rodCount, onRodCountChange, onClose }) { // mode prop intentionally removed — was never used
+function ConfigPanel({ open, rodCount, onRodCountChange, onClose }: { open: boolean; rodCount: number; onRodCountChange: (n: number) => void; onClose: () => void }) { // mode prop intentionally removed — was never used
   const maxStr = useMemo(() => rodCount<=15 ? (Math.pow(10,rodCount)-1).toLocaleString() : `10^${rodCount}−1`, [rodCount]);
   return (
     <div className={'drawer-wrap'+(open?' drawer-open':'')} style={{maxWidth:480}}>
@@ -1349,7 +1361,7 @@ function ConfigPanel({ open, rodCount, onRodCountChange, onClose }) { // mode pr
 }
 
 // ─── VALUE DISPLAY ────────────────────────────────────────────────────────────
-function ValueDisplay({ value, mode, visible, onToggle }) {
+function ValueDisplay({ value, mode, visible, onToggle }: { value: number; mode: string; visible: boolean; onToggle: () => void }) {
   const fmt = value.toLocaleString('en-US');
   const prevRef = useRef(fmt);
   const [display, setDisplay] = useState(fmt);
@@ -1384,7 +1396,11 @@ function ValueDisplay({ value, mode, visible, onToggle }) {
 }
 
 // ─── ABACUS FRAME ─────────────────────────────────────────────────────────────
-function AbacusFrame({ layout, rods, rodCount, mode, animY, patch, play, hiRods, tutPhase }) {
+function AbacusFrame({ layout, rods, rodCount, animY, patch, play, hiRods, tutPhase }: {
+  layout: ReturnType<typeof getLayout>; rods: RodState[]; rodCount: number; mode?: string;
+  animY: Record<number, number>; patch: (i: number, p: Partial<RodState>) => void;
+  play: (isH: boolean) => void; hiRods: number[]; tutPhase: string;
+}) {
   const { w } = layout;
   return (
     <div className="frame-shell">
@@ -1506,7 +1522,7 @@ function SvgDefs() {
   );
 }
 
-function RodShaft({ cx }) {
+function RodShaft({ cx }: { cx: number }) {
   return (
     <>
       <line x1={cx} y1={TOP_H+2} x2={cx} y2={TOTAL_H-BOT_H-2} stroke="url(#gRod)" strokeWidth={2.8} strokeLinecap="round"/>
@@ -1515,7 +1531,7 @@ function RodShaft({ cx }) {
   );
 }
 
-function Bolts({ w, y }) {
+function Bolts({ w, y }: { w: number; y: number }) {
   return (
     <>
       {[w*0.1, w*0.5, w*0.9].map((bx,i) => (
@@ -1531,7 +1547,7 @@ function Bolts({ w, y }) {
   );
 }
 
-function MarkerDot({ cx, color }) {
+function MarkerDot({ cx, color }: { cx: number; color: string }) {
   const fill = color==='red' ? '#e85030' : '#3da8e8';
   const glow = color==='red' ? 'rgba(232,80,48,0.7)' : 'rgba(61,168,232,0.7)';
   const r = color==='red' ? 5 : 4;
@@ -1544,7 +1560,7 @@ function MarkerDot({ cx, color }) {
   );
 }
 
-function BeadEl({ bx, by, bw, active, kind, onClick, hi }) {
+function BeadEl({ bx, by, bw, active, kind, onClick, hi }: { bx: number; by: number; bw: number; active: boolean; kind: string; onClick: () => void; hi: boolean }) {
   const isH = kind === 'heaven';
   const fill = active ? (isH?'url(#gH1)':'url(#gE1)') : (isH?'url(#gH0)':'url(#gE0)');
   const filt = hi ? 'url(#fGlowTut)' : active ? (isH?'url(#fGlowH)':'url(#fGlowE)') : 'url(#fDrop)';
@@ -1563,7 +1579,7 @@ function BeadEl({ bx, by, bw, active, kind, onClick, hi }) {
 }
 
 // ─── COLUMN LABELS ────────────────────────────────────────────────────────────
-function ColumnLabels({ layout, rodCount, mode }) {
+function ColumnLabels({ layout, rodCount, mode }: { layout: ReturnType<typeof getLayout>; rodCount: number; mode: string }) {
   return (
     <div className="col-labels" style={{width:layout.w+104}}>
       {Array.from({length:rodCount}, (_,i) => {
@@ -1581,7 +1597,7 @@ function ColumnLabels({ layout, rodCount, mode }) {
 }
 
 // ─── FOOTER ──────────────────────────────────────────────────────────────────
-function Footer({ mode, onReset }) {
+function Footer({ mode, onReset }: { mode: string; onReset: () => void }) {
   return (
     <footer className="footer">
       <div className="legend">

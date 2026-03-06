@@ -58,7 +58,6 @@ export function safeSetItem(key: string, value: string): boolean {
   try {
     // Check current usage
     const estimate = estimateStorageFromLocalStorage();
-    const itemSize = key.length + value.length;
     
     if (estimate.percentage > STORAGE_CRITICAL_THRESHOLD) {
       console.error('🚨 [STORAGE] Critical: localStorage quota almost full!');
