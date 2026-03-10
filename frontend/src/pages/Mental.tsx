@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { ArrowLeft, CheckCircle2, XCircle, Clock, Trophy, Sparkles, Play, Zap, Target, Loader2, RotateCcw, Square, Star, AlertTriangle, Maximize, Minimize, BookOpen } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, Clock, Trophy, Sparkles, Play, Zap, Target, Loader2, RotateCcw, Square, Star, AlertTriangle, Maximize, Minimize, BookOpen, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "../contexts/AuthContext";
 import { savePracticeSession, PracticeSessionData } from "../lib/userApi";
@@ -596,6 +596,7 @@ export default function Mental() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentAnswer, setCurrentAnswer] = useState("");
+  const [flashColor, setFlashColor] = useState<"" | "green" | "red">("");
   const [score, setScore] = useState(0);
   const [results, setResults] = useState<Array<{ question: Question; userAnswer: number | null; isCorrect: boolean }>>([]);
   const [timeRemaining, setTimeRemaining] = useState(0);
@@ -1128,6 +1129,31 @@ export default function Mental() {
     return questionsList;
   };
 
+  // ─── Countdown beep (soft, gamified) ───────────────────────────────────────
+  const countdownAudioRef = useRef<AudioContext | null>(null);
+  const playCountdownTone = useCallback((num: number) => {
+    try {
+      if (!countdownAudioRef.current) countdownAudioRef.current = new AudioContext();
+      const ctx = countdownAudioRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+      const t = ctx.currentTime;
+      // Higher pitch for "Go" (0), ascending tones for 3→2→1
+      const freq = num === 0 ? 880 : num === 1 ? 660 : num === 2 ? 520 : 440;
+      const dur = num === 0 ? 0.25 : 0.15;
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(freq, t);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.18, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(t);
+      o.stop(t + dur + 0.01);
+    } catch (_) {}
+  }, []);
+
   const startCountdown = () => {
     // Validate name is provided
     if (!studentName || studentName.trim() === "") {
@@ -1140,16 +1166,19 @@ export default function Mental() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
     setCountdown(3);
+    playCountdownTone(3);
     const countdownInterval = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(countdownInterval);
+          playCountdownTone(0);
           // Set session start time right when countdown ends, before game starts
           sessionStartTimeRef.current = Date.now();
           setSessionElapsedTime(0); // Reset session timer
           startGame();
           return 0;
         }
+        playCountdownTone(prev - 1);
         return prev - 1;
       });
     }, 1000);
@@ -1476,6 +1505,10 @@ export default function Mental() {
     
     // Create the result entry
     const resultEntry = { question: currentQ, userAnswer: userAns, isCorrect };
+    
+    // Flash input color feedback
+    setFlashColor(isCorrect ? "green" : "red");
+    setTimeout(() => setFlashColor(""), 200);
     
     // Update score using functional update
     if (isCorrect) {
@@ -1865,6 +1898,7 @@ export default function Mental() {
   // Fullscreen toggle
   const toggleFullScreen = useCallback(() => {
     if (!document.fullscreenElement) {
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
       document.documentElement.requestFullscreen().catch(() => {});
       setIsFullScreen(true);
     } else {
@@ -1893,8 +1927,26 @@ export default function Mental() {
     };
   }, [isStarted, toggleFullScreen]);
 
+  // Lock scroll & hide header during fullscreen
+  useEffect(() => {
+    if (isFullScreen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isFullScreen]);
+
+  // Exit fullscreen automatically when session ends
+  useEffect(() => {
+    if (!isStarted && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, [isStarted]);
+
   const resetGame = () => {
     isProcessingSubmissionRef.current = false; // Reset processing flag
+    setFlashColor("");
     setIsStarted(false);
     setCountdown(0);
     setCurrentQuestionIndex(0);
@@ -2034,6 +2086,13 @@ export default function Mental() {
       .mm-timer-urgent{animation:mm-timer-urgent .6s ease infinite}
       .mm-drain{animation:mm-progress-drain linear both}
       .mm-answer-input:focus{border-color:rgba(123,92,229,.6)!important;box-shadow:0 0 0 4px rgba(123,92,229,.08)!important;animation:mm-glow-border 2s ease infinite!important}
+      @keyframes mm-correct-ring{0%{outline-color:rgba(16,185,129,0)}40%{outline-color:rgba(16,185,129,.5)}100%{outline-color:rgba(16,185,129,0)}}
+      @keyframes mm-wrong-ring{0%{outline-color:rgba(239,68,68,0)}40%{outline-color:rgba(239,68,68,.6)}100%{outline-color:rgba(239,68,68,0)}}
+      .mm-input{background:var(--mm-surf);border:2px solid var(--mm-bdr2);border-radius:16px;padding:18px 22px;font-family:var(--mm-fm);font-size:24px;font-weight:700;color:var(--mm-whi);text-align:center;outline:none;outline-offset:3px;outline-width:3px;outline-style:solid;outline-color:transparent;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease;width:100%;box-sizing:border-box;}
+      .mm-input::placeholder{color:rgba(255,255,255,.1);font-size:20px;font-weight:400}
+      .mm-input:focus{border-color:rgba(123,92,229,.45);box-shadow:0 0 0 3px rgba(123,92,229,.08)}
+      .mm-input.correct{border-color:rgba(16,185,129,.6);background:rgba(16,185,129,.06);animation:mm-correct-ring .4s ease both}
+      .mm-input.wrong{border-color:rgba(239,68,68,.6);background:rgba(239,68,68,.06);animation:mm-wrong-ring .4s ease both}
       .mm-fade-up{animation:mm-fade-up .35s ease both}
       .mm-preset-pop{animation:mm-scale-pop .25s ease}
       .mm-form-input{background:var(--mm-surf2)!important;border:1px solid var(--mm-bdr2)!important;border-radius:12px!important;padding:13px 16px!important;color:var(--mm-whi)!important;font-family:var(--mm-fm)!important;font-size:16px!important;font-weight:500!important;width:100%!important;transition:border-color .2s,box-shadow .2s!important;outline:none!important;}
@@ -2045,6 +2104,9 @@ export default function Mental() {
       @media(max-width:640px){
         .mm-stats-grid{grid-template-columns:repeat(3,1fr)!important}
         .mm-form-grid{grid-template-columns:1fr!important}
+      }
+      @media(max-width:480px){
+        .mm-stats-grid{grid-template-columns:repeat(2,1fr)!important}
       }
     `;
     document.head.appendChild(s);
@@ -2122,288 +2184,199 @@ export default function Mental() {
   if (isGameOver) {
     // Use results array as source of truth — score state can be stale
     const actualCorrect = results.filter(r => r.isCorrect).length;
+    const wrongCount_r = results.filter(r => !r.isCorrect).length;
     const percentage = (actualCorrect / numQuestions) * 100;
-    const getPerformanceMessage = () => {
-      if (percentage === 100) return "Perfect! 🌟";
-      if (percentage >= 80) return "Excellent! 🎉";
-      if (percentage >= 60) return "Great Job! 👏";
-      if (percentage >= 40) return "Good Effort! 💪";
-      return "Keep Practicing! 📚";
-    };
+    const opLabels: Record<string, string> = { multiplication:"Multiplication", division:"Division", add_sub:"Add/Subtract", integer_add_sub:"Integer Add/Sub", decimal_multiplication:"Decimal Multiplication", decimal_division:"Decimal Division", lcm:"LCM", gcd:"GCD", square_root:"Square Root", cube_root:"Cube Root", percentage:"Percentage" };
 
     return (
       <div style={{minHeight:"100vh",background:"var(--mm-bg)",position:"relative",overflowX:"hidden"}}>
         {/* Background glow */}
-        <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse 60% 50% at 50% 20%, rgba(16,185,129,.06), transparent 70%)",pointerEvents:"none"}} />
+        <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse 60% 50% at 50% 15%, rgba(123,92,229,.06) 0%, rgba(16,185,129,.04) 50%, transparent 70%)",pointerEvents:"none"}} />
 
-        <div style={{maxWidth:700,margin:"0 auto",padding:"40px 20px 60px"}}>
-          {/* Main results card */}
-          <div className="mm-results-in" style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr2)",borderRadius:28,overflow:"hidden",marginBottom:24}}>
-            {/* Top accent bar */}
-            <div style={{height:3,background:"linear-gradient(90deg, var(--mm-pur), var(--mm-grn), transparent)"}} />
-            <div style={{padding:"36px 36px 32px"}}>
-              {/* Trophy + title */}
-              <div style={{textAlign:"center",marginBottom:32}}>
-                <div className="mm-count-up" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:64,height:64,borderRadius:20,background:"linear-gradient(135deg, var(--mm-grn), #059669)",marginBottom:16}}>
-                  <Trophy style={{width:28,height:28,color:"#fff"}} />
-                </div>
-                <h1 style={{fontFamily:"var(--mm-fd)",fontSize:"clamp(24px,3.5vw,36px)",fontWeight:800,color:"var(--mm-whi)",margin:"0 0 6px",letterSpacing:"-.02em"}}>
-                  Practice Completed!
-                </h1>
-                <p style={{fontFamily:"var(--mm-fb)",fontSize:14,color:"var(--mm-muted)",margin:0}}>{getPerformanceMessage()}</p>
+        <div style={{maxWidth:700,margin:"0 auto",padding:"clamp(24px,5vw,40px) clamp(14px,3vw,24px) 60px",position:"relative",zIndex:1}}>
+          {/* Completion header */}
+          <div style={{textAlign:"center",marginBottom:32}}>
+            <div className="mm-count-up" style={{width:64,height:64,borderRadius:20,margin:"0 auto 20px",background:"linear-gradient(135deg, var(--mm-pur), #5535C0)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 12px 40px rgba(123,92,229,.35), 0 0 0 1px rgba(123,92,229,.2)"}}>
+              <Trophy style={{width:28,height:28,color:"#fff"}} />
+            </div>
+            <h1 style={{fontFamily:"var(--mm-fd)",fontSize:"clamp(28px,4vw,44px)",fontWeight:800,letterSpacing:"-.03em",color:"var(--mm-whi)",margin:"0 0 6px"}}>Practice Completed!</h1>
+            <p style={{fontFamily:"var(--mm-fm)",fontSize:13,color:"var(--mm-muted)",letterSpacing:".04em",margin:0}}>
+              <span style={{color:"var(--mm-pur2)"}}>{opLabels[operationType] || operationType}</span>
+              <span style={{color:"var(--mm-muted)"}}> · </span>
+              <span style={{color:"var(--mm-whi2)"}}>{difficultyMode.charAt(0).toUpperCase() + difficultyMode.slice(1)}</span>
+              <span style={{color:"var(--mm-muted)"}}> · </span>
+              <span style={{color:"var(--mm-whi2)"}}>You answered {results.length} question{results.length !== 1 ? "s" : ""}</span>
+            </p>
+          </div>
+
+          {/* Primary stats grid */}
+          <div className="mm-stats-grid" style={{marginBottom:14}}>
+            {[
+              {label:"CORRECT",value:actualCorrect,color:"var(--mm-grn)",bg:"rgba(16,185,129,.08)",bdr:"rgba(16,185,129,.2)",delay:".05s"},
+              {label:"WRONG",value:wrongCount_r,color:"var(--mm-red)",bg:"rgba(239,68,68,.08)",bdr:"rgba(239,68,68,.2)",delay:".1s"},
+              {label:"MISSED",value:numQuestions-results.length,color:"var(--mm-gld)",bg:"rgba(245,158,11,.08)",bdr:"rgba(245,158,11,.2)",delay:".15s"},
+              {label:"ACCURACY",value:`${percentage.toFixed(1)}%`,color:"var(--mm-pur2)",bg:"rgba(123,92,229,.08)",bdr:"rgba(123,92,229,.2)",delay:".2s"},
+              {label:"POINTS",value:`+${pointsEarned||0}`,color:"var(--mm-pur2)",bg:"rgba(123,92,229,.08)",bdr:"rgba(123,92,229,.2)",delay:".25s"},
+            ].map(({label,value,color,bg,bdr,delay})=>(
+              <div key={label} className="mm-count-up" style={{background:bg,border:`1px solid ${bdr}`,borderRadius:14,padding:"14px 8px",textAlign:"center",animationDelay:delay}}>
+                <div style={{fontFamily:"var(--mm-fm)",fontSize:"clamp(18px,2.5vw,26px)",fontWeight:700,color,lineHeight:1}}>{value}</div>
+                <div style={{fontFamily:"var(--mm-fm)",fontSize:9,fontWeight:600,letterSpacing:".1em",color:"var(--mm-muted)",marginTop:5,textTransform:"uppercase"}}>{label}</div>
               </div>
+            ))}
+          </div>
 
-              {/* Stats grid */}
-              <div className="mm-stats-grid" style={{marginBottom:24}}>
-                {[
-                  {label:"CORRECT",value:actualCorrect,color:"var(--mm-grn)",bg:"rgba(16,185,129,.08)",bdr:"rgba(16,185,129,.2)",delay:".05s"},
-                  {label:"WRONG",value:results.filter(r=>!r.isCorrect).length,color:"var(--mm-red)",bg:"rgba(239,68,68,.08)",bdr:"rgba(239,68,68,.2)",delay:".1s"},
-                  {label:"MISSED",value:numQuestions-results.length,color:"var(--mm-gld)",bg:"rgba(245,158,11,.08)",bdr:"rgba(245,158,11,.2)",delay:".15s"},
-                  {label:"ACCURACY",value:`${percentage.toFixed(1)}%`,color:"var(--mm-pur2)",bg:"rgba(123,92,229,.08)",bdr:"rgba(123,92,229,.2)",delay:".2s"},
-                  {label:"POINTS",value:pointsEarned||0,color:"var(--mm-grn)",bg:"rgba(16,185,129,.08)",bdr:"rgba(16,185,129,.2)",delay:".25s"},
-                ].map(({label,value,color,bg,bdr,delay})=>(
-                  <div key={label} className="mm-count-up" style={{background:bg,border:`1px solid ${bdr}`,borderRadius:14,padding:"14px 8px",textAlign:"center",animationDelay:delay}}>
-                    <div style={{fontFamily:"var(--mm-fm)",fontSize:"clamp(18px,2.5vw,26px)",fontWeight:700,color,lineHeight:1}}>{value}</div>
-                    <div style={{fontFamily:"var(--mm-fm)",fontSize:9,fontWeight:600,letterSpacing:".1em",color:"var(--mm-muted)",marginTop:5,textTransform:"uppercase"}}>{label}</div>
-                  </div>
-                ))}
+          {/* Secondary stats — two icon boxes like Burst Mode */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+            <div style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr2)",borderRadius:16,padding:"clamp(12px,2.5vw,18px) clamp(14px,3vw,22px)",display:"flex",alignItems:"center",gap:"clamp(10px,2vw,14px)"}}>
+              <div style={{width:38,height:38,borderRadius:11,background:"rgba(123,92,229,.12)",border:"1px solid rgba(123,92,229,.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <Clock style={{width:18,height:18,color:"var(--mm-pur2)"}} />
               </div>
-
-              {/* Accuracy bar */}
-              <div style={{marginBottom:24}}>
-                <div style={{height:6,background:"var(--mm-surf2)",borderRadius:99,overflow:"hidden"}}>
-                  <div style={{height:"100%",background:"linear-gradient(90deg, var(--mm-red) 0%, var(--mm-gld) 40%, var(--mm-grn) 100%)",width:`${percentage}%`,borderRadius:99,transition:"width 1.2s cubic-bezier(.4,0,.2,1) .5s"}} />
-                </div>
+              <div>
+                <div style={{fontFamily:"var(--mm-fm)",fontSize:"clamp(18px,3vw,22px)",fontWeight:800,color:"var(--mm-whi)"}}>{sessionElapsedTime ? formatTime(Math.floor(sessionElapsedTime)) : "—"}</div>
+                <div style={{fontFamily:"var(--mm-fb)",fontSize:12,color:"var(--mm-muted)",marginTop:2}}>Time Taken</div>
               </div>
-
-              {/* Time / Score row */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1px 1fr",background:"var(--mm-surf2)",borderRadius:16,overflow:"hidden",marginBottom:28}}>
-                <div style={{padding:"18px 20px",textAlign:"center"}}>
-                  <div style={{fontFamily:"var(--mm-fb)",fontSize:11,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",color:"var(--mm-muted)",marginBottom:6}}>Time Taken</div>
-                  <div style={{fontFamily:"var(--mm-fm)",fontSize:22,fontWeight:700,color:"var(--mm-whi)"}}>
-                    {sessionElapsedTime ? formatTime(Math.floor(sessionElapsedTime)) : "—"}
-                  </div>
-                </div>
-                <div style={{background:"var(--mm-bdr)"}} />
-                <div style={{padding:"18px 20px",textAlign:"center"}}>
-                  <div style={{fontFamily:"var(--mm-fb)",fontSize:11,fontWeight:600,letterSpacing:".1em",textTransform:"uppercase",color:"var(--mm-muted)",marginBottom:6}}>Score</div>
-                  <div style={{fontFamily:"var(--mm-fm)",fontSize:22,fontWeight:700,color:"var(--mm-whi)"}}>{actualCorrect} / {numQuestions}</div>
-                </div>
+            </div>
+            <div style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr2)",borderRadius:16,padding:"clamp(12px,2.5vw,18px) clamp(14px,3vw,22px)",display:"flex",alignItems:"center",gap:"clamp(10px,2vw,14px)"}}>
+              <div style={{width:38,height:38,borderRadius:11,background:"rgba(245,158,11,.12)",border:"1px solid rgba(245,158,11,.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <Trophy style={{width:18,height:18,color:"var(--mm-gld)"}} />
               </div>
-
-              {/* Action buttons */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-                <button
-                  onClick={resetGame}
-                  style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"14px 10px",background:"linear-gradient(135deg, var(--mm-pur), #5535C0)",border:"none",borderRadius:14,fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",transition:"transform .2s, box-shadow .2s",boxShadow:"0 6px 24px rgba(123,92,229,.25)"}}
-                  onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 12px 36px rgba(123,92,229,.4)"}}
-                  onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform="";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 6px 24px rgba(123,92,229,.25)"}}
-                >
-                  <RotateCcw style={{width:16,height:16}} />
-                  Try Again
-                </button>
-                <Link href="/dashboard" style={{textDecoration:"none"}}>
-                  <button style={{width:"100%",padding:"14px 10px",background:"linear-gradient(135deg, var(--mm-grn), #059669)",border:"none",borderRadius:14,fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",transition:"transform .2s, box-shadow .2s",boxShadow:"0 6px 24px rgba(16,185,129,.2)"}}
-                    onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 12px 36px rgba(16,185,129,.35)"}}
-                    onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform="";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 6px 24px rgba(16,185,129,.2)"}}>
-                    View Dashboard
-                  </button>
-                </Link>
-                <Link href="/" style={{textDecoration:"none"}}>
-                  <button style={{width:"100%",padding:"14px 10px",background:"var(--mm-surf2)",border:"1px solid var(--mm-bdr2)",borderRadius:14,fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"var(--mm-whi2)",cursor:"pointer",letterSpacing:"-.01em",transition:"background .2s"}}
-                    onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="var(--mm-surf3)"}}
-                    onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="var(--mm-surf2)"}}>
-                    Go Home
-                  </button>
-                </Link>
+              <div>
+                <div style={{fontFamily:"var(--mm-fm)",fontSize:"clamp(18px,3vw,22px)",fontWeight:800,color:"var(--mm-whi)"}}>{actualCorrect} / {numQuestions}</div>
+                <div style={{fontFamily:"var(--mm-fb)",fontSize:12,color:"var(--mm-muted)",marginTop:2}}>Score</div>
               </div>
             </div>
           </div>
 
-          {/* Question Review */}
-          {(results.length > 0 || (questionsRef.current.length > 0 && questionsRef.current.length > results.length)) && (
-            <div style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr2)",borderRadius:24,overflow:"hidden"}}>
-              <div style={{height:2,background:"linear-gradient(90deg, var(--mm-pur), transparent)"}} />
-              <div style={{padding:"28px 32px"}}>
-                <h2 style={{fontFamily:"var(--mm-fd)",fontSize:18,fontWeight:800,color:"var(--mm-whi)",margin:"0 0 24px",letterSpacing:"-.01em"}}>Question Review</h2>
-              
-              {/* Separate questions into categories */}
-              {(() => {
-                // Get all questions that were generated
-                const allQuestions = questionsRef.current.length > 0 ? questionsRef.current : questions;
-                
-                // Find unattempted questions (questions not in results)
-                const unattemptedQuestions = allQuestions.filter((q, _idx) => {
-                  // Check if this question is in results by comparing key properties
-                  return !results.some(r => {
-                    if (q.type === "multiplication" && r.question.type === "multiplication") {
-                      return q.multiplicand === r.question.multiplicand && q.multiplier === r.question.multiplier;
-                    } else if (q.type === "division" && r.question.type === "division") {
-                      return q.dividend === r.question.dividend && q.divisor === r.question.divisor;
-                    } else if ((q.type === "add_sub" || q.type === "integer_add_sub") && 
-                               (r.question.type === "add_sub" || r.question.type === "integer_add_sub")) {
-                      return JSON.stringify(q.numbers) === JSON.stringify((r.question as any).numbers);
-                    } else if (q.type === "decimal_multiplication" && r.question.type === "decimal_multiplication") {
-                      return Math.abs(q.multiplicand - r.question.multiplicand) < 0.01 && 
-                             Math.abs(q.multiplier - r.question.multiplier) < 0.01;
-                    } else if (q.type === "decimal_division" && r.question.type === "decimal_division") {
-                      return Math.abs(q.dividend - r.question.dividend) < 0.01 && 
-                             Math.abs(q.divisor - r.question.divisor) < 0.01;
-                    } else if (q.type === "lcm" && r.question.type === "lcm") {
-                      return q.first === r.question.first && q.second === r.question.second;
-                    } else if (q.type === "gcd" && r.question.type === "gcd") {
-                      return q.first === r.question.first && q.second === r.question.second;
-                    } else if (q.type === "square_root" && r.question.type === "square_root") {
-                      return Math.abs(q.number - r.question.number) < 0.01;
-                    } else if (q.type === "cube_root" && r.question.type === "cube_root") {
-                      return Math.abs(q.number - r.question.number) < 0.01;
-                    } else if (q.type === "percentage" && r.question.type === "percentage") {
-                      return Math.abs(q.percentage - r.question.percentage) < 0.01 && 
-                             Math.abs(q.number - r.question.number) < 0.01;
-                    }
-                    return Math.abs(q.answer - r.question.answer) < 0.01;
-                  });
-                }).map((q, idx) => ({ question: q, originalIndex: idx }));
-
-                const correctQuestions = results.filter(r => r.isCorrect);
-                const wrongQuestions = results.filter(r => !r.isCorrect);
-
-                const formatQuestionText = (q: Question, idx: number) => {
-                  if (q.type === "multiplication") {
-                    return `${q.multiplicand} × ${q.multiplier} = ?`;
-                  } else if (q.type === "division") {
-                    return `${q.dividend} ÷ ${q.divisor} = ?`;
-                  } else if (q.type === "add_sub" || q.type === "integer_add_sub") {
-                    const addSubQ = q as AddSubQuestion | IntegerAddSubQuestion;
-                    const displayText = addSubQ.numbers.map((num, i) => {
-                      if (i === 0) return String(num);
-                      return `${addSubQ.operators[i - 1]} ${num}`;
-                    }).join(" ");
-                    return `${displayText} = ?`;
-                  } else if (q.type === "decimal_multiplication") {
-                    return `${q.multiplicand.toFixed(1)} × ${q.multiplier.toFixed(q.multiplierDecimals)} = ?`;
-                  } else if (q.type === "decimal_division") {
-                    return `${q.dividend} ÷ ${q.divisor} = ?`;
-                  } else if (q.type === "lcm") {
-                    return `LCM(${q.first}, ${q.second}) = ?`;
-                  } else if (q.type === "gcd") {
-                    return `GCD(${q.first}, ${q.second}) = ?`;
-                  } else if (q.type === "square_root") {
-                    return `√${q.number} = ?`;
-                  } else if (q.type === "cube_root") {
-                    return `∛${q.number} = ?`;
-                  } else if (q.type === "percentage") {
-                    return `${q.percentage}% of ${q.number} = ?`;
-                  }
-                  return `Question ${idx + 1}`;
-                };
-
-                return (
-                  <div style={{maxHeight:480,overflowY:"auto",display:"flex",flexDirection:"column",gap:28}}>
-                    {/* Wrong Questions first (most useful) */}
-                    {wrongQuestions.length > 0 && (
-                      <div>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-                          <XCircle style={{width:18,height:18,color:"var(--mm-red)"}} />
-                          <span style={{fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"var(--mm-red)",letterSpacing:"-.01em"}}>Wrong Answers ({wrongQuestions.length})</span>
-                        </div>
-                        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                          {wrongQuestions.map((result, index) => {
-                            const questionText = formatQuestionText(result.question, index);
-                            return (
-                              <div key={index} className="mm-fade-up"
-                                style={{padding:"14px 16px",background:"rgba(239,68,68,.05)",border:"1px solid rgba(239,68,68,.14)",borderRadius:12,animationDelay:`${index*.04}s`}}>
-                                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-                                  <div style={{flex:1}}>
-                                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                                      <span style={{fontFamily:"var(--mm-fm)",fontSize:11,fontWeight:600,color:"var(--mm-muted)"}}>Q{index+1}</span>
-                                      <span style={{fontFamily:"var(--mm-fm)",fontSize:14,fontWeight:600,color:"var(--mm-whi)"}}>{questionText}</span>
-                                    </div>
-                                    <div style={{display:"flex",gap:16,fontSize:12}}>
-                                      <span style={{fontFamily:"var(--mm-fb)",color:"var(--mm-red)"}}>Your answer: <b>{result.userAnswer !== null && result.userAnswer !== undefined ? result.userAnswer : "—"}</b></span>
-                                      <span style={{fontFamily:"var(--mm-fb)",color:"var(--mm-muted)"}}>Correct: <b style={{color:"var(--mm-whi2)"}}>{result.question.answer}</b></span>
-                                    </div>
-                                  </div>
-                                  <XCircle style={{width:16,height:16,color:"var(--mm-red)",flexShrink:0,marginTop:2}} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Correct Questions */}
-                    {correctQuestions.length > 0 && (
-                      <div>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-                          <CheckCircle2 style={{width:18,height:18,color:"var(--mm-grn)"}} />
-                          <span style={{fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"var(--mm-grn)",letterSpacing:"-.01em"}}>Correct Answers ({correctQuestions.length})</span>
-                        </div>
-                        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                          {correctQuestions.map((result, index) => {
-                            const questionText = formatQuestionText(result.question, index);
-                            return (
-                              <div key={index} className="mm-fade-up"
-                                style={{padding:"14px 16px",background:"rgba(16,185,129,.05)",border:"1px solid rgba(16,185,129,.14)",borderRadius:12,animationDelay:`${index*.04}s`}}>
-                                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-                                  <div style={{flex:1}}>
-                                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                                      <span style={{fontFamily:"var(--mm-fm)",fontSize:11,fontWeight:600,color:"var(--mm-muted)"}}>Q{index+1}</span>
-                                      <span style={{fontFamily:"var(--mm-fm)",fontSize:14,fontWeight:600,color:"var(--mm-whi)"}}>{questionText}</span>
-                                    </div>
-                                    <div style={{display:"flex",gap:16,fontSize:12}}>
-                                      <span style={{fontFamily:"var(--mm-fb)",color:"var(--mm-grn)"}}>Your answer: <b>{result.userAnswer}</b></span>
-                                      <span style={{fontFamily:"var(--mm-fb)",color:"var(--mm-muted)"}}>Correct: <b style={{color:"var(--mm-whi2)"}}>{result.question.answer}</b></span>
-                                    </div>
-                                  </div>
-                                  <CheckCircle2 style={{width:16,height:16,color:"var(--mm-grn)",flexShrink:0,marginTop:2}} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Unattempted Questions */}
-                    {unattemptedQuestions.length > 0 && (
-                      <div>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-                          <Square style={{width:18,height:18,color:"var(--mm-gld)"}} />
-                          <span style={{fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"var(--mm-gld)",letterSpacing:"-.01em"}}>Unattempted ({unattemptedQuestions.length})</span>
-                        </div>
-                        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                          {unattemptedQuestions.map(({ question, originalIndex }) => {
-                            const questionText = formatQuestionText(question, originalIndex);
-                            return (
-                              <div key={originalIndex} className="mm-fade-up"
-                                style={{padding:"14px 16px",background:"rgba(245,158,11,.05)",border:"1px solid rgba(245,158,11,.14)",borderRadius:12,animationDelay:`${originalIndex*.04}s`}}>
-                                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-                                  <div style={{flex:1}}>
-                                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                                      <span style={{fontFamily:"var(--mm-fm)",fontSize:11,fontWeight:600,color:"var(--mm-muted)"}}>Q{originalIndex+1}</span>
-                                      <span style={{fontFamily:"var(--mm-fm)",fontSize:14,fontWeight:600,color:"var(--mm-whi)"}}>{questionText}</span>
-                                    </div>
-                                    <div style={{display:"flex",gap:16,fontSize:12}}>
-                                      <span style={{fontFamily:"var(--mm-fb)",color:"var(--mm-gld)"}}>Your answer: <b>—</b></span>
-                                      <span style={{fontFamily:"var(--mm-fb)",color:"var(--mm-muted)"}}>Correct: <b style={{color:"var(--mm-whi2)"}}>{question.answer}</b></span>
-                                    </div>
-                                  </div>
-                                  <Square style={{width:16,height:16,color:"var(--mm-gld)",flexShrink:0,marginTop:2}} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-              </div>
+          {/* Accuracy bar */}
+          <div style={{marginBottom:20}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <span style={{fontFamily:"var(--mm-fm)",fontSize:10,textTransform:"uppercase",letterSpacing:".12em",color:"var(--mm-muted)"}}>ACCURACY</span>
+              <span style={{fontFamily:"var(--mm-fm)",fontSize:13,fontWeight:700,color:"var(--mm-whi2)"}}>{percentage.toFixed(1)}%</span>
             </div>
-          )}
+            <div style={{height:6,borderRadius:99,background:"var(--mm-bdr2)",overflow:"hidden"}}>
+              <div style={{borderRadius:99,height:"100%",background:"linear-gradient(90deg, var(--mm-red) 0%, var(--mm-gld) 45%, var(--mm-grn) 100%)",width:`${percentage}%`,transition:"width 1.4s cubic-bezier(.4,0,.2,1) .4s",boxShadow:percentage > 70 ? "0 0 12px rgba(16,185,129,.2)" : undefined}} />
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 140px), 1fr))",gap:12,marginBottom:24}}>
+            <button
+              onClick={() => { resetGame(); setTimeout(() => startCountdown(), 0); }}
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"14px 10px",background:"linear-gradient(135deg, var(--mm-pur), #5535C0)",border:"none",borderRadius:14,fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",transition:"all .25s ease",boxShadow:"0 6px 24px rgba(123,92,229,.25)"}}
+              onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 12px 36px rgba(123,92,229,.4)"}}
+              onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform="";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 6px 24px rgba(123,92,229,.25)"}}
+            >
+              <RotateCcw style={{width:15,height:15}} />
+              Re-Attempt
+            </button>
+            <button
+              onClick={resetGame}
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"14px 10px",background:"var(--mm-surf2)",border:"1px solid var(--mm-bdr2)",borderRadius:14,fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"var(--mm-whi2)",cursor:"pointer",letterSpacing:"-.01em",transition:"all .2s"}}
+              onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(123,92,229,.3)";(e.currentTarget as HTMLButtonElement).style.color="var(--mm-whi)"}}
+              onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="var(--mm-bdr2)";(e.currentTarget as HTMLButtonElement).style.color="var(--mm-whi2)"}}
+            >
+              <Zap style={{width:15,height:15}} />
+              Create New
+            </button>
+            <Link href="/dashboard" style={{textDecoration:"none"}}>
+              <button style={{width:"100%",padding:"14px 10px",background:"linear-gradient(135deg, var(--mm-grn), #059669)",border:"none",borderRadius:14,fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",transition:"all .25s ease",boxShadow:"0 6px 24px rgba(16,185,129,.2)",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}
+                onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 12px 36px rgba(16,185,129,.35)"}}
+                onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform="";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 6px 24px rgba(16,185,129,.2)"}}>
+                <Trophy style={{width:15,height:15}} />
+                Dashboard
+              </button>
+            </Link>
+          </div>
+
+          {/* Question Review — flat list like Burst Mode */}
+          {(results.length > 0 || (questionsRef.current.length > 0 && questionsRef.current.length > results.length)) && (() => {
+            const allQuestions = questionsRef.current.length > 0 ? questionsRef.current : questions;
+
+            const formatQuestionText = (q: Question) => {
+              if (q.type === "multiplication") return `${q.multiplicand} × ${q.multiplier} = ?`;
+              if (q.type === "division") return `${q.dividend} ÷ ${q.divisor} = ?`;
+              if (q.type === "add_sub" || q.type === "integer_add_sub") {
+                const aq = q as AddSubQuestion | IntegerAddSubQuestion;
+                return aq.numbers.map((n, i) => i === 0 ? String(n) : `${aq.operators[i-1]} ${n}`).join(" ") + " = ?";
+              }
+              if (q.type === "decimal_multiplication") return `${q.multiplicand.toFixed(1)} × ${q.multiplier.toFixed(q.multiplierDecimals)} = ?`;
+              if (q.type === "decimal_division") return `${q.dividend} ÷ ${q.divisor} = ?`;
+              if (q.type === "lcm") return `LCM(${q.first}, ${q.second}) = ?`;
+              if (q.type === "gcd") return `GCD(${q.first}, ${q.second}) = ?`;
+              if (q.type === "square_root") return `√${q.number} = ?`;
+              if (q.type === "cube_root") return `∛${q.number} = ?`;
+              if (q.type === "percentage") return `${q.percentage}% of ${q.number} = ?`;
+              return "?";
+            };
+
+            // Build flat ordered list: attempted questions first (in order), then unattempted
+            const reviewItems: { question: Question; result: typeof results[0] | null; idx: number }[] = [];
+            // Attempted
+            results.forEach((r, i) => reviewItems.push({ question: r.question, result: r, idx: i }));
+            // Unattempted
+            allQuestions.forEach((q, i) => {
+              const isAttempted = results.some(r => {
+                if (q.type !== r.question.type) return false;
+                if (q.type === "multiplication" && r.question.type === "multiplication") return q.multiplicand === r.question.multiplicand && q.multiplier === r.question.multiplier;
+                if (q.type === "division" && r.question.type === "division") return q.dividend === r.question.dividend && q.divisor === r.question.divisor;
+                if ((q.type === "add_sub" || q.type === "integer_add_sub") && (r.question.type === "add_sub" || r.question.type === "integer_add_sub")) return JSON.stringify(q.numbers) === JSON.stringify((r.question as any).numbers);
+                if (q.type === "decimal_multiplication" && r.question.type === "decimal_multiplication") return Math.abs(q.multiplicand - r.question.multiplicand) < 0.01 && Math.abs(q.multiplier - r.question.multiplier) < 0.01;
+                if (q.type === "decimal_division" && r.question.type === "decimal_division") return Math.abs(q.dividend - r.question.dividend) < 0.01 && Math.abs(q.divisor - r.question.divisor) < 0.01;
+                if (q.type === "lcm" && r.question.type === "lcm") return q.first === r.question.first && q.second === r.question.second;
+                if (q.type === "gcd" && r.question.type === "gcd") return q.first === r.question.first && q.second === r.question.second;
+                if (q.type === "square_root" && r.question.type === "square_root") return Math.abs(q.number - r.question.number) < 0.01;
+                if (q.type === "cube_root" && r.question.type === "cube_root") return Math.abs(q.number - r.question.number) < 0.01;
+                if (q.type === "percentage" && r.question.type === "percentage") return Math.abs(q.percentage - r.question.percentage) < 0.01 && Math.abs(q.number - r.question.number) < 0.01;
+                return Math.abs(q.answer - r.question.answer) < 0.01;
+              });
+              if (!isAttempted) reviewItems.push({ question: q, result: null, idx: results.length + i });
+            });
+
+            return (
+              <div style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr2)",borderRadius:20,overflow:"hidden"}}>
+                <div style={{padding:"20px 24px",borderBottom:"1px solid var(--mm-bdr2)"}}>
+                  <span style={{fontFamily:"var(--mm-fd)",fontSize:17,fontWeight:700,color:"var(--mm-whi)"}}>Question Review</span>
+                </div>
+                <div style={{maxHeight:400,overflowY:"auto"}}>
+                  {reviewItems.map((item, i) => {
+                    const isCorrect = item.result?.isCorrect ?? false;
+                    const isUnattempted = item.result === null;
+                    const borderColor = isUnattempted ? "rgba(245,158,11,.2)" : isCorrect ? "rgba(16,185,129,.15)" : "rgba(239,68,68,.2)";
+                    return (
+                      <div
+                        key={i}
+                        className="mm-fade-up"
+                        style={{display:"grid",gridTemplateColumns:"auto 1fr auto auto",gap:12,alignItems:"center",padding:"14px 20px",borderBottom:i < reviewItems.length - 1 ? "1px solid var(--mm-bdr2)" : undefined,borderLeft:`2px solid ${borderColor}`,paddingLeft:18,transition:"background .15s ease",animationDelay:`${i*.04}s`}}
+                        onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="rgba(255,255,255,.02)"}}
+                        onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background=""}}
+                      >
+                        <span style={{fontFamily:"var(--mm-fm)",fontSize:11,fontWeight:700,color:"var(--mm-muted)",minWidth:"1.5rem",textAlign:"right"}}>{i + 1}.</span>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          {isUnattempted
+                            ? <Square style={{width:16,height:16,color:"var(--mm-gld)",flexShrink:0}} />
+                            : isCorrect
+                              ? <CheckCircle2 style={{width:16,height:16,color:"var(--mm-grn)",flexShrink:0}} />
+                              : <XCircle style={{width:16,height:16,color:"var(--mm-red)",flexShrink:0}} />
+                          }
+                          <span style={{fontFamily:"var(--mm-fm)",fontSize:14,fontWeight:600,color:"var(--mm-whi)"}}>{formatQuestionText(item.question)}</span>
+                        </div>
+                        {!isCorrect && !isUnattempted && (
+                          <span style={{fontFamily:"var(--mm-fm)",fontSize:13,fontWeight:600,color:"var(--mm-red)",textDecoration:"line-through"}}>{item.result?.userAnswer ?? "—"}</span>
+                        )}
+                        {isUnattempted && (
+                          <span style={{fontFamily:"var(--mm-fm)",fontSize:13,fontWeight:600,color:"var(--mm-gld)"}}>—</span>
+                        )}
+                        <span style={{fontFamily:"var(--mm-fm)",fontSize:13,fontWeight:700,color:isCorrect ? "var(--mm-grn)" : "var(--mm-muted)"}}>{item.question.answer}</span>
+                      </div>
+                    );
+                  })}
+                  {reviewItems.length === 0 && (
+                    <div style={{padding:40,textAlign:"center",fontFamily:"var(--mm-fb)",color:"var(--mm-muted)"}}>No questions attempted</div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     );
@@ -2413,7 +2386,7 @@ export default function Mental() {
     // Shared sticky top bar (matches BurstMode)
     const stickyHeader = (
       <>
-        <div style={{position:"sticky",top:0,zIndex:40,background:"rgba(6,7,15,.9)",backdropFilter:"blur(20px)",borderBottom:"1px solid var(--mm-bdr)",height:64,display:"grid",gridTemplateColumns:"80px 1fr 160px",alignItems:"center",padding:"0 24px"}}>
+        <div style={{position:"sticky",top:0,zIndex:40,background:"rgba(6,7,15,.9)",backdropFilter:"blur(20px)",borderBottom:"1px solid var(--mm-bdr)",height:"clamp(52px,8vw,64px)",display:"grid",gridTemplateColumns:"auto 1fr auto",alignItems:"center",padding:"0 clamp(12px,3vw,24px)",gap:"clamp(8px,2vw,16px)"}}>
           {/* Back / exit button */}
           <button
             onClick={handleBack}
@@ -2465,11 +2438,8 @@ export default function Mental() {
     const cardHeader = (
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <span style={{fontFamily:"var(--mm-fm)",fontSize:11,fontWeight:600,color:"var(--mm-muted)",letterSpacing:".08em"}}>
-            Q {currentQuestionIndex + 1} / {numQuestions}
-          </span>
-          <span style={{fontFamily:"var(--mm-fm)",fontSize:11,fontWeight:600,color:"var(--mm-pur2)"}}>
-            {score} pts
+          <span style={{fontFamily:"var(--mm-fm)",fontSize:11,fontWeight:600,color:"var(--mm-muted)",letterSpacing:".16em",textTransform:"uppercase"}}>
+            QUESTION <span style={{color:"var(--mm-pur2)"}}>#{currentQuestionIndex + 1}</span>
           </span>
         </div>
       </div>
@@ -2639,75 +2609,60 @@ export default function Mental() {
     const timerBdr = timerRatio > 0.5 ? "rgba(16,185,129,.3)" : timerRatio > 0.25 ? "rgba(245,158,11,.3)" : "rgba(239,68,68,.3)";
 
     return (
-      <div style={{minHeight:"100vh",background:"var(--mm-bg)",position:"relative",display:"flex",flexDirection:"column"}}>
-        <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse 50% 40% at 50% 20%, rgba(123,92,229,.05), transparent 70%)",pointerEvents:"none"}} />
+      <div style={{minHeight:"100vh",background:"var(--mm-bg)",display:"flex",flexDirection:"column",position:"relative",overflowX:"hidden"}}>
+        {/* Background atmosphere */}
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 50% 40% at 50% 60%, rgba(123,92,229,.04) 0%, transparent 65%)",pointerEvents:"none"}} />
         {exitWarningModal}
         {stickyHeader}
 
-        <div style={{maxWidth:640,margin:"0 auto",padding:"24px 20px 60px",flex:1,width:"100%",boxSizing:"border-box"}}>
-          <div className="mm-scale-in" style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr2)",borderRadius:24,overflow:"hidden"}}>
-            <div style={{height:2,background:"linear-gradient(90deg, var(--mm-pur), var(--mm-pur2), transparent)",position:"relative"}}>
-              {/* Timer drain overlay */}
-              {(isShowingAnswerTime || (currentQuestion.type !== "add_sub" && currentQuestion.type !== "integer_add_sub")) && (
-                <div
-                  key={`drain-${currentQuestionIndex}`}
-                  className="mm-drain"
-                  style={{position:"absolute",top:0,right:0,height:"100%",background:"var(--mm-bg)",animationDuration:`${effectiveLimit}s`,animationFillMode:"forwards"}}
-                />
-              )}
+        {/* Question area — vertically centered like Burst Mode */}
+        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center",position:"relative",zIndex:2}}>
+          <div style={{width:"100%",maxWidth:600}}>
+            {/* Question label */}
+            <div style={{fontFamily:"var(--mm-fm)",fontSize:11,fontWeight:600,letterSpacing:".16em",textTransform:"uppercase",color:"var(--mm-muted)",marginBottom:20}}>
+              QUESTION <span style={{color:"var(--mm-pur2)"}}>#{currentQuestionIndex + 1}</span>
             </div>
-            <div style={{padding:"24px 28px"}}>
-              {cardHeader}
-              {progressBar}
 
-              {/* Timer pill */}
-              {(isShowingAnswerTime || (currentQuestion.type !== "add_sub" && currentQuestion.type !== "integer_add_sub")) && (
-                <div style={{display:"flex",justifyContent:"center",marginBottom:28}}>
-                  <div
-                    className={timerRatio < 0.25 ? "mm-timer-urgent" : ""}
-                    style={{display:"flex",alignItems:"center",gap:8,padding:"8px 20px",background:timerBg,border:`1px solid ${timerBdr}`,borderRadius:99,transition:"background .5s ease, border-color .5s ease, color .5s ease"}}
-                  >
-                    <Clock style={{width:14,height:14,color:timerColor}} />
-                    <span style={{fontFamily:"var(--mm-fm)",fontSize:22,fontWeight:700,color:timerColor,letterSpacing:"-.02em"}}>{timeRemaining}s</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Question */}
-              <div style={{textAlign:"center",marginBottom:28}}>
+            {/* Timer pill */}
+            {(isShowingAnswerTime || (currentQuestion.type !== "add_sub" && currentQuestion.type !== "integer_add_sub")) && (
+              <div style={{display:"flex",justifyContent:"center",marginBottom:24}}>
                 <div
-                  key={currentQuestionIndex}
-                  className="mm-number-slam"
-                  style={{display:"flex",alignItems:"center",justifyContent:"center",flexWrap:"wrap",gap:"0.3em",fontSize:"clamp(40px,8vw,72px)",fontFamily:"var(--mm-fm)",fontWeight:800,lineHeight:1.1,marginBottom:12}}
+                  className={timerRatio < 0.25 ? "mm-timer-urgent" : ""}
+                  style={{display:"flex",alignItems:"center",gap:8,padding:"8px 20px",background:timerBg,border:`1px solid ${timerBdr}`,borderRadius:99,transition:"background .5s ease, border-color .5s ease, color .5s ease"}}
                 >
-                  {questionDisplay.split(" ").map((token, i) => {
-                    const isAdd = token === "+";
-                    const isSub = token === "−" || token === "-";
-                    const isMul = token === "×";
-                    const isDiv = token === "÷";
-                    const isParen = token.startsWith("(") || token.endsWith(")") || token === "of";
-                    if (isAdd) return <span key={i} style={{color:"var(--mm-grn)"}}>{token}</span>;
-                    if (isSub) return <span key={i} style={{color:"var(--mm-red)"}}>{token}</span>;
-                    if (isMul || isDiv) return <span key={i} style={{color:"var(--mm-pur2)"}}>{token}</span>;
-                    if (isParen) return <span key={i} style={{color:"var(--mm-muted)"}}>{token}</span>;
-                    return <span key={i} style={{background:"linear-gradient(135deg, var(--mm-whi), var(--mm-whi2))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>{token}</span>;
-                  })}
+                  <Clock style={{width:14,height:14,color:timerColor}} />
+                  <span style={{fontFamily:"var(--mm-fm)",fontSize:22,fontWeight:700,color:timerColor,letterSpacing:"-.02em"}}>{timeRemaining}s</span>
                 </div>
-                <span style={{fontFamily:"var(--mm-fm)",fontSize:24,fontWeight:600,color:"var(--mm-muted)"}}>= ?</span>
               </div>
+            )}
 
-              {/* Answer Input */}
-              <div style={{maxWidth:360,margin:"0 auto"}}>
+            {/* Question expression — large like Burst Mode */}
+            <div
+              key={currentQuestionIndex}
+              className="mm-number-slam"
+              style={{fontFamily:"var(--mm-fm)",fontSize:"clamp(56px, 10vw, 110px)",fontWeight:800,letterSpacing:"-.03em",lineHeight:1,marginBottom:32,display:"flex",alignItems:"center",justifyContent:"center",flexWrap:"wrap",gap:"0 2px"}}
+            >
+              {questionDisplay.split(" ").map((token, i) => {
+                const isOp = ["÷","×","+","−","-","of"].includes(token);
+                const isParen = token.startsWith("(") || token.endsWith(")");
+                if (isParen) return <span key={i} style={{color:"var(--mm-muted)",fontSize:isOp?"0.65em":undefined,verticalAlign:isOp?"middle":undefined,display:"inline-block",margin:"0 2px"}}>{token}</span>;
+                if (isOp) return <span key={i} style={{color:token==="+"?"var(--mm-grn)":token==="−"||token==="-"?"var(--mm-red)":"var(--mm-pur2)",fontSize:"0.65em",verticalAlign:"middle",display:"inline-block",margin:"0 2px"}}>{token}</span>;
+                return <span key={i} style={{color:"var(--mm-whi)",display:"inline-block",margin:"0 2px"}}>{token}</span>;
+              })}
+            </div>
+
+            {/* Answer input row */}
+            <div style={{display:"flex",alignItems:"center",gap:12,width:"100%",maxWidth:500,margin:"0 auto"}}>
+              <div style={{position:"relative",flex:1}}>
                 <input
                   type="text"
                   inputMode="decimal"
                   value={currentAnswer}
                   onChange={(e) => {
                     const val = e.target.value;
-                    // Allow empty, integers, decimals, and negative numbers, max 20 characters
                     if (val === "" || (/^-?\d*\.?\d*$/.test(val) && val.length <= 20)) {
                       setCurrentAnswer(val);
-                      currentAnswerRef.current = val; // Update ref immediately for timer access
+                      currentAnswerRef.current = val;
                     }
                   }}
                   maxLength={20}
@@ -2721,9 +2676,10 @@ export default function Mental() {
                       e.preventDefault();
                     }
                   }}
-                  placeholder="Enter your answer"
-                  className="mm-answer-input"
-                  style={{width:"100%",padding:"16px 20px",fontSize:24,fontFamily:"var(--mm-fm)",fontWeight:700,textAlign:"center",background:"var(--mm-surf2)",border:"2px solid rgba(123,92,229,.3)",borderRadius:14,color:"var(--mm-whi)",outline:"none",boxSizing:"border-box",caretColor:"var(--mm-pur2)"}}
+                  placeholder="?"
+                  autoComplete="off"
+                  className={`mm-input${flashColor === "green" ? " correct" : flashColor === "red" ? " wrong" : ""}`}
+                  style={{flex:1,paddingRight:56}}
                   autoFocus={!((currentQuestion.type === "add_sub" || currentQuestion.type === "integer_add_sub") && !isShowingAnswerTime)}
                   disabled={(currentQuestion.type === "add_sub" || currentQuestion.type === "integer_add_sub") && !isShowingAnswerTime}
                   ref={(input) => {
@@ -2733,11 +2689,11 @@ export default function Mental() {
                 <button
                   onClick={handleSubmitAnswer}
                   disabled={currentAnswer === "" || ((currentQuestion.type === "add_sub" || currentQuestion.type === "integer_add_sub") && !isShowingAnswerTime)}
-                  style={{width:"100%",marginTop:12,padding:"14px",background:"linear-gradient(135deg, var(--mm-grn), #059669)",border:"none",borderRadius:14,fontFamily:"var(--mm-fd)",fontSize:15,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",transition:"transform .2s, opacity .2s",opacity:currentAnswer===""||((currentQuestion.type==="add_sub"||currentQuestion.type==="integer_add_sub")&&!isShowingAnswerTime)?0.45:1}}
-                  onMouseEnter={e=>{if(!(currentAnswer===""||((currentQuestion.type==="add_sub"||currentQuestion.type==="integer_add_sub")&&!isShowingAnswerTime)))(e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)"}}
-                  onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform=""}}
+                  style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",width:42,height:42,borderRadius:12,background:"linear-gradient(135deg, var(--mm-grn), #059669)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",transition:"all .2s ease",boxShadow:"0 4px 16px rgba(16,185,129,.2)",opacity:currentAnswer===""||((currentQuestion.type==="add_sub"||currentQuestion.type==="integer_add_sub")&&!isShowingAnswerTime)?0.45:1} as React.CSSProperties}
+                  onMouseEnter={e=>{if(!(currentAnswer===""||((currentQuestion.type==="add_sub"||currentQuestion.type==="integer_add_sub")&&!isShowingAnswerTime))){(e.currentTarget as HTMLButtonElement).style.transform="translateY(-50%) scale(1.05)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 6px 20px rgba(16,185,129,.35)"}}}
+                  onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform="translateY(-50%)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 4px 16px rgba(16,185,129,.2)"}}
                 >
-                  Submit Answer
+                  <ChevronRight style={{width:20,height:20}} />
                 </button>
               </div>
             </div>
@@ -2789,7 +2745,7 @@ export default function Mental() {
       )}
 
       {/* Hero banner — Glow Crown */}
-      <div style={{position:"relative",overflow:"hidden",borderRadius:"0 0 28px 28px",padding:"52px 32px 56px",background:"linear-gradient(145deg,#12103A 0%,#1A1050 40%,#0E0B28 100%)",borderBottom:"1px solid rgba(123,92,229,.2)"}}>
+      <div style={{position:"relative",overflow:"hidden",borderRadius:"0 0 28px 28px",padding:"clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)",background:"linear-gradient(145deg,#12103A 0%,#1A1050 40%,#0E0B28 100%)",borderBottom:"1px solid rgba(123,92,229,.2)"}}>
         {/* Atmospheric glow */}
         <div style={{position:"absolute",top:"-20%",left:"50%",transform:"translateX(-50%)",width:500,height:400,background:"radial-gradient(ellipse at center, rgba(123,92,229,.15) 0%, rgba(123,92,229,.04) 50%, transparent 70%)",pointerEvents:"none"}} />
         {/* Grid pattern layer */}
@@ -2801,10 +2757,22 @@ export default function Mental() {
             <Sparkles style={{width:28,height:28,color:"var(--mm-pur2)"}} />
           </div>
           <h1 style={{fontFamily:"var(--mm-fd)",fontSize:"clamp(28px,4vw,44px)",fontWeight:800,color:"var(--mm-whi)",margin:"0 0 10px",letterSpacing:"-.03em"}}>Mental Math Practice</h1>
-          <p style={{fontFamily:"var(--mm-fb)",fontSize:16,fontWeight:300,color:"rgba(255,255,255,.5)",margin:"0 0 16px"}}>Challenge yourself with timed questions</p>
+          <p style={{fontFamily:"var(--mm-fb)",fontSize:16,fontWeight:300,color:"rgba(255,255,255,.5)",margin:0}}>Challenge yourself with timed questions</p>
+        </div>
+      </div>
+
+      {/* ── Sticky nav bar: back + how to use (below hero) ── */}
+      <div style={{position:"sticky",top:0,zIndex:40,background:"rgba(6,7,15,0.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"0 clamp(12px,3vw,28px)"}}>
+        <div style={{maxWidth:900,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0"}}>
+          <Link href="/">
+            <button style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,color:"#B8BDD8",cursor:"pointer",fontFamily:"DM Sans, sans-serif",fontWeight:500,fontSize:13,flexShrink:0}}>
+              <ArrowLeft style={{width:14,height:14}} />
+              Back
+            </button>
+          </Link>
           <button
             onClick={() => setShowGuide(true)}
-            style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 18px",borderRadius:10,border:"1px solid rgba(123,92,229,.3)",background:"rgba(123,92,229,.1)",fontFamily:"var(--mm-fm)",fontSize:12,fontWeight:600,color:"var(--mm-pur2)",cursor:"pointer",transition:"all .2s",letterSpacing:".02em"}}
+            style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:10,border:"1px solid rgba(123,92,229,.3)",background:"rgba(123,92,229,.1)",fontFamily:"var(--mm-fm)",fontSize:12,fontWeight:600,color:"var(--mm-pur2)",cursor:"pointer",transition:"all .2s",letterSpacing:".02em"}}
             onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="rgba(123,92,229,.2)";(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(123,92,229,.5)"}}
             onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="rgba(123,92,229,.1)";(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(123,92,229,.3)"}}
           >
@@ -2815,10 +2783,10 @@ export default function Mental() {
       </div>
 
       {/* Form content */}
-      <div style={{maxWidth:900,margin:"0 auto",padding:"32px 20px 60px"}}>
+      <div style={{maxWidth:900,margin:"0 auto",padding:"clamp(20px,4vw,32px) clamp(12px,3vw,20px) 60px"}}>
         <div className="mm-form-grid">
           {/* Left Column */}
-          <div className="mm-fade-up" style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr)",borderRadius:20,padding:28,display:"flex",flexDirection:"column",gap:20,animationDelay:".1s"}}>
+          <div className="mm-fade-up" style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr)",borderRadius:20,padding:"clamp(18px,3vw,28px)",display:"flex",flexDirection:"column",gap:20,animationDelay:".1s"}}>
 
                 {/* Student Name */}
                 <div>
@@ -2932,7 +2900,7 @@ export default function Mental() {
           </div>
 
           {/* Right Column */}
-          <div className="mm-fade-up" style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr)",borderRadius:20,padding:28,display:"flex",flexDirection:"column",gap:20,animationDelay:".2s"}}>
+          <div className="mm-fade-up" style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr)",borderRadius:20,padding:"clamp(18px,3vw,28px)",display:"flex",flexDirection:"column",gap:20,animationDelay:".2s"}}>
 
             {/* ── STANDARD MODE: Preset Grid OR Add/Sub Inputs ── */}
             {configMode === "standard" && (() => {
@@ -3388,7 +3356,7 @@ export default function Mental() {
         </div>
 
         {/* Start Button — sticky footer */}
-        <div style={{position:"sticky",bottom:0,background:"linear-gradient(to top, var(--mm-bg) 65%, transparent)",padding:"16px 20px 24px",maxWidth:900,margin:"0 auto"}}>
+        <div style={{position:"sticky",bottom:0,background:"linear-gradient(to top, var(--mm-bg) 65%, transparent)",padding:"16px clamp(12px,3vw,20px) 24px",maxWidth:900,margin:"0 auto"}}>
           <button
             onClick={startCountdown}
             style={{width:"100%",padding:"18px",background:"linear-gradient(135deg, var(--mm-pur) 0%, #5535C0 50%, #4428A8 100%)",border:"none",borderRadius:16,fontFamily:"var(--mm-fd)",fontSize:17,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 8px 32px rgba(123,92,229,.3), inset 0 1px 0 rgba(255,255,255,.1)",transition:"transform .2s, box-shadow .2s"}}

@@ -383,7 +383,7 @@ export default function StudentProfile() {
 
   const sectionCard: React.CSSProperties = {
     background: D.surf, border: `1px solid ${D.border}`,
-    borderRadius: 20, padding: "24px 28px",
+    borderRadius: 20, padding: "clamp(18px,3vw,24px) clamp(16px,3vw,28px)",
   };
 
   const sectionTitle = (icon: React.ReactNode, title: string) => (
@@ -401,9 +401,15 @@ export default function StudentProfile() {
         .sp-input:focus { border-color: rgba(124,90,246,0.7) !important; box-shadow: 0 0 0 3px rgba(124,90,246,0.12); }
         .sp-input:disabled { opacity: 0.45; cursor: not-allowed; }
         .sp-select option { background: #12142a; color: #e2e8f0; }
+        @media(max-width:640px){
+          .sp-section-card{padding:18px 16px!important;border-radius:16px!important}
+        }
+        @media(max-width:480px){
+          .sp-section-card{padding:14px 12px!important;border-radius:14px!important}
+        }
       `}</style>
       <div style={{ minHeight: "100vh", background: D.bg, paddingTop: "4rem", paddingBottom: "4rem" }}>
-        <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 1.5rem" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 clamp(0.75rem,3vw,1.5rem)" }}>
 
           {/* Page Header */}
           <header style={{ marginBottom: "2.5rem" }}>
@@ -463,7 +469,7 @@ export default function StudentProfile() {
           </div>
 
           {/* 2-column grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 16 }}>
 
             {/* Basic Information */}
             <div style={sectionCard}>

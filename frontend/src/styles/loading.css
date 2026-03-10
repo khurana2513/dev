@@ -5,6 +5,17 @@
 
 /* ── Keyframes ─────────────────────────────────────────────── */
 
+@keyframes th-logo-float {
+  0%, 100% {
+    transform: translateY(0px);
+    filter: drop-shadow(0 4px 16px rgba(123,92,229,0.35)) drop-shadow(0 0 32px rgba(123,92,229,0.15));
+  }
+  50% {
+    transform: translateY(-9px);
+    filter: drop-shadow(0 12px 28px rgba(123,92,229,0.55)) drop-shadow(0 0 48px rgba(167,139,250,0.3));
+  }
+}
+
 @keyframes th-line-sweep {
   0%   { transform: translateX(-100%); opacity: 0; }
   15%  { opacity: 1; }

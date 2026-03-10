@@ -166,7 +166,7 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             "email": user.email
         })
         
-        # Build user response with public_id
+        # Build user response with public_id, branch, course and level
         user_dict = {
             "id": user.id,
             "email": user.email,
@@ -178,13 +178,19 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             "current_streak": user.current_streak,
             "longest_streak": user.longest_streak,
             "created_at": user.created_at,
-            "public_id": None
+            "public_id": None,
+            "branch": None,
+            "course": None,
+            "level": None,
         }
         
-        # Get public_id from student profile if exists
+        # Get public_id, branch, course, level from student profile if exists
         profile = db.query(StudentProfile).filter(StudentProfile.user_id == user.id).first()
         if profile:
             user_dict["public_id"] = profile.public_id
+            user_dict["branch"] = profile.branch
+            user_dict["course"] = profile.course
+            user_dict["level"] = profile.level
 
         # ── Daily login bonus (idempotent per IST day) ────────────────────────
         login_bonus_points = 0
@@ -297,13 +303,19 @@ async def get_me(
         "current_streak": current_user.current_streak,
         "longest_streak": current_user.longest_streak,
         "created_at": current_user.created_at,
-        "public_id": None
+        "public_id": None,
+        "branch": None,
+        "course": None,
+        "level": None,
     }
     
-    # Get public_id from student profile if exists
+    # Get public_id, branch, course, level from student profile if exists
     profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
     if profile:
         user_dict["public_id"] = profile.public_id
+        user_dict["branch"] = profile.branch
+        user_dict["course"] = profile.course
+        user_dict["level"] = profile.level
     
     elapsed = time.time() - request_start
     if elapsed > 0.5:  # Only log if slow
@@ -1424,7 +1436,18 @@ async def delete_student(
             UserSubscription.user_id == student_id
         ).delete(synchronize_session=False)
 
-        # ── Step 15: Finally delete the user ─────────────────────────────────
+        # ── Step 15: Delete legacy orphaned table rows (no ORM model) ───────
+        from sqlalchemy import text as _text
+        for _legacy_table in ("rewards", "leaderboard"):
+            try:
+                db.execute(
+                    _text(f"DELETE FROM {_legacy_table} WHERE user_id = :uid"),
+                    {"uid": student_id},
+                )
+            except Exception:
+                db.rollback()  # table may not exist in all envs — safe to skip
+
+        # ── Step 16: Finally delete the user ─────────────────────────────────
         db.delete(student)
         db.commit()
 

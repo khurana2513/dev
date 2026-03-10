@@ -97,9 +97,27 @@ export interface LeaderboardEntry {
   student_id: number;
   student_name: string;
   branch: string;
+  course: string;
+  level: string;
   total_points: number;
   avatar_url: string | null;
   is_current_user: boolean;
+}
+
+// ── Streak Calendar ─────────────────────────────────────────────────
+
+export interface StreakCalendarDay {
+  date: string;       // YYYY-MM-DD (IST)
+  qualified: boolean;
+  count: number;
+}
+
+export interface StreakCalendarResponse {
+  year: number;
+  month: number;
+  days: StreakCalendarDay[];
+  qualified_count: number;
+  total_days: number;
 }
 
 export interface LeaderboardResponse {

@@ -30,10 +30,13 @@ export function LoadingScreen({
 
       <div className="th-loading__content">
 
-        {/* Brand name */}
+        {/* Logo */}
         <div className="th-loading__brand" aria-hidden="true">
-          <span className="th-loading__brand-main">Talent Hub</span>
-          <span className="th-loading__brand-sub">EXCELLENCE LAB</span>
+          <img
+            src="/imagesproject/logo.ico.jpg"
+            alt="Talent Hub"
+            style={{ width: 64, height: 64, borderRadius: 16, objectFit: 'cover', animation: 'th-logo-float 3s ease-in-out infinite' }}
+          />
         </div>
 
         {/* Sweeping gradient line */}

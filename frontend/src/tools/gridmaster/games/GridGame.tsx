@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { GameGrid, getNextCell, getStartCell, getMagicSum, formatTime } from '../utils/gridGame';
 import { useTimer } from '../hooks/useTimer';
 import { sfx } from '../utils/audio';
@@ -11,14 +11,17 @@ interface Props {
 // Max 49×49, odd sizes only
 const ODD_SIZES = Array.from({ length: 24 }, (_, i) => 3 + i * 2); // 3,5,7,...,49
 
-function getCellPx(n: number): number {
-  if (n <= 5)  return 64;
-  if (n <= 9)  return 52;
-  if (n <= 13) return 42;
-  if (n <= 19) return 34;
-  if (n <= 27) return 27;
-  if (n <= 35) return 22;
-  return 18;
+function getCellPx(n: number, fs = false): number {
+  const base = (() => {
+    if (n <= 5)  return 64;
+    if (n <= 9)  return 52;
+    if (n <= 13) return 42;
+    if (n <= 19) return 34;
+    if (n <= 27) return 27;
+    if (n <= 35) return 22;
+    return 18;
+  })();
+  return fs ? Math.round(base * 1.25) : base;
 }
 
 function getCellFontSize(px: number): number {
@@ -44,14 +47,38 @@ export function GridGame({ onToast }: Props) {
   const [wrongFlash, setWrongFlash] = useState<string | null>(null);
   const [recentCell, setRecentCell] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { secs, reset: resetTimer } = useTimer(running && !paused && !solved);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (!document.fullscreenElement) {
+          if (containerRef.current) containerRef.current.scrollTop = 0;
+          containerRef.current?.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    };
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('keydown', handleKey);
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('fullscreenchange', handleFsChange);
+    };
+  }, []);
 
   const totalCells = n * n;
   const filledCount = nextNum - 1;
   const magicSum = getMagicSum(n);
   const progress = (filledCount / totalCells) * 100;
-  const cellPx = getCellPx(n);
+  const cellPx = getCellPx(n, isFullscreen);
   const fontSize = getCellFontSize(cellPx);
 
   function initGrid(size: number): GameGrid {
@@ -144,7 +171,7 @@ export function GridGame({ onToast }: Props) {
   ];
 
   return (
-    <div className={styles.wrap}>
+    <div ref={containerRef} className={`${styles.wrap}${isFullscreen ? ' ' + styles.wrapFs : ''}`}>
 
       {/* ── How to Play Modal ── */}
       {showModal && (
@@ -209,6 +236,18 @@ export function GridGame({ onToast }: Props) {
           </button>
           <button className={`${styles.btn} ${styles.btnInfo}`} onClick={() => setShowModal(true)}>
             ? How to Play
+          </button>
+          <button
+            className={`${styles.btn} ${styles.btnGhost}`}
+            onClick={() => {
+              if (!document.fullscreenElement) {
+                if (containerRef.current) containerRef.current.scrollTop = 0;
+                containerRef.current?.requestFullscreen().catch(() => {});
+              } else document.exitFullscreen().catch(() => {});
+            }}
+            title="Fullscreen (press F)"
+          >
+            {isFullscreen ? '⛶ Exit' : '⛶ Full'}
           </button>
         </div>
       </div>
@@ -288,6 +327,53 @@ export function GridGame({ onToast }: Props) {
           <div className={styles.successIcon}>🏆</div>
           <h2>Brilliant!</h2>
           <p>Grid filled in {formatTime(secs)} — every row, column & diagonal sums to <strong>{magicSum}</strong></p>
+        </div>
+      )}
+
+      {/* ── Fullscreen HUD ── */}
+      {isFullscreen && (
+        <div className={styles.fsHud}>
+          <div className={styles.fsHudInner}>
+            <div className={styles.fsChip}>
+              <span className={styles.fsChipLabel}>Time</span>
+              <span className={styles.fsChipValue}>{paused ? '⏸ ' : ''}{formatTime(secs)}</span>
+            </div>
+            <div className={styles.fsDivider} />
+            <div className={styles.fsChip}>
+              <span className={styles.fsChipLabel}>Next</span>
+              <span className={styles.fsChipValue}>{nextNum <= totalCells ? nextNum : '✓'}</span>
+            </div>
+            <div className={styles.fsChip}>
+              <span className={styles.fsChipLabel}>Magic Sum</span>
+              <span className={styles.fsChipValue}>{magicSum}</span>
+            </div>
+            <div className={styles.fsChip}>
+              <span className={styles.fsChipLabel}>Progress</span>
+              <span className={styles.fsChipValue}>{filledCount}/{totalCells}</span>
+            </div>
+            <div className={styles.fsDivider} />
+            <button
+              className={`${styles.fsBtn} ${paused ? styles.fsBtnActive : ''}`}
+              onClick={() => { sfx.click(); if (running) setPaused(p => !p); }}
+              disabled={!running || solved}
+            >
+              {paused ? '▶ Resume' : '⏸ Pause'}
+            </button>
+            <button
+              className={styles.fsBtn}
+              onClick={useHintFn}
+              disabled={hints === 0 || solved || nextNum > totalCells}
+            >
+              💡 Hint ({hints})
+            </button>
+            <span className={styles.fsHint}>ESC to exit</span>
+            <button
+              className={`${styles.fsBtn} ${styles.fsBtnExit}`}
+              onClick={() => document.exitFullscreen()}
+            >
+              ⛶ Exit
+            </button>
+          </div>
         </div>
       )}
     </div>

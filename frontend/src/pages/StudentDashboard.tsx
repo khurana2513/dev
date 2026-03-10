@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
-import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, StudentDashboardData, getOverallLeaderboard, getWeeklyLeaderboard, LeaderboardEntry, getMyCertificates, CertificateRecord, getPointsLogs, PointsSummaryResponse } from "../lib/userApi";
+import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, StudentDashboardData, getMyCertificates, CertificateRecord, getPointsLogs, PointsSummaryResponse } from "../lib/userApi";
+import { getStudentMonthlyAttendance, StudentMonthlyAttendance } from "../lib/attendanceApi";
 import { PaperAttempt, getPaperAttempt, PaperAttemptDetail, getPaperAttemptCount } from "../lib/api";
-import { Trophy, Target, Zap, CheckCircle2, XCircle, BarChart3, History, X, Eye, ChevronDown, ChevronUp, RotateCcw, Clock, Loader2, RefreshCw, Award, Calendar } from "lucide-react";
+import { Trophy, Target, Zap, CheckCircle2, XCircle, BarChart3, History, X, Eye, ChevronDown, ChevronUp, RotateCcw, Clock, Loader2, Award, Calendar, TrendingUp, Square } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { formatDateToIST } from "../lib/timezoneUtils";
 import MathQuestion from "../components/MathQuestion";
@@ -56,20 +57,18 @@ export default function StudentDashboard() {
   const [showPointsLog, setShowPointsLog] = useState(false);
   const [pointsLogData, setPointsLogData] = useState<PointsSummaryResponse | null>(null);
   const [loadingPointsLog, setLoadingPointsLog] = useState(false);
-  const [lbTab, setLbTab] = useState<"overall" | "weekly">("overall");
+  const [showAttModal, setShowAttModal] = useState(false);
 
-  // ─── Leaderboard queries ───────────────────────────────────────────────────
-  const { data: overallLb = [], isLoading: lbOverallLoading, refetch: refetchOverallLb } = useQuery<LeaderboardEntry[]>({
-    queryKey: ["leaderboard", "overall"],
-    queryFn: () => getOverallLeaderboard(50),
+  // ─── Current month attendance (IST) ───────────────────────────────────────
+  const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+  const attYear  = nowIST.getUTCFullYear();
+  const attMonth = nowIST.getUTCMonth() + 1;
+  const { data: attData, isLoading: attLoading, isError: attError } = useQuery<StudentMonthlyAttendance>({
+    queryKey: ["myAttendance", attYear, attMonth],
+    queryFn: () => getStudentMonthlyAttendance(attMonth, attYear),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-  });
-  const { data: weeklyLb = [], isLoading: lbWeeklyLoading, refetch: refetchWeeklyLb } = useQuery<LeaderboardEntry[]>({
-    queryKey: ["leaderboard", "weekly"],
-    queryFn: () => getWeeklyLeaderboard(50),
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    retry: 1,
   });
 
   // ─── Certificates Query ───────────────────────────────────────────────────
@@ -461,13 +460,14 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div style={{minHeight:"100vh",background:DB.bg,paddingTop:"8rem",paddingBottom:"5rem"}}>
+    <div style={{minHeight:"100vh",background:DB.bg,paddingTop:"5.5rem",paddingBottom:"5rem"}}>
       <style>{`
         @keyframes db-fade-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
         @keyframes db-count-up{from{opacity:0;transform:scale(0.8)}to{opacity:1;transform:scale(1)}}
         @keyframes db-pulse-ring{0%,100%{box-shadow:0 0 0 0 rgba(124,90,246,0.5)}50%{box-shadow:0 0 0 8px rgba(124,90,246,0)}}
         @keyframes db-slide-row{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
         @keyframes db-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        @keyframes attn-ring-in{from{stroke-dashoffset:302}}
         .db-stat-card{transition:transform 0.2s,box-shadow 0.2s}
         .db-stat-card:hover{transform:translateY(-3px);box-shadow:0 20px 60px rgba(0,0,0,0.5)}
         .db-sess-row{transition:background 0.15s,border-color 0.15s}
@@ -476,31 +476,42 @@ export default function StudentDashboard() {
         .db-scrollbar::-webkit-scrollbar-track{background:transparent}
         .db-scrollbar::-webkit-scrollbar-thumb{background:rgba(124,90,246,0.4);border-radius:2px}
         .db-btn-icon{transition:transform 0.15s,background 0.15s}
-        .db-btn-icon:hover{transform:scale(1.12)}
+        .db-btn-icon:hover{transform:scale(1.04)}
+        @media(max-width:768px){
+          .db-stat-card{padding:1.25rem!important}
+          .db-content-grid{grid-template-columns:1fr!important}
+        }
+        @media(max-width:480px){
+          .db-stat-card{padding:1rem!important;border-radius:1rem!important}
+        }
       `}</style>
-      <div style={{maxWidth:"1280px",margin:"0 auto",padding:"0 1.5rem"}}>
+      <div style={{maxWidth:"1280px",margin:"0 auto",padding:"0 clamp(0.75rem,3vw,1.5rem)"}}>
         {/* Page Header */}
-        <header style={{marginBottom:"3rem",animation:"db-fade-up 0.5s ease both"}}>
-          <h1 style={{fontFamily:DB.font,fontSize:"clamp(2rem,4vw,3.25rem)",fontWeight:900,color:DB.text,marginBottom:"0.5rem",lineHeight:1.1}}>
-            Welcome Back,{" "}
-            <span style={{background:"linear-gradient(120deg,#7c5af6,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
-              {user?.display_name || user?.name}
-            </span>!
-          </h1>
-          <p style={{color:DB.muted,fontSize:"1rem",fontWeight:500,marginBottom:"1rem"}}>
-            Track your progress and compete with others
-          </p>
-          <div>
-            <Link href="/attendance">
-              <span style={{display:"inline-flex",alignItems:"center",gap:"0.5rem",fontSize:"0.8125rem",fontWeight:700,color:DB.purple,background:DB.purpleDim,padding:"0.5rem 1rem",borderRadius:"9999px",cursor:"pointer",border:`1px solid rgba(124,90,246,0.25)`,transition:"background 0.15s"}}>
-                <Calendar style={{width:"0.875rem",height:"0.875rem"}} /> My Attendance
-              </span>
+        <header style={{marginBottom:"2rem",animation:"db-fade-up 0.5s ease both"}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:"1rem",flexWrap:"wrap"}}>
+            <div>
+              <h1 style={{fontFamily:DB.font,fontSize:"clamp(1.75rem,4vw,3rem)",fontWeight:900,color:DB.text,marginBottom:"0.375rem",lineHeight:1.1}}>
+                Welcome Back,{" "}
+                <span style={{background:"linear-gradient(120deg,#7c5af6,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+                  {user?.display_name || user?.name}
+                </span>
+                <span style={{color:DB.purple}}>!</span>
+              </h1>
+              <p style={{color:DB.muted,fontSize:"0.9375rem",fontWeight:500}}>
+                Track your progress and compete with others
+              </p>
+            </div>
+            <Link href="/rewards?tab=leaderboard">
+              <button style={{display:"inline-flex",alignItems:"center",gap:"0.5rem",padding:"0.625rem 1.25rem",background:DB.goldDim,border:`1px solid rgba(245,158,11,0.3)`,borderRadius:"0.875rem",color:DB.gold,fontWeight:800,fontSize:"0.8125rem",cursor:"pointer",transition:"all 0.15s",letterSpacing:"0.02em",flexShrink:0}}>
+                <Trophy style={{width:"0.9rem",height:"0.9rem"}} />
+                Leaderboard
+              </button>
             </Link>
           </div>
         </header>
 
         {/* Stats Grid */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1.5rem",marginBottom:"3rem"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 220px), 1fr))",gap:"clamp(0.75rem,2vw,1.5rem)",marginBottom:"3rem"}}>
           {/* Total Points */}
           <div
             className="db-stat-card"
@@ -555,11 +566,11 @@ export default function StudentDashboard() {
         </div>
 
         {/* Content Grid */}
-        <div style={{display:"grid",gridTemplateColumns:"8fr 4fr",gap:"2rem"}}>
+        <div className="db-content-grid" style={{display:"grid",gridTemplateColumns:"7fr 3fr",gap:"2rem"}}>
           {/* Main Content */}
           <div style={{display:"flex",flexDirection:"column",gap:"2rem"}}>
             {/* Recent Practice Sessions */}
-            <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",padding:"2rem",animation:"db-fade-up 0.5s ease 0.25s both"}}>
+            <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",padding:"clamp(1.25rem,3vw,2rem)",animation:"db-fade-up 0.5s ease 0.25s both"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.5rem",flexWrap:"wrap",gap:"1rem"}}>
                 <h2 style={{fontFamily:DB.font,fontSize:"1.5rem",fontWeight:900,color:DB.text,display:"flex",alignItems:"center",gap:"0.75rem"}}>
                   <History style={{width:"1.5rem",height:"1.5rem",color:DB.purple}} />
@@ -569,8 +580,8 @@ export default function StudentDashboard() {
                 <div style={{display:"flex",gap:"0.25rem",background:"rgba(255,255,255,0.04)",padding:"0.25rem",borderRadius:"9999px",border:`1px solid ${DB.border}`}}>
                   {([
                     {key:"overall",label:"All",color:DB.purple},
-                    {key:"mental_math",label:"Mental Math",color:DB.purple},
                     {key:"practice_paper",label:"Papers",color:DB.teal},
+                    {key:"mental_math",label:"Mental Math",color:DB.purple},
                     {key:"burst_mode",label:"⚡ Burst",color:DB.burst},
                   ] as const).map(({key,label,color})=>(
                     <button
@@ -583,7 +594,7 @@ export default function StudentDashboard() {
               </div>
               <div style={{marginBottom:"1.5rem",padding:"0.875rem 1rem",background:DB.purpleDim,borderRadius:"0.875rem",border:`1px solid rgba(124,90,246,0.2)`}}>
                 <p style={{fontSize:"0.8rem",color:DB.purple,fontWeight:600}}>
-                  <strong>Note:</strong> Only your last 10 mental math practice sessions and 10 practice paper attempts are stored. Older sessions are automatically removed to optimize storage.
+                  <strong>Note:</strong> Last 10 mental math, 10 paper &amp; 10 burst sessions are stored. Older records are auto-removed to optimise storage.
                 </p>
               </div>
           {filteredSessions.length > 0 ? (
@@ -596,7 +607,7 @@ export default function StudentDashboard() {
                   <div
                     key={`${session.type}-${session.id}`}
                     className="db-sess-row"
-                    style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"1rem",padding:"1rem 1.25rem",cursor:"pointer",display:"flex",alignItems:"center",gap:"1rem",animation:`db-slide-row 0.3s ease ${rowIdx*0.05}s both`,borderLeft:`3px solid ${typeColor}`}}
+                    style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"1rem",padding:"clamp(0.75rem,2vw,1rem) clamp(0.75rem,2vw,1.25rem)",cursor:"pointer",display:"flex",alignItems:"center",gap:"0.75rem",animation:`db-slide-row 0.3s ease ${rowIdx*0.05}s both`,borderLeft:`3px solid ${typeColor}`}}
                     onClick={() => {
                       if (session.type === "mental_math" || session.type === "burst_mode") {
                         setExpandedSession(expandedSession === session.id ? null : session.id);
@@ -608,21 +619,18 @@ export default function StudentDashboard() {
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginBottom:"0.375rem",flexWrap:"wrap"}}>
                         <span style={{fontWeight:700,color:DB.text,fontSize:"0.9rem",whiteSpace:"nowrap"}}>{session.title}</span>
-                        <span style={{padding:"0.2rem 0.625rem",fontSize:"0.65rem",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.05em",borderRadius:"9999px",background:`rgba(${session.type==="burst_mode"?"249,115,22":session.type==="mental_math"?"124,90,246":"20,184,166"},0.15)`,color:typeColor,border:`1px solid ${typeColor}40`}}>
-                          {session.subtitle}
-                        </span>
                         <span style={{padding:"0.2rem 0.625rem",fontSize:"0.65rem",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.05em",borderRadius:"9999px",background:typeColor,color:"#fff"}}>
                           {typeBadge}
                         </span>
                       </div>
-                      <div style={{display:"flex",alignItems:"center",gap:"1rem",fontSize:"0.8rem",flexWrap:"wrap"}}>
-                        <span style={{color:DB.muted}}>Score: <strong style={{color:typeColor}}>{session.score ?? session.correct_answers}</strong>/{session.total_questions ?? (session.correct_answers + session.wrong_answers)}</span>
-                        <span style={{color:DB.muted}}>Accuracy: <strong style={{color:typeColor}}>{session.accuracy.toFixed(1)}%</strong></span>
+                      <div style={{display:"flex",alignItems:"center",gap:"0.875rem",fontSize:"0.78rem",flexWrap:"wrap",fontVariantNumeric:"tabular-nums"}}>
+                        <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Score:{" "}<strong style={{color:typeColor,display:"inline-block",minWidth:"4.25rem"}}>{session.score ?? session.correct_answers}/{session.total_questions ?? (session.correct_answers + session.wrong_answers)}</strong></span>
+                        <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Accuracy:{" "}<strong style={{color:typeColor,display:"inline-block",minWidth:"3.5rem"}}>{session.accuracy.toFixed(1)}%</strong></span>
                         {session.time_taken !== null && session.time_taken !== undefined && (
-                          <span style={{color:DB.muted}}>Duration: <strong style={{color:DB.text}}>{formatTime(session.time_taken)}</strong></span>
+                          <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Duration:{" "}<strong style={{color:DB.text,display:"inline-block",minWidth:"3.5rem"}}>{formatTime(session.time_taken)}</strong></span>
                         )}
-                        <span style={{color:DB.muted}}>Points: <strong style={{color:DB.gold}}>+{session.points_earned}</strong></span>
-                        <span style={{color:DB.muted,display:"flex",alignItems:"center",gap:"0.25rem"}}>
+                        <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Points:{" "}<strong style={{color:DB.gold,display:"inline-block",minWidth:"2.5rem"}}>+{session.points_earned}</strong></span>
+                        <span style={{color:DB.muted,display:"inline-flex",alignItems:"center",gap:"0.25rem"}}>
                           <Clock style={{width:"0.75rem",height:"0.75rem"}} />
                           {formatDateToIST(session.completed_at || session.started_at)}
                         </span>
@@ -744,6 +752,133 @@ export default function StudentDashboard() {
             </div>
           </div>
 
+          {/* ─── Attendance Trigger Card ───────────────────────────── */}
+          {(() => {
+            const ATT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            const monthLabel = `${ATT_MONTHS[attMonth - 1]} ${attYear}`;
+
+            // Loading skeleton
+            if (attLoading) return (
+              <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.25rem",padding:"1rem 1.125rem",animation:"db-fade-up 0.5s ease 0.28s both"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.75rem"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"0.625rem"}}>
+                    <div style={{width:"1.875rem",height:"1.875rem",background:DB.tealDim,borderRadius:"0.5rem",border:`1px solid rgba(20,184,166,0.2)`}} />
+                    <div>
+                      <div style={{width:"4.5rem",height:"0.7rem",background:"rgba(255,255,255,0.07)",borderRadius:4,marginBottom:"0.3rem",animation:"db-pulse 1.5s ease-in-out infinite"}} />
+                      <div style={{width:"3rem",height:"0.55rem",background:"rgba(255,255,255,0.04)",borderRadius:4,animation:"db-pulse 1.5s ease-in-out infinite"}} />
+                    </div>
+                  </div>
+                  <div style={{width:"2.75rem",height:"2.75rem",borderRadius:"50%",background:"rgba(255,255,255,0.06)",animation:"db-pulse 1.5s ease-in-out infinite"}} />
+                </div>
+                <div style={{display:"flex",gap:"0.5rem"}}>
+                  {[0,1,2].map(i => <div key={i} style={{flex:1,height:"2.75rem",background:"rgba(255,255,255,0.04)",borderRadius:"0.625rem",animation:"db-pulse 1.5s ease-in-out infinite"}} />)}
+                </div>
+              </div>
+            );
+
+            // Error / no profile — always show a tappable card linking to attendance page
+            if (attError || !attData) return (
+              <Link href="/attendance">
+                <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.25rem",padding:"1rem 1.125rem 0.875rem",cursor:"pointer",animation:"db-fade-up 0.5s ease 0.28s both",transition:"border-color 0.2s"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"0.625rem"}}>
+                    <div style={{width:"1.875rem",height:"1.875rem",background:DB.tealDim,borderRadius:"0.5rem",display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid rgba(20,184,166,0.2)`,flexShrink:0}}>
+                      <Calendar style={{width:"0.875rem",height:"0.875rem",color:DB.teal}} />
+                    </div>
+                    <div>
+                      <div style={{fontSize:"0.8rem",fontWeight:900,color:DB.text,lineHeight:1.2}}>Attendance</div>
+                      <div style={{fontSize:"0.625rem",color:DB.muted,marginTop:"0.1rem"}}>{monthLabel}</div>
+                    </div>
+                  </div>
+                  <div style={{marginTop:"0.75rem",fontSize:"0.7rem",color:DB.muted}}>No data yet — tap to open attendance page</div>
+                </div>
+              </Link>
+            );
+
+            // Data loaded — full interactive card
+            const s = attData.summary;
+            const pct = Math.min(Math.max(s.attendance_percentage, 0), 100);
+            const R = 48; const circ = 2 * Math.PI * R; // ≈301.6
+            const dashFill = (pct / 100) * circ;
+            const dashOffset = circ - dashFill;
+            const pctColor = pct >= 80 ? DB.green : pct >= 50 ? DB.gold : "#f87171";
+            const statusMsg = pct >= 80 ? "Excellent" : pct >= 60 ? "On track" : "Needs focus";
+            return (
+              <button
+                onClick={() => setShowAttModal(true)}
+                style={{
+                  width:"100%", textAlign:"left", cursor:"pointer",
+                  background:DB.surf, border:`1px solid ${DB.border}`,
+                  borderRadius:"1.25rem", padding:"1rem 1.125rem 0.875rem",
+                  animation:"db-fade-up 0.5s ease 0.28s both",
+                  position:"relative", overflow:"hidden",
+                  transition:"border-color 0.2s, box-shadow 0.2s",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = `${pctColor}55`; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 0 0 1px ${pctColor}22, 0 8px 24px rgba(0,0,0,0.35)`; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = DB.border; (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"; }}
+              >
+                {/* Top glow strip */}
+                <div style={{position:"absolute",top:0,left:0,right:0,height:"2px",background:`linear-gradient(90deg, transparent, ${pctColor}90, transparent)`,borderRadius:"9999px 9999px 0 0"}} />
+
+                {/* Header row */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.875rem"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"0.625rem"}}>
+                    <div style={{width:"1.875rem",height:"1.875rem",background:DB.tealDim,borderRadius:"0.5rem",display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid rgba(20,184,166,0.2)`,flexShrink:0}}>
+                      <Calendar style={{width:"0.875rem",height:"0.875rem",color:DB.teal}} />
+                    </div>
+                    <div>
+                      <div style={{fontSize:"0.8rem",fontWeight:900,color:DB.text,lineHeight:1.2}}>Attendance</div>
+                      <div style={{fontSize:"0.625rem",color:DB.muted,marginTop:"0.1rem"}}>{monthLabel}</div>
+                    </div>
+                  </div>
+                  <span style={{fontSize:"0.65rem",fontWeight:700,color:pctColor,background:`${pctColor}18`,border:`1px solid ${pctColor}35`,padding:"0.15rem 0.6rem",borderRadius:"9999px"}}>{statusMsg}</span>
+                </div>
+
+                {/* Large ring + percentage */}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"0.25rem 0 1rem",position:"relative"}}>
+                  {/* Ambient glow behind ring */}
+                  <div style={{position:"absolute",width:"7rem",height:"7rem",borderRadius:"50%",background:`radial-gradient(circle, ${pctColor}18 0%, transparent 68%)`,filter:"blur(12px)",pointerEvents:"none",top:"50%",left:"50%",transform:"translate(-50%,-50%)"}} />
+                  <svg viewBox="0 0 110 110" style={{width:"6.875rem",height:"6.875rem",transform:"rotate(-90deg)",filter:`drop-shadow(0 0 7px ${pctColor}55) drop-shadow(0 2px 14px rgba(0,0,0,0.4))`}}>
+                    {/* Track ring */}
+                    <circle cx="55" cy="55" r={R} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="7" strokeLinecap="round" />
+                    {/* Progress ring — animated draw-in */}
+                    <circle cx="55" cy="55" r={R} fill="none" stroke={pctColor} strokeWidth="7"
+                      strokeDasharray={circ} strokeDashoffset={dashOffset} strokeLinecap="round"
+                      style={{animation:"attn-ring-in 1.3s cubic-bezier(0.34,1.1,0.64,1) both",transition:"stroke-dashoffset 1.2s cubic-bezier(0.34,1.1,0.64,1)"}} />
+                    {/* Soft glow overlay ring */}
+                    <circle cx="55" cy="55" r={R} fill="none" stroke={pctColor} strokeWidth="3"
+                      strokeDasharray={circ} strokeDashoffset={dashOffset} strokeLinecap="round"
+                      opacity="0.25" style={{filter:"blur(3px)",animation:"attn-ring-in 1.3s cubic-bezier(0.34,1.1,0.64,1) both"}} />
+                  </svg>
+                  {/* Center text */}
+                  <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}>
+                    <div style={{fontSize:"1.5rem",fontWeight:900,color:pctColor,lineHeight:1,letterSpacing:"-0.04em"}}>{Math.round(pct)}%</div>
+                    <div style={{fontSize:"0.5rem",fontWeight:600,color:DB.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginTop:2}}>this month</div>
+                  </div>
+                </div>
+
+                {/* Stats row */}
+                <div style={{display:"flex",gap:"0.5rem",marginBottom:"0.625rem"}}>
+                  {[
+                    { val: s.present,    label: "Present",  color: DB.green,  bg: DB.greenDim  },
+                    { val: s.absent,     label: "Absent",   color: "#f87171", bg: "rgba(248,113,113,0.1)" },
+                    { val: s.total_held, label: "Classes",  color: DB.teal,   bg: DB.tealDim   },
+                  ].map(item => (
+                    <div key={item.label} style={{flex:1,textAlign:"center",background:item.bg,borderRadius:"0.625rem",padding:"0.4rem 0.25rem",border:`1px solid ${item.color}22`}}>
+                      <div style={{fontSize:"1.05rem",fontWeight:900,color:item.color,lineHeight:1}}>{item.val}</div>
+                      <div style={{fontSize:"0.575rem",fontWeight:700,color:DB.muted,marginTop:"0.2rem"}}>{item.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer hint */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"0.3rem"}}>
+                  <span style={{fontSize:"0.625rem",color:DB.muted,letterSpacing:"0.03em"}}>Tap to view details</span>
+                  <ChevronDown style={{width:"0.65rem",height:"0.65rem",color:DB.muted}} />
+                </div>
+              </button>
+            );
+          })()}
+
           {/* Practice Button */}
           <Link href="/mental">
             <button
@@ -754,114 +889,6 @@ export default function StudentDashboard() {
               Start Practice
             </button>
           </Link>
-
-          {/* ─── Leaderboard ─────────────────────────────────────────────── */}
-          <div style={{background:DB.surf,border:`1px solid ${DB.border}`,borderRadius:"1.5rem",overflow:"hidden",animation:"db-fade-up 0.5s ease 0.35s both"}}>
-            {/* Header */}
-            <div style={{padding:"1.25rem 1.5rem 0",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
-              <h2 style={{fontFamily:DB.font,fontSize:"1rem",fontWeight:900,color:DB.text,display:"flex",alignItems:"center",gap:"0.5rem"}}>
-                <Trophy style={{width:"1rem",height:"1rem",color:DB.gold}} />
-                Leaderboard
-              </h2>
-              <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
-                <div style={{display:"flex",background:"rgba(255,255,255,0.04)",border:`1px solid ${DB.border}`,borderRadius:"0.625rem",padding:"0.2rem",gap:"0.15rem"}}>
-                  <button
-                    onClick={() => setLbTab("overall")}
-                    style={{padding:"0.25rem 0.625rem",borderRadius:"0.4rem",fontSize:"0.7rem",fontWeight:700,border:"none",cursor:"pointer",background:lbTab==="overall"?DB.purple:"transparent",color:lbTab==="overall"?"#fff":DB.muted,transition:"all 0.15s"}}
-                  >Overall</button>
-                  <button
-                    onClick={() => setLbTab("weekly")}
-                    style={{padding:"0.25rem 0.625rem",borderRadius:"0.4rem",fontSize:"0.7rem",fontWeight:700,border:"none",cursor:"pointer",background:lbTab==="weekly"?DB.purple:"transparent",color:lbTab==="weekly"?"#fff":DB.muted,transition:"all 0.15s"}}
-                  >This Week</button>
-                </div>
-                <button
-                  onClick={() => lbTab === "overall" ? refetchOverallLb() : refetchWeeklyLb()}
-                  style={{padding:"0.35rem",borderRadius:"0.5rem",border:`1px solid ${DB.border}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
-                  title="Refresh"
-                >
-                  <RefreshCw style={{width:"0.8rem",height:"0.8rem",color:DB.muted}} />
-                </button>
-              </div>
-            </div>
-
-            {/* Loading skeleton */}
-            {(lbTab === "overall" ? lbOverallLoading : lbWeeklyLoading) ? (
-              <div className="px-4 pb-4 space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-12 bg-background/50 rounded-xl animate-pulse" />
-                ))}
-              </div>
-            ) : (
-              <div className="db-scrollbar" style={{paddingBottom:"0.75rem",maxHeight:"22rem",overflowY:"auto"}}>
-                {(lbTab === "overall" ? overallLb : weeklyLb).map((entry, idx) => {
-                  const pts = lbTab === "overall" ? entry.total_points : entry.weekly_points;
-                  const isMe = entry.user_id === user?.id;
-                  const initial = (entry.name || "?").charAt(0).toUpperCase();
-                  const avatarColors = ["#7c5af6","#14b8a6","#22c55e","#f59e0b","#f87171","#ec4899","#6366f1","#0ea5e9"];
-                  const colIdx = entry.name.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % avatarColors.length;
-                  const medalText = idx===0?"🥇":idx===1?"🥈":idx===2?"🥉":null;
-                  const rankColor = idx===0?DB.gold:idx===1?"#94a3b8":idx===2?"#fb923c":DB.muted;
-
-                  return (
-                    <div
-                      key={entry.user_id}
-                      style={{margin:"0 0.75rem 0.25rem",padding:"0.625rem",borderRadius:"0.75rem",display:"flex",alignItems:"center",gap:"0.625rem",background:isMe?DB.purpleDim:"transparent",border:isMe?`1px solid rgba(124,90,246,0.3)`:`1px solid transparent`,transition:"all 0.15s"}}
-                    >
-                      {/* Rank */}
-                      <div style={{width:"1.25rem",flexShrink:0,textAlign:"center"}}>
-                        {medalText
-                          ? <span style={{fontSize:"0.9rem",lineHeight:1}}>{medalText}</span>
-                          : <span style={{fontSize:"0.7rem",fontWeight:900,color:DB.muted}}>{idx + 1}</span>}
-                      </div>
-
-                      {/* Avatar */}
-                      {entry.avatar_url ? (
-                        <img src={entry.avatar_url} alt={entry.name} style={{width:"1.75rem",height:"1.75rem",borderRadius:"50%",flexShrink:0,border:idx<3?`2px solid ${rankColor}`:"2px solid transparent"}} />
-                      ) : (
-                        <div style={{width:"1.75rem",height:"1.75rem",borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:"0.7rem",fontWeight:700,background:avatarColors[colIdx],border:idx<3?`2px solid ${rankColor}`:"none"}}>
-                          {initial}
-                        </div>
-                      )}
-
-                      {/* Info */}
-                      <div style={{minWidth:0,flex:1}}>
-                        <div style={{display:"flex",alignItems:"center",gap:"0.25rem",flexWrap:"wrap"}}>
-                          <span style={{fontSize:"0.75rem",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:isMe?DB.purple:DB.text}}>
-                            {entry.name}{isMe && " (you)"}
-                          </span>
-                          {entry.public_id && (
-                            <span style={{fontSize:"0.6rem",fontFamily:"monospace",fontWeight:700,padding:"0.1rem 0.3rem",background:DB.purpleDim,color:DB.purple,borderRadius:"0.25rem",flexShrink:0}}>
-                              {entry.public_id}
-                            </span>
-                          )}
-                        </div>
-                        {(entry.level || entry.course) && (
-                          <div style={{display:"flex",alignItems:"center",gap:"0.25rem",marginTop:"0.15rem"}}>
-                            {entry.level && <span style={{fontSize:"0.6rem",fontWeight:700,padding:"0.1rem 0.3rem",background:"rgba(124,90,246,0.13)",color:DB.purple,borderRadius:"0.25rem"}}>{entry.level}</span>}
-                            {entry.course && <span style={{fontSize:"0.6rem",fontWeight:700,padding:"0.1rem 0.3rem",background:"rgba(14,165,233,0.13)",color:"#38bdf8",borderRadius:"0.25rem"}}>{entry.course}</span>}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Points */}
-                      <div style={{textAlign:"right",flexShrink:0}}>
-                        <div style={{fontSize:"0.8rem",fontWeight:900,color:idx===0?DB.gold:idx===1?"#94a3b8":idx===2?"#fb923c":isMe?DB.purple:DB.text}}>{pts.toLocaleString()}</div>
-                        <div style={{fontSize:"0.6rem",color:DB.muted}}>pts</div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {(lbTab === "overall" ? overallLb : weeklyLb).length === 0 && (
-                  <div style={{padding:"2.5rem 1.5rem",textAlign:"center"}}>
-                    <Trophy style={{width:"2rem",height:"2rem",margin:"0 auto 0.5rem",color:DB.muted,opacity:0.3}} />
-                    <p style={{fontSize:"0.8rem",fontWeight:600,color:DB.muted}}>No rankings yet</p>
-                    <p style={{fontSize:"0.7rem",color:DB.muted,marginTop:"0.25rem"}}>Start practicing to appear here!</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -978,6 +1005,154 @@ export default function StudentDashboard() {
 
     </div>
 
+{/* Attendance Modal */}
+      {showAttModal && attData && (() => {
+        const s = attData.summary;
+        const pct = Math.min(Math.max(s.attendance_percentage, 0), 100);
+        const ATT_MO = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+        const monthFull = `${ATT_MO[attMonth - 1]} ${attYear}`;
+        const pctColor = pct >= 80 ? DB.green : pct >= 50 ? DB.gold : "#f87171";
+        const statusMsg = pct >= 80 ? "Excellent attendance! Keep it up 🎉" : pct >= 60 ? "Good — stay consistent" : "Attendance needs attention";
+        const statusSub = pct >= 80 ? "You're in the top tier" : pct >= 60 ? "Aim for 80%+ this month" : "Try to attend every class";
+        // Large ring
+        const bigR = 52;
+        const bigSW = 7;
+        const bigCirc = 2 * Math.PI * bigR;
+        const bigDash = (pct / 100) * bigCirc;
+        const statsRows = [
+          { label: "Present",  value: s.present,    color: DB.green,  bg: "rgba(34,197,94,0.08)",   border: "rgba(34,197,94,0.2)"   },
+          { label: "Absent",   value: s.absent,     color: "#f87171", bg: "rgba(248,113,113,0.08)", border: "rgba(248,113,113,0.2)" },
+          { label: "On Break", value: s.on_break,   color: DB.gold,   bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.2)"  },
+          { label: "Leave",    value: s.leave,      color: "#60a5fa", bg: "rgba(96,165,250,0.08)",  border: "rgba(96,165,250,0.2)"  },
+        ];
+        return (
+          <div
+            style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",backdropFilter:"blur(16px)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}
+            onClick={() => setShowAttModal(false)}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background:"#0a0c18",
+                border:`1px solid rgba(255,255,255,0.1)`,
+                borderTop:`2px solid ${pctColor}`,
+                borderRadius:"1.75rem",
+                boxShadow:`0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04), 0 0 60px ${pctColor}18`,
+                width:"100%", maxWidth:"26rem",
+                overflow:"hidden",
+                animation:"db-fade-up 0.28s cubic-bezier(0.22,1,0.36,1) both",
+              }}
+            >
+              {/* Header */}
+              <div style={{padding:"1.375rem 1.5rem 0",display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"0.75rem"}}>
+                  <div style={{width:"2.5rem",height:"2.5rem",background:DB.tealDim,border:`1px solid rgba(20,184,166,0.25)`,borderRadius:"0.75rem",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <Calendar style={{width:"1.1rem",height:"1.1rem",color:DB.teal}} />
+                  </div>
+                  <div>
+                    <h2 style={{fontSize:"1rem",fontWeight:900,color:DB.text,lineHeight:1.2,margin:0}}>Monthly Attendance</h2>
+                    <p style={{fontSize:"0.7rem",color:DB.muted,margin:"0.2rem 0 0"}}>{monthFull}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAttModal(false)}
+                  style={{width:"2rem",height:"2rem",background:"rgba(255,255,255,0.05)",border:`1px solid ${DB.border}`,borderRadius:"0.625rem",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:"0.125rem"}}
+                >
+                  <X style={{width:"0.875rem",height:"0.875rem",color:DB.muted}} />
+                </button>
+              </div>
+
+              {/* Big ring + status */}
+              <div style={{padding:"1.5rem 1.5rem 0",display:"flex",alignItems:"center",gap:"1.25rem"}}>
+                {/* SVG ring */}
+                <div style={{position:"relative",width:`${(bigR + bigSW) * 2}px`,height:`${(bigR + bigSW) * 2}px`,flexShrink:0}}>
+                  <svg width={(bigR + bigSW) * 2} height={(bigR + bigSW) * 2} style={{transform:"rotate(-90deg)"}}>
+                    {/* Track */}
+                    <circle cx={bigR + bigSW} cy={bigR + bigSW} r={bigR} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={bigSW} />
+                    {/* Glow layer */}
+                    <circle cx={bigR + bigSW} cy={bigR + bigSW} r={bigR} fill="none" stroke={pctColor} strokeWidth={bigSW + 2}
+                      strokeDasharray={`${bigDash * 0.98} ${bigCirc}`} strokeLinecap="round" opacity="0.15" />
+                    {/* Main arc */}
+                    <circle cx={bigR + bigSW} cy={bigR + bigSW} r={bigR} fill="none" stroke={pctColor} strokeWidth={bigSW}
+                      strokeDasharray={`${bigDash} ${bigCirc}`} strokeLinecap="round"
+                      style={{transition:"stroke-dasharray 1.2s cubic-bezier(0.4,0,0.2,1)"}} />
+                  </svg>
+                  <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                    <span style={{fontSize:"1.75rem",fontWeight:900,color:pctColor,lineHeight:1}}>{Math.round(pct)}%</span>
+                    <span style={{fontSize:"0.6rem",color:DB.muted,marginTop:"0.2rem",textTransform:"uppercase",letterSpacing:"0.08em"}}>present</span>
+                  </div>
+                </div>
+                {/* Status text */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:"0.875rem",fontWeight:800,color:DB.text,lineHeight:1.3,marginBottom:"0.35rem"}}>{statusMsg}</div>
+                  <div style={{fontSize:"0.7rem",color:DB.muted,marginBottom:"0.875rem"}}>{statusSub}</div>
+                  {/* Mini progress bar */}
+                  <div style={{height:"5px",background:"rgba(255,255,255,0.06)",borderRadius:"9999px",overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg, ${pctColor}99, ${pctColor})`,borderRadius:"9999px",transition:"width 1.2s cubic-bezier(0.4,0,0.2,1)"}} />
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:"0.3rem"}}>
+                    <span style={{fontSize:"0.6rem",color:DB.muted}}>0%</span>
+                    <span style={{fontSize:"0.6rem",color:DB.muted}}>100%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats grid 2x2 */}
+              <div style={{padding:"1.125rem 1.5rem 0",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.625rem"}}>
+                {statsRows.map(row => (
+                  <div key={row.label} style={{background:row.bg,border:`1px solid ${row.border}`,borderRadius:"1rem",padding:"0.875rem 1rem"}}>
+                    <div style={{fontSize:"1.625rem",fontWeight:900,color:row.color,lineHeight:1}}>{row.value}</div>
+                    <div style={{fontSize:"0.7rem",fontWeight:700,color:DB.muted,marginTop:"0.25rem"}}>{row.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* T-shirt row (if relevant) */}
+              {s.present > 0 && (
+                <div style={{margin:"1rem 1.5rem 0",background:"rgba(249,115,22,0.07)",border:"1px solid rgba(249,115,22,0.2)",borderRadius:"0.875rem",padding:"0.75rem 1rem",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
+                    <span style={{fontSize:"1rem"}}>👕</span>
+                    <span style={{fontSize:"0.75rem",fontWeight:700,color:"#fdba74"}}>T-Shirt Worn</span>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <span style={{fontSize:"1rem",fontWeight:900,color:"#f97316"}}>{s.tshirt_worn}</span>
+                    <span style={{fontSize:"0.7rem",color:DB.muted}}> / {s.present} days</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Total classes held */}
+              <div style={{margin:"0.625rem 1.5rem 0",background:"rgba(255,255,255,0.03)",border:`1px solid ${DB.border}`,borderRadius:"0.875rem",padding:"0.75rem 1rem",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:"0.75rem",fontWeight:600,color:DB.muted}}>Total Classes Held</span>
+                <span style={{fontSize:"1rem",fontWeight:900,color:DB.text}}>{s.total_held}</span>
+              </div>
+
+              {/* CTA */}
+              <div style={{padding:"1.25rem 1.5rem 1.5rem"}}>
+                <Link href="/attendance">
+                  <button
+                    onClick={() => setShowAttModal(false)}
+                    style={{
+                      width:"100%", display:"inline-flex", alignItems:"center", justifyContent:"center",
+                      gap:"0.625rem", padding:"0.875rem", fontSize:"0.875rem", fontWeight:900,
+                      color:"#fff", background:`linear-gradient(135deg, ${DB.teal}cc, ${DB.teal})`,
+                      border:"none", borderRadius:"0.875rem", cursor:"pointer",
+                      letterSpacing:"0.03em", boxShadow:`0 8px 24px ${DB.teal}30`,
+                      transition:"opacity 0.15s",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.88")}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                  >
+                    <TrendingUp style={{width:"1rem",height:"1rem"}} />
+                    View Full Attendance Report
+                  </button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
 {/* Points Log Modal */}
       {showPointsLog && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",padding:"4.5rem 1rem 2rem"}} onClick={() => setShowPointsLog(false)}>
@@ -1057,32 +1232,37 @@ export default function StudentDashboard() {
                   </div>
                 ))}
               </div>
-              {/* Questions List */}
+              {/* Questions List — flat list */}
               <div>
-                <h3 style={{fontSize:"1rem",fontWeight:900,color:DB.text,marginBottom:"1rem"}}>Questions & Answers</h3>
-                <div style={{display:"flex",flexDirection:"column",gap:"0.625rem"}}>
-                  {selectedSession.attempts.map((attempt) => (
-                    <div key={attempt.id} style={{borderRadius:"0.75rem",padding:"1rem",border:`1px solid ${attempt.is_correct?"rgba(34,197,94,0.25)":"rgba(248,113,113,0.25)"}`,background:attempt.is_correct?"rgba(34,197,94,0.06)":"rgba(248,113,113,0.06)"}}>
-                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-                        <div style={{flex:1}}>
-                          <div style={{display:"flex",alignItems:"center",gap:"0.75rem",marginBottom:"0.5rem"}}>
-                            <span style={{fontWeight:600,color:DB.text,fontSize:"0.875rem"}}>Q{attempt.question_number}:</span>
-                            <span style={{color:DB.text,fontFamily:"monospace",fontSize:"1rem"}}>{formatQuestion(attempt.question_data, selectedSession.operation_type)}</span>
-                          </div>
-                          <div style={{display:"flex",alignItems:"center",gap:"1rem",fontSize:"0.8rem",flexWrap:"wrap"}}>
-                            <span style={{color:attempt.is_correct?DB.green:"#f87171"}}>Your answer: <strong>{attempt.user_answer !== null ? attempt.user_answer : "—"}</strong></span>
-                            <span style={{color:DB.muted}}>Correct: <strong style={{color:DB.text}}>{attempt.correct_answer}</strong></span>
-                            <span style={{color:DB.muted}}>Time: <strong style={{color:DB.text}}>{attempt.time_taken.toFixed(2)}s</strong></span>
-                          </div>
-                        </div>
-                        <div style={{marginLeft:"1rem"}}>
+                <div style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"1.125rem",overflow:"hidden"}}>
+                  <div style={{padding:"1rem 1.25rem",borderBottom:`1px solid ${DB.border}`}}>
+                    <span style={{fontFamily:DB.font,fontSize:"1rem",fontWeight:900,color:DB.text}}>Question Review</span>
+                  </div>
+                  <div style={{maxHeight:"25rem",overflowY:"auto"}} className="db-scrollbar">
+                    {selectedSession.attempts.map((attempt, i) => (
+                      <div
+                        key={attempt.id}
+                        style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:"0.75rem",alignItems:"center",padding:"0.875rem 1.25rem",borderBottom:i < selectedSession.attempts.length - 1 ? `1px solid ${DB.border}` : undefined,borderLeft:`2px solid ${attempt.is_correct?"rgba(34,197,94,0.15)":"rgba(248,113,113,0.2)"}`,paddingLeft:"1rem",transition:"background .15s ease"}}
+                        onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="rgba(255,255,255,.02)"}}
+                        onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background=""}}
+                      >
+                        <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
                           {attempt.is_correct
-                            ? <CheckCircle2 style={{width:"1.25rem",height:"1.25rem",color:DB.green}} />
-                            : <XCircle style={{width:"1.25rem",height:"1.25rem",color:"#f87171"}} />}
+                            ? <CheckCircle2 style={{width:"1rem",height:"1rem",color:DB.green,flexShrink:0}} />
+                            : <XCircle style={{width:"1rem",height:"1rem",color:"#f87171",flexShrink:0}} />
+                          }
+                          <span style={{fontFamily:"monospace",fontSize:"0.875rem",fontWeight:600,color:DB.text}}>{formatQuestion(attempt.question_data, selectedSession.operation_type)}</span>
                         </div>
+                        {!attempt.is_correct && (
+                          <span style={{fontFamily:"monospace",fontSize:"0.8rem",fontWeight:600,color:"#f87171",textDecoration:"line-through"}}>{attempt.user_answer ?? "—"}</span>
+                        )}
+                        <span style={{fontFamily:"monospace",fontSize:"0.8rem",fontWeight:700,color:attempt.is_correct?DB.green:DB.muted}}>{attempt.correct_answer}</span>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                    {selectedSession.attempts.length === 0 && (
+                      <div style={{padding:"2.5rem",textAlign:"center",color:DB.muted}}>No questions attempted</div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1186,7 +1366,7 @@ export default function StudentDashboard() {
                 </div>
               )}
 
-              {/* Questions List */}
+              {/* Questions List — flat list */}
               {loadingPaperDetail ? (
                 <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"2rem"}}>
                   <Loader2 style={{width:"2rem",height:"2rem",animation:"spin 1s linear infinite",color:DB.purple}} />
@@ -1194,44 +1374,52 @@ export default function StudentDashboard() {
                 </div>
               ) : selectedPaperAttemptDetail && selectedPaperAttemptDetail.generated_blocks ? (
                 <div style={{marginTop:"1.5rem"}}>
-                  <h3 style={{fontSize:"1rem",fontWeight:900,color:DB.text,marginBottom:"1rem"}}>All Questions</h3>
-                  <div style={{display:"flex",flexDirection:"column",gap:"0.75rem"}}>
-                    {selectedPaperAttemptDetail.generated_blocks.map((block: any, blockIdx: number) => (
-                      <div key={blockIdx} style={{marginBottom:"0.5rem"}}>
-                        {block.questions && block.questions.map((question: any) => {
+                  <div style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"1.125rem",overflow:"hidden"}}>
+                    <div style={{padding:"1rem 1.25rem",borderBottom:`1px solid ${DB.border}`}}>
+                      <span style={{fontFamily:DB.font,fontSize:"1rem",fontWeight:900,color:DB.text}}>Question Review</span>
+                    </div>
+                    <div style={{maxHeight:"25rem",overflowY:"auto"}} className="db-scrollbar">
+                      {(() => {
+                        const allQ: any[] = [];
+                        selectedPaperAttemptDetail.generated_blocks.forEach((block: any) => {
+                          if (block.questions) block.questions.forEach((q: any) => allQ.push(q));
+                        });
+                        return allQ.map((question, i) => {
                           const userAnswer = selectedPaperAttemptDetail.answers?.[String(question.id)] ?? selectedPaperAttemptDetail.answers?.[question.id];
-                          const isCorrect = userAnswer !== null && userAnswer !== undefined && Math.abs(userAnswer - question.answer) < 0.01;
+                          const isUnattempted = userAnswer === null || userAnswer === undefined;
+                          const isCorrect = !isUnattempted && Math.abs(userAnswer - question.answer) < 0.01;
+                          const borderColor = isUnattempted ? "rgba(245,158,11,.2)" : isCorrect ? "rgba(34,197,94,0.15)" : "rgba(248,113,113,0.2)";
+
                           return (
                             <div
                               key={question.id}
-                              style={{padding:"1rem",borderRadius:"0.75rem",border:`1px solid ${isCorrect?"rgba(34,197,94,0.25)":"rgba(248,113,113,0.25)"}`,background:isCorrect?"rgba(34,197,94,0.06)":"rgba(248,113,113,0.06)",marginBottom:"0.5rem"}}
+                              style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:"0.75rem",alignItems:"center",padding:"0.875rem 1.25rem",borderBottom:i < allQ.length - 1 ? `1px solid ${DB.border}` : undefined,borderLeft:`2px solid ${borderColor}`,paddingLeft:"1rem",transition:"background .15s ease"}}
+                              onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background="rgba(255,255,255,.02)"}}
+                              onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background=""}}
                             >
-                              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"0.5rem"}}>
-                                <div style={{flex:1}}>
-                                  <div style={{display:"flex",alignItems:"center",gap:"0.75rem",marginBottom:"0.5rem"}}>
-                                    <span style={{fontWeight:600,color:DB.text,fontSize:"0.875rem"}}>Q{question.id}:</span>
-                                    <MathQuestion question={question} showAnswer={false} largeFont={true} />
-                                  </div>
-                                  <div style={{display:"flex",alignItems:"center",gap:"1rem",fontSize:"0.8rem",flexWrap:"wrap"}}>
-                                    <span style={{color:isCorrect?DB.green:"#f87171"}}>
-                                      Your answer: <strong>{userAnswer !== null && userAnswer !== undefined ? userAnswer : "—"}</strong>
-                                    </span>
-                                    <span style={{color:DB.muted}}>
-                                      Correct: <strong style={{color:DB.text}}>{question.answer}</strong>
-                                    </span>
-                                  </div>
-                                </div>
-                                <div style={{marginLeft:"1rem"}}>
-                                  {isCorrect
-                                    ? <CheckCircle2 style={{width:"1.25rem",height:"1.25rem",color:DB.green}} />
-                                    : <XCircle style={{width:"1.25rem",height:"1.25rem",color:"#f87171"}} />}
-                                </div>
+                              <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
+                                {isUnattempted
+                                  ? <Square style={{width:"1rem",height:"1rem",color:DB.gold,flexShrink:0}} />
+                                  : isCorrect
+                                    ? <CheckCircle2 style={{width:"1rem",height:"1rem",color:DB.green,flexShrink:0}} />
+                                    : <XCircle style={{width:"1rem",height:"1rem",color:"#f87171",flexShrink:0}} />
+                                }
+                                <span style={{fontSize:"0.875rem",fontWeight:600,color:DB.text}}>
+                                  <MathQuestion question={question} showAnswer={false} largeFont={false} />
+                                </span>
                               </div>
+                              {!isCorrect && !isUnattempted && (
+                                <span style={{fontFamily:"monospace",fontSize:"0.8rem",fontWeight:600,color:"#f87171",textDecoration:"line-through"}}>{userAnswer}</span>
+                              )}
+                              {isUnattempted && (
+                                <span style={{fontFamily:"monospace",fontSize:"0.8rem",fontWeight:600,color:DB.gold}}>—</span>
+                              )}
+                              <span style={{fontFamily:"monospace",fontSize:"0.8rem",fontWeight:700,color:isCorrect?DB.green:DB.muted}}>{question.answer}</span>
                             </div>
                           );
-                        })}
-                      </div>
-                    ))}
+                        });
+                      })()}
+                    </div>
                   </div>
                 </div>
               ) : selectedPaperAttempt.completed_at ? (

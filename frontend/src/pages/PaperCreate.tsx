@@ -1308,11 +1308,21 @@ export default function PaperCreate() {
         .pc-block-card .grid{display:grid!important}
         .pc-drag-handle{display:flex;align-items:center;justify-content:center;padding:12px 0 0;margin-top:12px;border-top:1px solid rgba(255,255,255,0.05);cursor:grab;color:#525870;gap:6px;font-size:12px;font-family:'DM Sans',sans-serif}
         .pc-drag-handle:active{cursor:grabbing}
+        @media(max-width:768px){
+          .pc-block-card{padding:18px 16px!important;border-radius:16px!important}
+        }
+        @media(max-width:480px){
+          .pc-block-card{padding:14px 12px!important;border-radius:14px!important}
+          .pc-block-card input[type="text"],.pc-block-card input[type="number"]{padding:8px 12px!important;font-size:13px!important}
+          .pc-block-card select{padding:8px 12px!important;font-size:13px!important}
+          .pc-label{font-size:11px!important;margin-bottom:6px!important}
+          .pc-action-btn{width:28px!important;height:28px!important;border-radius:6px!important}
+        }
       `}</style>
 
       {/* Sticky header */}
       {/* Hero banner */}
-      <div style={{ position:"relative", overflow:"hidden", borderRadius:"0 0 28px 28px", padding:"52px 32px 56px", background:"linear-gradient(145deg,#0E0C2A 0%,#130F38 40%,#0A0820 100%)", borderBottom:"1px solid rgba(123,92,229,.2)" }}>
+      <div className="pc-hero-banner" style={{ position:"relative", overflow:"hidden", borderRadius:"0 0 28px 28px", padding:"clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)", background:"linear-gradient(145deg,#0E0C2A 0%,#130F38 40%,#0A0820 100%)", borderBottom:"1px solid rgba(123,92,229,.2)" }}>
         {/* Atmospheric glow */}
         <div style={{ position:"absolute", top:"-20%", left:"50%", transform:"translateX(-50%)", width:500, height:400, background:"radial-gradient(ellipse at center, rgba(123,92,229,.15) 0%, rgba(123,92,229,.04) 50%, transparent 70%)", pointerEvents:"none" }} />
         {/* Grid pattern */}
@@ -1334,7 +1344,7 @@ export default function PaperCreate() {
         background:'rgba(6,7,15,0.92)',
         backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
         borderBottom:'1px solid rgba(255,255,255,0.06)',
-        padding:'0 28px',
+        padding:'0 clamp(12px,3vw,28px)',
       }}>
         <div style={{maxWidth:1100,margin:'0 auto',display:'flex',alignItems:'center',gap:8,padding:'10px 0',flexWrap:'wrap'}}>
           {/* Back */}
@@ -1391,10 +1401,10 @@ export default function PaperCreate() {
         </div>
       </div>
 
-      <div style={{maxWidth:1100,margin:'0 auto',padding:'32px 24px'}}>
+      <div style={{maxWidth:1100,margin:'0 auto',padding:'clamp(20px,4vw,32px) clamp(12px,3vw,24px)'}}>
 
         {step === 1 && (
-          <div style={{background:'#0F1120',border:'1px solid rgba(255,255,255,0.07)',borderRadius:20,padding:'32px 36px',animation:'pc-scale-in 0.4s ease'}}>
+          <div style={{background:'#0F1120',border:'1px solid rgba(255,255,255,0.07)',borderRadius:20,padding:'clamp(20px,4vw,32px) clamp(16px,3vw,36px)',animation:'pc-scale-in 0.4s ease'}}>
             {/* Page sub‑heading */}
             {isBasicPage && (
               <div style={{marginBottom:28,paddingBottom:24,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
@@ -1452,7 +1462,7 @@ export default function PaperCreate() {
             )}
             
             {/* Paper Info */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:28}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',gap:20,marginBottom:28}}>
               <div>
                 <label className="pc-label">Paper Title</label>
                 <input
@@ -4209,11 +4219,11 @@ export default function PaperCreate() {
         )}
 
         {step === 2 && previewData && (
-          <div style={{background:'#0F1120',border:'1px solid rgba(255,255,255,0.07)',borderRadius:20,padding:'32px 36px',animation:'pc-scale-in 0.4s ease',position:'relative',overflow:'hidden'}}>
+          <div style={{background:'#0F1120',border:'1px solid rgba(255,255,255,0.07)',borderRadius:20,padding:'clamp(20px,4vw,32px) clamp(16px,3vw,36px)',animation:'pc-scale-in 0.4s ease',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:'linear-gradient(90deg,#7B5CE5,#9D7FF0)'}} />
             <div style={{position:'relative',zIndex:1}}>
               {/* Preview header */}
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:28}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:28,flexWrap:'wrap',gap:16}}>
                 <div style={{display:'flex',alignItems:'center',gap:14}}>
                   <div style={{width:48,height:48,borderRadius:14,background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(123,92,229,0.4)'}}>
                     <Eye style={{width:22,height:22,color:'white'}} />

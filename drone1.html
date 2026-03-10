@@ -1,0 +1,2491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DRONE MASTERY — The Complete Technical Bible</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&family=Barlow:ital,wght@0,300;0,400;0,600;0,700;0,900;1,300;1,400&display=swap');
+
+:root {
+  --void: #050608;
+  --deep: #080b10;
+  --surface: #0d1117;
+  --raised: #111820;
+  --panel: #151e28;
+  --border: #1c2a38;
+  --border2: #243040;
+  --orange: #ff6b00;
+  --orange2: #ff8c00;
+  --orange-dim: rgba(255,107,0,0.15);
+  --cyan: #00d4ff;
+  --cyan-dim: rgba(0,212,255,0.12);
+  --green: #00ff88;
+  --green-dim: rgba(0,255,136,0.1);
+  --red: #ff3333;
+  --red-dim: rgba(255,51,51,0.12);
+  --yellow: #ffd000;
+  --yellow-dim: rgba(255,208,0,0.1);
+  --text: #c8d8e8;
+  --text2: #8a9db0;
+  --text3: #4a5d70;
+  --white: #eef4f8;
+  --mono: 'Share Tech Mono', monospace;
+  --display: 'Rajdhani', sans-serif;
+  --body: 'Barlow', sans-serif;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--void);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.75;
+  overflow-x: hidden;
+}
+
+/* ─── SCROLLBAR ─────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--void); }
+::-webkit-scrollbar-thumb { background: var(--orange); border-radius: 2px; }
+
+/* ─── HERO ───────────────────────────────────── */
+.hero {
+  min-height: 100vh;
+  background: var(--void);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  padding: 60px 40px;
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,107,0,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,107,0,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black, transparent);
+}
+
+.hero-glow {
+  position: absolute;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(255,107,0,0.08) 0%, transparent 70%);
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+}
+
+.hero-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--orange);
+  text-transform: uppercase;
+  margin-bottom: 32px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.hero-tag::before, .hero-tag::after {
+  content: '';
+  width: 40px; height: 1px;
+  background: var(--orange);
+  opacity: 0.5;
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(52px, 10vw, 120px);
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -2px;
+  color: var(--white);
+  margin-bottom: 8px;
+  position: relative;
+}
+.hero h1 .accent { color: var(--orange); display: block; }
+
+.hero-sub {
+  font-family: var(--display);
+  font-size: clamp(14px, 2vw, 20px);
+  font-weight: 300;
+  color: var(--text2);
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin-bottom: 40px;
+  margin-top: 16px;
+}
+
+.hero-stats {
+  display: flex;
+  gap: 48px;
+  flex-wrap: wrap;
+  justify-content: center;
+  position: relative;
+}
+.stat {
+  text-align: center;
+}
+.stat-num {
+  font-family: var(--display);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--orange);
+  line-height: 1;
+}
+.stat-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.scroll-hint {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+/* ─── NAV ────────────────────────────────────── */
+.sidenav {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: 220px;
+  background: var(--deep);
+  border-right: 1px solid var(--border);
+  z-index: 100;
+  overflow-y: auto;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  padding: 20px 0;
+}
+.sidenav.open { transform: translateX(0); }
+.sidenav-header {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--orange);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 0 20px 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.sidenav a {
+  display: block;
+  padding: 8px 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  text-decoration: none;
+  transition: all 0.2s;
+  border-left: 2px solid transparent;
+}
+.sidenav a:hover { color: var(--orange); border-left-color: var(--orange); background: var(--orange-dim); }
+.sidenav a .n { color: var(--orange); margin-right: 8px; }
+
+.nav-toggle {
+  position: fixed;
+  top: 20px; left: 20px;
+  z-index: 200;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--orange);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px 14px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: all 0.2s;
+}
+.nav-toggle:hover { background: var(--orange-dim); border-color: var(--orange); }
+
+/* ─── LAYOUT ─────────────────────────────────── */
+main { padding: 0; }
+
+.chapter {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 80px 48px;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 20px;
+}
+.chapter:last-child { border-bottom: none; }
+
+/* ─── CHAPTER HEADERS ────────────────────────── */
+.ch-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--orange);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.ch-num {
+  background: var(--orange);
+  color: var(--void);
+  font-weight: 700;
+  padding: 3px 8px;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.ch-line { flex: 1; height: 1px; background: var(--border); max-width: 80px; }
+
+.chapter > h2 {
+  font-family: var(--display);
+  font-size: clamp(32px, 5vw, 60px);
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1.0;
+  letter-spacing: -1px;
+  margin-bottom: 16px;
+}
+.chapter > h2 em { color: var(--orange); font-style: normal; }
+
+.lead {
+  font-size: 17px;
+  color: var(--text2);
+  font-style: italic;
+  font-weight: 300;
+  margin-bottom: 48px;
+  max-width: 700px;
+  line-height: 1.6;
+}
+
+h3 {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--cyan);
+  margin: 48px 0 16px;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+h3::before {
+  content: '▸';
+  color: var(--orange);
+  font-size: 14px;
+}
+
+h4 {
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--white);
+  margin: 24px 0 10px;
+}
+
+p { color: var(--text); margin-bottom: 14px; }
+strong { color: var(--white); font-weight: 700; }
+em { color: var(--text2); }
+
+/* ─── CALLOUTS ───────────────────────────────── */
+.callout {
+  padding: 18px 22px;
+  border-left: 3px solid;
+  border-radius: 0 6px 6px 0;
+  margin: 24px 0;
+  font-size: 14px;
+  position: relative;
+}
+.callout-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.callout p { margin: 0; font-size: 14px; }
+.c-orange { background: var(--orange-dim); border-color: var(--orange); }
+.c-orange .callout-label { color: var(--orange); }
+.c-cyan { background: var(--cyan-dim); border-color: var(--cyan); }
+.c-cyan .callout-label { color: var(--cyan); }
+.c-green { background: var(--green-dim); border-color: var(--green); }
+.c-green .callout-label { color: var(--green); }
+.c-red { background: var(--red-dim); border-color: var(--red); }
+.c-red .callout-label { color: var(--red); }
+.c-yellow { background: var(--yellow-dim); border-color: var(--yellow); }
+.c-yellow .callout-label { color: var(--yellow); }
+
+/* ─── DIAGRAM / ASCII ART ────────────────────── */
+.diagram {
+  background: var(--deep);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 2;
+  overflow-x: auto;
+  margin: 24px 0;
+  position: relative;
+}
+.diagram-label {
+  position: absolute;
+  top: 0; right: 0;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text3);
+  padding: 4px 10px;
+  border-radius: 0 8px 0 0;
+}
+.d-orange { color: var(--orange); font-weight: bold; }
+.d-cyan { color: var(--cyan); }
+.d-green { color: var(--green); }
+.d-red { color: var(--red); }
+.d-yellow { color: var(--yellow); }
+.d-muted { color: var(--text3); font-style: italic; }
+.d-white { color: var(--white); font-weight: bold; }
+
+/* ─── CARDS ──────────────────────────────────── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.card-grid-2 { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.card-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+.card {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 22px;
+  position: relative;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.card:hover { border-color: var(--border2); transform: translateY(-2px); }
+.card.c-best { border-color: var(--green); }
+.card.c-best::before {
+  content: 'RECOMMENDED';
+  position: absolute; top: -9px; left: 14px;
+  background: var(--green); color: var(--void);
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; padding: 2px 8px;
+}
+.card.c-warn { border-color: var(--yellow); }
+.card.c-warn::before {
+  content: 'CAUTION';
+  position: absolute; top: -9px; left: 14px;
+  background: var(--yellow); color: var(--void);
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; padding: 2px 8px;
+}
+.card-icon { font-size: 28px; margin-bottom: 12px; }
+.card h4 { margin: 0 0 8px; font-size: 16px; }
+.card p { font-size: 13px; color: var(--text2); margin: 0; }
+.card .tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--orange);
+  border: 1px solid var(--orange);
+  padding: 1px 7px;
+  border-radius: 2px;
+  margin-top: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ─── BADGES ─────────────────────────────────── */
+.b {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin: 1px;
+}
+.b-o { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(255,107,0,0.3); }
+.b-c { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(0,212,255,0.3); }
+.b-g { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,255,136,0.25); }
+.b-r { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,51,51,0.3); }
+.b-y { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(255,208,0,0.3); }
+.b-w { background: rgba(238,244,248,0.08); color: var(--white); border: 1px solid var(--border2); }
+
+/* ─── TABLES ─────────────────────────────────── */
+.tbl { overflow-x: auto; margin: 24px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+thead tr { background: var(--raised); }
+th {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--orange);
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: top;
+}
+tbody tr:hover td { background: rgba(255,107,0,0.03); }
+td:first-child { color: var(--white); font-weight: 600; font-family: var(--mono); font-size: 12px; }
+
+/* ─── CODE BLOCKS ────────────────────────────── */
+.code-block {
+  background: var(--deep);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 20px 0;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+.code-top {
+  background: var(--raised);
+  padding: 8px 16px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.code-dot { width: 8px; height: 8px; border-radius: 50%; }
+.code-block pre {
+  padding: 22px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: var(--text);
+  overflow-x: auto;
+}
+.ck { color: #ff7b72; } .cf { color: #d2a8ff; }
+.cs { color: #9ecbff; } .cn { color: #79b8ff; }
+.cc { color: #4a5d70; font-style: italic; } .cv { color: #ffa657; }
+.cg { color: #85e89d; }
+
+/* ─── FLOWCHARTS ─────────────────────────────── */
+.flow {
+  background: var(--deep);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 32px;
+  margin: 24px 0;
+  overflow-x: auto;
+}
+.flow-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--orange);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 28px;
+}
+.flow-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.flow-box {
+  background: var(--raised);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 10px 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--white);
+  text-align: center;
+  min-width: 120px;
+  transition: border-color 0.2s;
+}
+.flow-box:hover { border-color: var(--orange); }
+.flow-box.fo { border-color: var(--orange); background: var(--orange-dim); color: var(--orange); }
+.flow-box.fc { border-color: var(--cyan); background: var(--cyan-dim); color: var(--cyan); }
+.flow-box.fg { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+.flow-box.fr { border-color: var(--red); background: var(--red-dim); color: var(--red); }
+.flow-box.fy { border-color: var(--yellow); background: var(--yellow-dim); color: var(--yellow); }
+.flow-arrow {
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 16px;
+}
+.flow-branch {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  align-items: flex-start;
+  margin: 8px 0;
+}
+.flow-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.flow-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 1px;
+  text-align: center;
+  margin: 2px 0;
+}
+
+/* ─── SPEC BARS ──────────────────────────────── */
+.spec-bar-wrap { margin: 6px 0; }
+.spec-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  margin-bottom: 4px;
+}
+.spec-bar-track {
+  height: 6px;
+  background: var(--raised);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.spec-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--orange);
+  transition: width 0.5s ease;
+}
+.spec-bar-fill.cyan { background: var(--cyan); }
+.spec-bar-fill.green { background: var(--green); }
+.spec-bar-fill.red { background: var(--red); }
+
+/* ─── COMPONENT ANATOMY ──────────────────────── */
+.anatomy {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 24px 0;
+  align-items: start;
+}
+
+/* ─── COMPARISON ─────────────────────────────── */
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+}
+.compare-card {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.compare-head {
+  padding: 10px 14px;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--white);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.compare-body { padding: 14px; }
+.compare-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 6px;
+  font-family: var(--mono);
+}
+.compare-row .ck { color: var(--text2); }
+.compare-row .cv { color: var(--white); }
+
+/* ─── PROS/CONS ──────────────────────────────── */
+.pc { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+.pros { background: var(--raised); border: 1px solid rgba(0,255,136,0.2); border-radius: 6px; padding: 18px; }
+.cons { background: var(--raised); border: 1px solid rgba(255,51,51,0.2); border-radius: 6px; padding: 18px; }
+.pros h5 { color: var(--green); font-family: var(--mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+.cons h5 { color: var(--red); font-family: var(--mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+.pros li, .cons li { font-size: 13px; color: var(--text2); margin-bottom: 6px; padding-left: 16px; list-style: none; position: relative; }
+.pros li::before { content: '✓'; position: absolute; left: 0; color: var(--green); }
+.cons li::before { content: '✗'; position: absolute; left: 0; color: var(--red); }
+
+/* ─── STEPS ──────────────────────────────────── */
+ol.steps { list-style: none; counter-reset: st; margin: 20px 0; }
+ol.steps li {
+  counter-increment: st;
+  padding: 14px 16px 14px 56px;
+  margin-bottom: 10px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  position: relative;
+}
+ol.steps li::before {
+  content: counter(st,'decimal-leading-zero');
+  position: absolute;
+  left: 14px; top: 50%; transform: translateY(-50%);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--orange);
+}
+
+/* ─── VERDICT ────────────────────────────────── */
+.verdict {
+  background: linear-gradient(135deg, rgba(255,107,0,0.1) 0%, rgba(255,107,0,0.03) 100%);
+  border: 1px solid rgba(255,107,0,0.4);
+  border-radius: 8px;
+  padding: 28px 32px;
+  margin: 32px 0;
+}
+.verdict-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--orange);
+  margin-bottom: 10px;
+}
+.verdict h4 { color: var(--white); font-size: 20px; margin-bottom: 10px; }
+.verdict p { color: var(--text2); font-size: 14px; margin: 0; }
+
+/* ─── FORMULA ────────────────────────────────── */
+.formula {
+  background: var(--deep);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--cyan);
+  padding: 18px 22px;
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--cyan);
+  margin: 20px 0;
+  border-radius: 0 6px 6px 0;
+  overflow-x: auto;
+}
+.formula .eq { color: var(--white); }
+.formula .unit { color: var(--text3); font-size: 11px; }
+
+/* ─── MOTOR SPINNER ──────────────────────────── */
+.motor-visual {
+  display: inline-block;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  border: 3px solid var(--orange);
+  border-top-color: transparent;
+  position: relative;
+  margin: 10px;
+  box-shadow: 0 0 20px rgba(255,107,0,0.3), inset 0 0 20px rgba(255,107,0,0.05);
+}
+.motor-visual::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,107,0,0.2), transparent);
+  border: 1px solid rgba(255,107,0,0.2);
+}
+
+/* ─── SECTION DIVIDER ────────────────────────── */
+.sec-div {
+  text-align: center;
+  padding: 40px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+.sec-div::before { content: '— '; }
+.sec-div::after { content: ' —'; }
+
+/* ─── PARTS LIST ─────────────────────────────── */
+.part-list { list-style: none; margin: 16px 0; }
+.part-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.part-list li:last-child { border-bottom: none; }
+.part-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--orange);
+  background: var(--orange-dim);
+  border: 1px solid rgba(255,107,0,0.2);
+  padding: 2px 7px;
+  border-radius: 2px;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+.part-name { font-weight: 600; color: var(--white); }
+.part-desc { font-size: 13px; color: var(--text2); }
+
+/* ─── RESPONSIVE ─────────────────────────────── */
+@media (max-width: 768px) {
+  .chapter { padding: 60px 20px; }
+  .pc { grid-template-columns: 1fr; }
+  .anatomy { grid-template-columns: 1fr; }
+  .card-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .flow-branch { flex-direction: column; align-items: center; }
+}
+@media (max-width: 480px) {
+  .hero { padding: 60px 20px; }
+  .hero-stats { gap: 24px; }
+  .card-grid { grid-template-columns: 1fr; }
+  .card-grid-4 { grid-template-columns: 1fr 1fr; }
+  .compare-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV TOGGLE -->
+<button class="nav-toggle" onclick="document.querySelector('.sidenav').classList.toggle('open')">☰ INDEX</button>
+
+<!-- SIDE NAV -->
+<nav class="sidenav">
+  <div class="sidenav-header">// Chapters</div>
+  <a href="#ch1"><span class="n">01</span>Physics of Flight</a>
+  <a href="#ch2"><span class="n">02</span>Motors</a>
+  <a href="#ch3"><span class="n">03</span>Propellers</a>
+  <a href="#ch4"><span class="n">04</span>Batteries & Power</a>
+  <a href="#ch5"><span class="n">05</span>ESCs</a>
+  <a href="#ch6"><span class="n">06</span>Flight Controllers</a>
+  <a href="#ch7"><span class="n">07</span>Frames</a>
+  <a href="#ch8"><span class="n">08</span>Drone Types</a>
+  <a href="#ch9"><span class="n">09</span>Radio & Receivers</a>
+  <a href="#ch10"><span class="n">10</span>FPV Systems</a>
+  <a href="#ch11"><span class="n">11</span>GPS & Autonomy</a>
+  <a href="#ch12"><span class="n">12</span>Camera Drones</a>
+  <a href="#ch13"><span class="n">13</span>Firmware & Tuning</a>
+  <a href="#ch14"><span class="n">14</span>Build Guides</a>
+  <a href="#ch15"><span class="n">15</span>Regulations & Safety</a>
+  <a href="#ch16"><span class="n">16</span>Troubleshooting</a>
+</nav>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  HERO                                    ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-tag">The Complete Technical Bible</div>
+  <h1>
+    DRONE
+    <span class="accent">MASTERY</span>
+  </h1>
+  <p class="hero-sub">From Motors to Autonomous Systems</p>
+  <div class="hero-stats">
+    <div class="stat"><div class="stat-num">16</div><div class="stat-label">Chapters</div></div>
+    <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Depth</div></div>
+    <div class="stat"><div class="stat-num">0→PRO</div><div class="stat-label">Level Range</div></div>
+    <div class="stat"><div class="stat-num">FPV+GPS</div><div class="stat-label">Coverage</div></div>
+  </div>
+  <div class="scroll-hint">↓ SCROLL TO BEGIN</div>
+</section>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 1 — PHYSICS OF FLIGHT                ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch1">
+  <div class="ch-eyebrow"><span class="ch-num">01</span><span class="ch-line"></span>Foundation</div>
+  <h2>The <em>Physics</em><br>of Drone Flight</h2>
+  <p class="lead">Before you touch a motor or a soldering iron, understand WHY a drone flies. Every design decision traces back to these four forces and Newton's laws.</p>
+
+  <h3>Four Forces Acting on Every Drone</h3>
+  <div class="diagram">
+    <div class="diagram-label">FORCE DIAGRAM</div>
+    <pre>
+                        <span class="d-green">↑ THRUST</span>
+                        <span class="d-green">Generated by spinning props</span>
+                        <span class="d-green">pushing air downward</span>
+                              │
+                              │
+   <span class="d-cyan">DRAG ◄──────────────── [DRONE] ────────────────► </span><span class="d-cyan">DRAG</span>
+   <span class="d-cyan">Air resistance        ╔═══════╗        Air resistance</span>
+   <span class="d-cyan">opposes motion        ║  CG   ║        opposes motion</span>
+                        ╚═══════╝
+                              │
+                              │
+                        <span class="d-red">↓ GRAVITY (WEIGHT)</span>
+                        <span class="d-red">W = mass × 9.81 m/s²</span>
+                        <span class="d-red">Always acts through center of gravity</span>
+
+  ┌────────────────────────────────────────────────────────────────┐
+  │  HOVER:    Thrust = Weight          (net force = 0)            │
+  │  CLIMB:    Thrust &gt; Weight          (net upward acceleration)  │
+  │  DESCEND:  Thrust &lt; Weight          (net downward)             │
+  │  FORWARD:  Drone tilts forward, thrust vector has fwd component│
+  └────────────────────────────────────────────────────────────────┘
+    </pre>
+  </div>
+
+  <h3>How a Quadcopter Controls Movement</h3>
+  <p>A quadcopter has no moving control surfaces like a helicopter's swashplate. All control comes from <strong>differentially adjusting motor speeds</strong>. This is the genius of the design — simple, reliable, and fully controllable.</p>
+
+  <div class="diagram">
+    <div class="diagram-label">QUADCOPTER MOTOR LAYOUT</div>
+    <pre>
+  Standard X-frame layout (viewed from above):
+
+        M1 (CCW) ●─────────────● M2 (CW)
+                  \           /
+                   \   BODY  /
+                    ╔═══════╗
+                    ║  FC   ║   FC = Flight Controller
+                    ╚═══════╝
+                   /         \
+                  /           \
+        M3 (CW)  ●─────────────● M4 (CCW)
+
+  Motor rotation:  CW = Clockwise   CCW = Counter-Clockwise
+
+  ─────────────────────────────────────────────────────────────────
+  MOVEMENT          MOTOR SPEED CHANGE              RESULT
+  ─────────────────────────────────────────────────────────────────
+  <span class="d-green">HOVER</span>             M1=M2=M3=M4 (equal)             Stationary
+  <span class="d-cyan">THROTTLE UP</span>       All motors increase             Climb
+  <span class="d-orange">ROLL RIGHT</span>        M1,M3 increase / M2,M4 decrease Tilt right → move right
+  <span class="d-orange">PITCH FORWARD</span>     M1,M2 increase / M3,M4 decrease Tilt forward → move forward
+  <span class="d-yellow">YAW LEFT</span>          M1,M4 increase / M2,M3 decrease Rotate left (torque reaction)
+  ─────────────────────────────────────────────────────────────────
+  WHY YAW WORKS: CW props produce CW torque. CCW props produce CCW torque.
+  Increase CW motors → net CW torque → body spins CCW (yaw left).
+    </pre>
+  </div>
+
+  <h3>The Thrust Equation — Understanding Motor Power</h3>
+  <div class="formula">
+    <span class="eq">T = Ct × ρ × n² × D⁴</span><br>
+    <br>
+    T  = Thrust <span class="unit">[Newtons]</span><br>
+    Ct = Thrust coefficient <span class="unit">(depends on prop design, typically 0.05–0.15)</span><br>
+    ρ  = Air density <span class="unit">[1.225 kg/m³ at sea level]</span><br>
+    n  = Rotational speed <span class="unit">[revolutions per second]</span><br>
+    D  = Propeller diameter <span class="unit">[meters]</span><br>
+    <br>
+    <span class="d-orange">Key insight: Thrust scales with D⁴ — doubling prop diameter gives 16× more thrust potential.</span><br>
+    <span class="d-muted">This is why large slow props are more efficient than small fast ones.</span>
+  </div>
+
+  <h3>Thrust-to-Weight Ratio (TWR) — The Most Important Number</h3>
+  <div class="callout c-orange">
+    <div class="callout-label">⚡ Critical Concept</div>
+    <p><strong>TWR = Total Thrust / All-Up Weight.</strong> For stable flight you need TWR > 1. For FPV racing: TWR 8–15. For photography: TWR 2.5–4. For efficiency: TWR 1.5–2.5. A drone with TWR = 2 means you have 50% throttle headroom at hover — enough for wind gusts and maneuvers.</p>
+  </div>
+
+  <div class="formula">
+    <span class="eq">TWR = (Motor Count × Max Motor Thrust) / (All-Up Weight × 9.81)</span><br>
+    <br>
+    Example: 4 motors × 800g thrust = 3200g total thrust<br>
+    All-Up Weight = 600g (drone + battery + camera)<br>
+    <span class="d-green">TWR = 3200g / 600g = 5.3 — excellent for freestyle FPV</span>
+  </div>
+
+  <h3>Newton's Laws Applied to Drones</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">①</div>
+      <h4>First Law — Inertia</h4>
+      <p>A drone in hover stays in hover unless a force acts on it. Wind, control input, or gravity change disturb this. The flight controller continuously counteracts these disturbances.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">②</div>
+      <h4>Second Law — F = ma</h4>
+      <p>Net force = mass × acceleration. More thrust → faster climb. Heavier drone → more thrust needed for same acceleration. This governs every performance calculation.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">③</div>
+      <h4>Third Law — Reaction</h4>
+      <p>Props push air down (action) → air pushes drone up (reaction). Motors spin CW → torque reaction on body. This is why opposite motor pairs rotate in opposite directions.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 2 — MOTORS                           ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch2">
+  <div class="ch-eyebrow"><span class="ch-num">02</span><span class="ch-line"></span>Propulsion</div>
+  <h2>Brushless <em>Motors</em><br>— Complete Guide</h2>
+  <p class="lead">The heart of every drone. Understanding motor specs isn't optional — the wrong motor choice is the difference between a 20-minute flight and a 6-minute disaster.</p>
+
+  <h3>Brushed vs Brushless — Why Brushless Wins</h3>
+  <div class="pc">
+    <div class="cons">
+      <h5>✗ Brushed Motors (Avoid)</h5>
+      <li>Physical brushes create friction and wear</li>
+      <li>Short lifespan (50–200 hours)</li>
+      <li>Low efficiency (~65–75%)</li>
+      <li>Heat buildup limits sustained performance</li>
+      <li>Only in tiny indoor micros</li>
+    </div>
+    <div class="pros">
+      <h5>✓ Brushless Motors (Always)</h5>
+      <li>No brushes — electronically commutated</li>
+      <li>Very long lifespan (1000+ hours)</li>
+      <li>High efficiency (~85–95%)</li>
+      <li>Higher power density, less heat</li>
+      <li>Used in everything from 65mm to 30"+ drones</li>
+    </div>
+  </div>
+
+  <h3>How a Brushless Motor Works</h3>
+  <div class="diagram">
+    <div class="diagram-label">BLDC MOTOR INTERNALS</div>
+    <pre>
+  Cross-section view (simplified):
+
+         ┌─────────────────────────────────────────┐
+         │           OUTER ROTOR (spins)           │
+         │   ┌─────────────────────────────────┐   │
+         │   │  N  S  N  S  N  S  N  S  N  S  │   │  ← Permanent
+         │   │  MAGNETS around the inside      │   │    magnets
+         │   └─────────────────────────────────┘   │    (12–14 poles)
+         │                                          │
+         │   ╔══════════════════════════════════╗   │
+         │   ║   STATOR (stationary)            ║   │  ← Copper wire
+         │   ║   Copper coils wound around      ║   │    windings
+         │   ║   iron teeth (9 or 12 stator)    ║   │    (stator teeth)
+         │   ╚══════════════════════════════════╝   │
+         │                 │                        │
+         └─────────────────┼────────────────────────┘
+                           │ ← Motor shaft (press-fit into frame)
+                           ▼
+                     Propeller attaches here
+
+  ESC sends 3-phase AC current to 3 wire terminals
+  Each phase fires in sequence → rotating magnetic field
+  Rotor magnets chase the field → rotation!
+    </pre>
+  </div>
+
+  <h3>Decoding the Motor Number — What 2306 2450KV Means</h3>
+  <div class="diagram">
+    <div class="diagram-label">MOTOR NOMENCLATURE</div>
+    <pre>
+  <span class="d-orange">2306</span>  <span class="d-cyan">2450KV</span>
+
+  <span class="d-orange">23</span> = Stator diameter in millimeters (wider = more torque, heavier)
+  <span class="d-orange">06</span> = Stator height in millimeters (taller = more power, more current draw)
+
+  <span class="d-cyan">2450KV</span> = RPM per Volt of input voltage
+         At 16.8V (4S LiPo): 2450 × 16.8 = 41,160 RPM (no load)
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  HIGHER KV = Faster spinning, needs smaller props           │
+  │  LOWER KV  = Slower spinning, needs larger props            │
+  │                                                             │
+  │  LOW KV (900–1800):   5"–10" props, cinematic/photography  │
+  │  MID KV (1800–2600):  4"–5" props, freestyle FPV           │
+  │  HIGH KV (2600–3500): 2"–4" props, racing/micro drones     │
+  │  ULTRA KV (4000+):    65mm–3" whoops, toothpick builds     │
+  └─────────────────────────────────────────────────────────────┘
+    </pre>
+  </div>
+
+  <h3>Motor Size Selection by Drone Class</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Drone Size</th><th>Motor Size</th><th>Typical KV</th><th>Prop Size</th><th>Current Draw</th><th>Use Case</th></tr></thead>
+      <tbody>
+        <tr><td>65mm Whoop</td><td>0802</td><td>19000–25000</td><td>31mm</td><td>3–6A</td><td>Indoor micro, beginner</td></tr>
+        <tr><td>75mm Whoop</td><td>0802–1002</td><td>15000–22000</td><td>40mm</td><td>5–10A</td><td>Indoor/outdoor micro</td></tr>
+        <tr><td>2.5" Toothpick</td><td>1102–1106</td><td>5000–9000</td><td>2.5"</td><td>8–15A</td><td>Long-range micro</td></tr>
+        <tr><td>3" Micro</td><td>1303–1404</td><td>3500–5000</td><td>3"</td><td>10–20A</td><td>Micro freestyle</td></tr>
+        <tr><td>3.5" / 4"</td><td>1507–1806</td><td>2800–4000</td><td>3.5–4"</td><td>15–25A</td><td>Mid-size freestyle</td></tr>
+        <tr><td>5" Standard</td><td>2204–2306</td><td>2300–2600</td><td>5"</td><td>25–40A</td><td>FPV standard class</td></tr>
+        <tr><td>5" Long Range</td><td>2306–2407</td><td>1700–2100</td><td>5"</td><td>20–35A</td><td>Long range / cinematic</td></tr>
+        <tr><td>7" Long Range</td><td>2507–2806</td><td>1300–1700</td><td>7"</td><td>20–35A</td><td>Long range, heavy lift</td></tr>
+        <tr><td>10" Photography</td><td>3510–4014</td><td>400–900</td><td>10"</td><td>15–30A</td><td>Aerial photo/video</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Motor Efficiency Curve</h3>
+  <div class="diagram">
+    <div class="diagram-label">EFFICIENCY vs THROTTLE</div>
+    <pre>
+  Efficiency
+  (%)
+  95 │                    ╭────────╮
+  90 │               ╭───╯        ╰───╮
+  85 │          ╭───╯                  ╰──╮
+  80 │     ╭───╯                          ╰──╮
+  75 │ ╭──╯                                  ╰──╮
+  70 │╯                                          ╰─
+     └─────────────────────────────────────────────►
+     0%   20%   40%    60%    80%   100%   Throttle
+
+  <span class="d-yellow">Peak efficiency is usually between 40–70% throttle.</span>
+  <span class="d-yellow">Running motors at 100% continuously = max heat + wear.</span>
+  <span class="d-green">Best flight time: hover at 40–55% throttle (TWR ~2–2.5).</span>
+  <span class="d-red">Racing: motors spend time at 80–100% = short pack times, hot motors.</span>
+    </pre>
+  </div>
+
+  <h3>Motor Quality Tiers — What to Buy</h3>
+  <div class="card-grid">
+    <div class="card c-best">
+      <div class="card-icon">🏆</div>
+      <h4>Premium Tier</h4>
+      <p><strong>T-Motor F60, Xing 2306, BrotherHobby Tornado, Hypetrain Bluebird.</strong> CNC machined bell, ceramic bearings, gold-plated terminals. Long life, consistent KV. ₹1500–3000 each.</p>
+      <span class="tag">Competition / Build-once</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">⭐</div>
+      <h4>Mid Tier</h4>
+      <p><strong>Emax ECO/Eco II, GEPRC, iFlight XING-E.</strong> Great value, acceptable tolerances. Good for learning and most hobby builds. ₹800–1500 each.</p>
+      <span class="tag">Best Value</span>
+    </div>
+    <div class="card c-warn">
+      <div class="card-icon">⚠</div>
+      <h4>Budget Tier</h4>
+      <p><strong>Generic AliExpress, no-brand motors.</strong> Inconsistent KV, poor balancing, cheap bearings. Vibrations ruin video, cause FC noise, fail early. Avoid for serious builds.</p>
+      <span class="tag">Learning Crashes Only</span>
+    </div>
+  </div>
+
+  <h3>Reading a Motor Test Chart</h3>
+  <div class="diagram">
+    <div class="diagram-label">EXAMPLE: 2306 2450KV ON 4S</div>
+    <pre>
+  Throttle │ RPM    │ Current │ Thrust  │ Power  │ Efficiency
+  ─────────┼────────┼─────────┼─────────┼────────┼────────────
+  20%      │  8,200 │  3.2A   │  128g   │  52W   │  2.46 g/W
+  40%      │ 16,800 │  8.8A   │  412g   │ 143W   │  2.88 g/W  ← Peak efficiency
+  60%      │ 23,500 │ 17.4A   │  742g   │ 283W   │  2.62 g/W
+  80%      │ 29,100 │ 29.6A   │ 1080g   │ 481W   │  2.24 g/W
+  100%     │ 34,400 │ 45.2A   │ 1310g   │ 735W   │  1.78 g/W
+
+  <span class="d-yellow">Current at 100%: 45A per motor × 4 = 180A peak total draw!</span>
+  <span class="d-green">This is why battery C-rating matters so much.</span>
+    </pre>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 3 — PROPELLERS                       ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch3">
+  <div class="ch-eyebrow"><span class="ch-num">03</span><span class="ch-line"></span>Propulsion</div>
+  <h2>Propellers —<br><em>Geometry & Selection</em></h2>
+  <p class="lead">Propellers are the most underrated component. The same motor behaves completely differently with different props. Choose wrong and you waste power, shorten battery life, and get poor performance.</p>
+
+  <h3>Decoding Prop Notation — 5x4.3x3</h3>
+  <div class="diagram">
+    <div class="diagram-label">PROP SPECIFICATION</div>
+    <pre>
+  <span class="d-orange">5</span> × <span class="d-cyan">4.3</span> × <span class="d-green">3</span>
+  │     │     └── Number of blades (2, 3, or 4)
+  │     └──────── Pitch: inches of forward travel per revolution
+  └────────────── Diameter: inches (tip to tip)
+
+  <span class="d-orange">DIAMETER</span> governs thrust and efficiency.
+  <span class="d-cyan">PITCH</span> governs top speed and current draw.
+  <span class="d-green">BLADES</span> governs thrust density (more blades = more thrust, less efficient).
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │  SAME DIAMETER, HIGHER PITCH:                                │
+  │  → More aggressive, higher top speed, more current draw      │
+  │  → Better for racing, worse for efficiency and hover time    │
+  │                                                              │
+  │  SAME PITCH, LARGER DIAMETER:                                │
+  │  → More thrust, more efficient, lower RPM needed             │
+  │  → Better for photography/LR, limited by frame size          │
+  └──────────────────────────────────────────────────────────────┘
+    </pre>
+  </div>
+
+  <h3>Blade Count Trade-offs</h3>
+  <div class="card-grid card-grid-4">
+    <div class="card">
+      <div class="card-icon">✌</div>
+      <h4>2-Blade</h4>
+      <p>Most efficient. Best flight time. Lower thrust density. Common on long-range and 7"+ builds.</p>
+    </div>
+    <div class="card c-best">
+      <div class="card-icon">🤟</div>
+      <h4>3-Blade</h4>
+      <p>Best balance. Standard for FPV. Better response than 2-blade. Slightly less efficient. Default choice for 5" freestyle.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🖐</div>
+      <h4>4-Blade</h4>
+      <p>More thrust in smaller diameter. Better handling at low throttle. Popular on 5" racing builds. Lower efficiency.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🖐✌</div>
+      <h4>5–6 Blade</h4>
+      <p>Niche. Used on coaxial designs or cinewhoops needing max thrust with prop guards. Inefficient, noisy.</p>
+    </div>
+  </div>
+
+  <h3>Prop Material Comparison</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Material</th><th>Weight</th><th>Durability</th><th>Flex</th><th>Performance</th><th>Cost</th><th>Best For</th></tr></thead>
+      <tbody>
+        <tr><td>Polycarbonate (PC)</td><td>Light</td><td>Medium</td><td>Flexible</td><td>Good</td><td>₹30–80</td><td>Beginners, crashes</td></tr>
+        <tr><td>Nylon (PA12/PA66)</td><td>Medium</td><td>High</td><td>Semi-rigid</td><td>Good</td><td>₹50–120</td><td>General use</td></tr>
+        <tr><td>Glass-filled Nylon</td><td>Medium</td><td>Very High</td><td>Semi-rigid</td><td>Better</td><td>₹100–200</td><td>Freestyle, all-around</td></tr>
+        <tr><td>Carbon Fibre (CF)</td><td>Very Light</td><td>Brittle</td><td>Rigid</td><td>Best</td><td>₹300–600</td><td>Racing, max performance</td></tr>
+        <tr><td>Tri-Blade CF</td><td>Very Light</td><td>Brittle</td><td>Very Rigid</td><td>Excellent</td><td>₹400–800</td><td>Competition racing</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout c-red">
+    <div class="callout-label">⚠ Safety Warning — Carbon Fibre Props</div>
+    <p>Carbon fibre props at 30,000+ RPM are essentially <strong>spinning saw blades</strong>. They shatter on impact instead of bending — sending shards at high velocity. Always wear eye protection. Never use CF props on an unguarded drone near people. Use plastic props for learning and around others.</p>
+  </div>
+
+  <h3>Propeller Selection Flowchart</h3>
+  <div class="flow">
+    <div class="flow-title">// PROP SELECTION DECISION TREE</div>
+    <div class="flow-row"><div class="flow-box fo">What is your drone class?</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-branch">
+      <div class="flow-col">
+        <div class="flow-box fc">65–75mm Whoop</div>
+        <div class="flow-label">→</div>
+        <div class="flow-box">31–40mm Bi-blade<br>or Hub-style</div>
+      </div>
+      <div class="flow-col">
+        <div class="flow-box fc">3"–4" Micro</div>
+        <div class="flow-label">→</div>
+        <div class="flow-box">3045 or 4045<br>3-blade</div>
+      </div>
+      <div class="flow-col">
+        <div class="flow-box fc">5" Standard</div>
+        <div class="flow-label">→</div>
+        <div class="flow-branch">
+          <div class="flow-col">
+            <div class="flow-box fg">Freestyle</div>
+            <div class="flow-box">5148 or 5143<br>3-blade</div>
+          </div>
+          <div class="flow-col">
+            <div class="flow-box fy">Racing</div>
+            <div class="flow-box">5140 or 5051<br>4-blade CF</div>
+          </div>
+          <div class="flow-col">
+            <div class="flow-box">Long Range</div>
+            <div class="flow-box">5130 or 5126<br>2-blade</div>
+          </div>
+        </div>
+      </div>
+      <div class="flow-col">
+        <div class="flow-box fc">7"–10" Photo</div>
+        <div class="flow-label">→</div>
+        <div class="flow-box">7045–1050<br>2-blade efficient</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 4 — BATTERIES                        ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch4">
+  <div class="ch-eyebrow"><span class="ch-num">04</span><span class="ch-line"></span>Power System</div>
+  <h2>LiPo <em>Batteries</em> &<br>Power System</h2>
+  <p class="lead">The battery defines everything — flight time, power delivery, weight. Getting this wrong means either dead batteries after 3 minutes or a battery that overheats and catches fire.</p>
+
+  <h3>LiPo Chemistry — Why LiPo?</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">⚡</div>
+      <h4>Energy Density</h4>
+      <p>150–200 Wh/kg vs 50–80 Wh/kg for NiMH. LiPo gives 2–3× more energy for the same weight — essential for drones.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">💨</div>
+      <h4>High Discharge</h4>
+      <p>Can deliver 75–150C burst current — enough for motors demanding 40–200A peaks. Lead-acid or NiMH can't match this.</p>
+    </div>
+    <div class="card c-warn">
+      <div class="card-icon">🔥</div>
+      <h4>But: Dangerous</h4>
+      <p>Overcharge, puncture, or short-circuit = thermal runaway = fire. LiPo fires are fast, hot (800°C), and produce toxic gas. Respect these batteries.</p>
+    </div>
+  </div>
+
+  <h3>Decoding Battery Specs — 4S 1500mAh 75C</h3>
+  <div class="diagram">
+    <div class="diagram-label">BATTERY NOMENCLATURE</div>
+    <pre>
+  <span class="d-orange">4S</span>  <span class="d-cyan">1500mAh</span>  <span class="d-green">75C</span>
+
+  <span class="d-orange">4S</span> = 4 cells in Series
+       Each cell = 3.7V nominal (4.2V full, 3.0V cutoff)
+       4S voltage: 14.8V nominal, 16.8V full, 12.0V cutoff
+
+  ┌─────┬─────────────────────────────────────────────────────┐
+  │  1S │ 3.7V │ Tiny whoops, mini quads, FPV goggles         │
+  │  2S │ 7.4V │ Micro drones, some long range                │
+  │  3S │11.1V │ 3" micros, some 5" builds                    │
+  │  4S │14.8V │ Standard 5" FPV — most common                │
+  │  5S │18.5V │ High performance 5", long range 7"           │
+  │  6S │22.2V │ 5" efficiency builds, 7–10" photography      │
+  └─────┴─────────────────────────────────────────────────────┘
+
+  <span class="d-cyan">1500mAh</span> = Capacity (how much charge stored)
+           = 1.5Ah → at 1A draw, runs for 1.5 hours
+
+  <span class="d-green">75C</span> = Continuous discharge rate
+       Max continuous current = 75 × 1.5 = <span class="d-green">112.5A</span>
+       Some packs have burst C-rating (e.g. 75C/150C)
+    </pre>
+  </div>
+
+  <h3>C-Rating Reality Check</h3>
+  <div class="callout c-yellow">
+    <div class="callout-label">⚠ Industry Truth</div>
+    <p>C-ratings on budget batteries are often <strong>grossly exaggerated</strong>. A battery claiming 100C may only deliver 40–50C reliably. The real measure is <strong>internal resistance (IR)</strong>. Lower IR = better pack. A fresh 4S pack should have &lt;5 milliohms total IR. Above 20 milliohms = pack is dying. Use a battery checker with IR measurement (iSDT, Junsi).</p>
+  </div>
+
+  <h3>Battery Selection by Use Case</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Use Case</th><th>Cell Count</th><th>Capacity</th><th>C-Rating</th><th>Weight Target</th><th>Brand Examples</th></tr></thead>
+      <tbody>
+        <tr><td>5" FPV Racing</td><td>4S or 6S</td><td>1000–1300mAh</td><td>100C+</td><td>&lt;200g</td><td>Tattu R-Line, CNHL Black</td></tr>
+        <tr><td>5" Freestyle</td><td>4S or 6S</td><td>1300–1800mAh</td><td>75–100C</td><td>180–230g</td><td>CNHL, Tattu, GnB</td></tr>
+        <tr><td>5" Cinematic</td><td>6S</td><td>1800–2200mAh</td><td>60–75C</td><td>220–280g</td><td>Tattu, Ovonic</td></tr>
+        <tr><td>7" Long Range</td><td>4S or 6S</td><td>3000–4000mAh</td><td>30–45C</td><td>280–400g</td><td>CNHL, Samsung 40T cells</td></tr>
+        <tr><td>Photography Drone</td><td>6S</td><td>4000–6000mAh</td><td>20–30C</td><td>400–600g</td><td>Tattu, Gens Ace</td></tr>
+        <tr><td>65mm Whoop</td><td>1S</td><td>300–450mAh</td><td>30–45C</td><td>10–15g</td><td>BetaFPV HV, CNHL 1S</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>LiPo Safety — Non-Negotiable Rules</h3>
+  <ol class="steps">
+    <li><strong>Never charge above 4.2V per cell</strong> (4.35V for HV LiHV). Overcharge causes thermal runaway. Use a balance charger that checks each cell individually.</li>
+    <li><strong>Never discharge below 3.0V per cell under load</strong> (3.5V safe minimum for longevity). Overdischarge permanently damages the pack — cells swell and capacity drops 30–50%.</li>
+    <li><strong>Store at 3.8V per cell (storage charge)</strong>. Leaving a pack fully charged or fully discharged for days damages it. After every session: storage charge.</li>
+    <li><strong>Use a LiPo-safe charging bag or ammo box</strong> when charging unattended. Fires start fast and spread faster.</li>
+    <li><strong>Inspect for puffing before every flight</strong>. A swollen pack has gas inside from internal damage — DO NOT fly it. Dispose of correctly (salt water discharge).</li>
+    <li><strong>Never charge a warm battery</strong>. Let packs cool to room temp after flying. Hot + charging = accelerated degradation or fire.</li>
+  </ol>
+
+  <h3>Power Distribution — PDU, PDB, and Direct Solder</h3>
+  <div class="diagram">
+    <div class="diagram-label">POWER ARCHITECTURE</div>
+    <pre>
+  [BATTERY] ──── [XT60 Connector] ──── Power Input
+                                            │
+                              ┌─────────────┴─────────────┐
+                              │                           │
+                    [PDB or ESC Power Rails]        [Capacitor]
+                              │                    (1000µF 35V
+                              │                    across battery pads)
+              ┌───────┬───────┼───────┬───────┐
+              │       │       │       │       │
+            ESC1    ESC2    ESC3    ESC4    [BEC → 5V]
+              │       │       │       │       │
+            Motor1  Motor2  Motor3  Motor4   FC / VTX / Camera
+
+  Modern 4-in-1 ESCs: one board handles all 4 motors + 5V BEC
+  Traditional: separate 4× individual ESCs wired to PDB
+
+  <span class="d-orange">Capacitor across battery pads is IMPORTANT:</span>
+  <span class="d-orange">Reduces voltage spikes when motors switch load suddenly.</span>
+  <span class="d-orange">Without it: FC brownouts, video interference, ESC damage.</span>
+    </pre>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 5 — ESCs                             ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch5">
+  <div class="ch-eyebrow"><span class="ch-num">05</span><span class="ch-line"></span>Control</div>
+  <h2>Electronic Speed<br><em>Controllers (ESC)</em></h2>
+  <p class="lead">The ESC is the translator between the flight controller's intent and the motor's action — converting DC battery power into precisely timed 3-phase AC for brushless motors at thousands of times per second.</p>
+
+  <h3>How an ESC Works</h3>
+  <div class="diagram">
+    <div class="diagram-label">ESC SIGNAL FLOW</div>
+    <pre>
+  Flight Controller          ESC                    Motor
+  ┌──────────────┐    ┌──────────────────┐    ┌──────────┐
+  │              │    │  MCU (STM32F0/   │    │          │
+  │  Throttle %  │───►│  AT32)           │    │  A  B  C │
+  │  (0–100%)    │    │  ↓               │    │  │  │  │ │
+  │              │    │  MOSFET Driver   │───►│ Phases   │
+  │  DSHOT600    │    │  ↓               │    │          │
+  │  signal      │    │  6× MOSFETs      │    │  Spins!  │
+  └──────────────┘    │  (3 high + 3 low)│    └──────────┘
+                      └──────────────────┘
+
+  MOSFET switching sequence creates 3-phase AC from DC battery.
+  Switching happens at 8,000–48,000 times/second (PWM frequency).
+    </pre>
+  </div>
+
+  <h3>ESC Communication Protocols</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Protocol</th><th>Type</th><th>Latency</th><th>Telemetry</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>PWM</td><td>Analog</td><td>~20ms</td><td>No</td><td>Old standard. 1000–2000µs pulse. Avoid.</td></tr>
+        <tr><td>OneShot125</td><td>Analog</td><td>~2.5ms</td><td>No</td><td>5× faster than PWM. Legacy.</td></tr>
+        <tr><td>Multishot</td><td>Analog</td><td>~0.3ms</td><td>No</td><td>Very fast but noise-sensitive.</td></tr>
+        <tr><td>DSHOT150</td><td>Digital</td><td>Low</td><td>Yes</td><td>Digital start. Reliable but slower.</td></tr>
+        <tr><td>DSHOT300</td><td>Digital</td><td>~0.5ms</td><td>Yes</td><td>Good general choice.</td></tr>
+        <tr><td>DSHOT600</td><td>Digital</td><td>~0.25ms</td><td>Yes</td><td>Standard for modern builds. Use this.</td></tr>
+        <tr><td>DSHOT1200</td><td>Digital</td><td>~0.125ms</td><td>Yes</td><td>Bleeding edge, limited ESC support.</td></tr>
+        <tr><td>Bidirectional DSHOT</td><td>Digital</td><td>&lt;0.3ms</td><td>RPM data</td><td>Enables RPM filtering. Game changer.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>4-in-1 vs Individual ESCs</h3>
+  <div class="pc">
+    <div class="pros">
+      <h5>✓ 4-in-1 ESC (Recommended)</h5>
+      <li>One board, clean build</li>
+      <li>Integrated current sensor</li>
+      <li>Shared ground = less noise</li>
+      <li>Often includes BEC for 5V/9V/12V</li>
+      <li>Easier wiring, less weight</li>
+      <li>Easier to replace: one swap for all</li>
+    </div>
+    <div class="cons">
+      <h5>✗ Individual ESCs</h5>
+      <li>Messier wiring</li>
+      <li>More weight and space used</li>
+      <li>Need separate PDB</li>
+      <li>But: replace one without replacing all</li>
+      <li>Can use longer motor wires (better cooling)</li>
+      <li>Common on larger photography drones</li>
+    </div>
+  </div>
+
+  <h3>ESC Firmware — BLHeli_32 vs AM32</h3>
+  <div class="callout c-cyan">
+    <div class="callout-label">ℹ Firmware Matters</div>
+    <p><strong>BLHeli_32</strong> — Industry standard, closed source, excellent performance. Supports DSHOT600, bidirectional DSHOT, RPM filtering, 3D mode. Most quality ESCs ship with this. <strong>AM32</strong> — Open source alternative, actively developed, same features, growing support. Both are excellent — BLHeli_32 is more universal. Avoid old BLHeli_S (8-bit, limited) unless on a budget micro build.</p>
+  </div>
+
+  <h3>ESC Current Rating — How to Choose</h3>
+  <div class="formula">
+    Required ESC current = Max motor current × 1.25 (safety margin)<br>
+    <br>
+    Example: Motor draws 45A max<br>
+    <span class="d-green">Required ESC: 45 × 1.25 = 56.25A → Use 60A ESC minimum</span><br>
+    <br>
+    For 4-in-1: rating is per motor channel.<br>
+    A "60A 4-in-1" handles 60A per corner, not 60A total.
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 6 — FLIGHT CONTROLLERS               ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch6">
+  <div class="ch-eyebrow"><span class="ch-num">06</span><span class="ch-line"></span>The Brain</div>
+  <h2>Flight Controllers —<br><em>The Central Brain</em></h2>
+  <p class="lead">The FC runs thousands of calculations per second — reading sensors, calculating corrections, and sending motor commands to keep the drone stable. It's an embedded computer running firmware that implements control theory in real time.</p>
+
+  <h3>What's Inside a Flight Controller</h3>
+  <div class="diagram">
+    <div class="diagram-label">FC BLOCK DIAGRAM</div>
+    <pre>
+  ┌──────────────────────────────────────────────────────────────────┐
+  │                    FLIGHT CONTROLLER PCB                         │
+  │                                                                  │
+  │  ┌────────────┐    ┌──────────┐    ┌──────────────────────────┐  │
+  │  │  IMU       │    │  MCU     │    │  Communication Ports     │  │
+  │  │  ─────     │───►│  ─────── │◄──►│  ─────────────────────   │  │
+  │  │  Gyroscope │    │ STM32F4  │    │  UART1: RX (receiver)    │  │
+  │  │  3-axis    │    │ STM32F7  │    │  UART2: GPS module       │  │
+  │  │  ─────     │    │ STM32H7  │    │  UART3: ESC telemetry    │  │
+  │  │  Accel.    │    │ (varies) │    │  UART4: VTX SmartAudio   │  │
+  │  │  3-axis    │    └──────────┘    │  UART5: OSD / Camera     │  │
+  │  └────────────┘          │         │  I²C:   Compass/baro      │  │
+  │                          │         │  SPI:   Fast IMU, OSD     │  │
+  │  ┌────────────┐          │         │  USB:   Config/debug      │  │
+  │  │  Baro.     │──────────┤         └──────────────────────────┘  │
+  │  │  (optional)│          │                                        │
+  │  └────────────┘          │         ┌──────────────────────────┐  │
+  │                          └────────►│  Motor Outputs (1–4/8)   │  │
+  │  ┌────────────┐                    │  DSHOT / Servo signal     │  │
+  │  │  OSD Chip  │ (on some FCs)      └──────────────────────────┘  │
+  │  └────────────┘                                                   │
+  └──────────────────────────────────────────────────────────────────┘
+    </pre>
+  </div>
+
+  <h3>The PID Control Loop — How Stability Works</h3>
+  <div class="diagram">
+    <div class="diagram-label">PID CONTROL LOOP</div>
+    <pre>
+  Pilot stick input → Target angle/rate
+          │
+          ▼
+  ┌───────────────────────────────────────────────────┐
+  │                 PID CONTROLLER                    │
+  │                                                   │
+  │  Error = Target − Actual (from gyro)              │
+  │                                                   │
+  │  P (Proportional): Output = P × Error             │
+  │  → Corrects current error. Too high = oscillation │
+  │                                                   │
+  │  I (Integral): Output = I × ∫Error dt             │
+  │  → Corrects accumulated drift. Too high = wind-up │
+  │                                                   │
+  │  D (Derivative): Output = D × dError/dt           │
+  │  → Predicts future error, dampens oscillations    │
+  │  → Sensitive to noise — requires filtering        │
+  │                                                   │
+  │  Total = P + I + D → Motor correction signal      │
+  └───────────────────────────────────────────────────┘
+          │
+          ▼
+  ESC → Motor speed change → Drone corrects
+          │
+          ▼
+  Gyro reads new angle → Loop repeats at 8kHz
+
+  Entire loop: typically 1000–8000 times per second!
+    </pre>
+  </div>
+
+  <h3>Flight Modes Explained</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Mode</th><th>Accelerometer Used</th><th>Self-Leveling</th><th>Suitable For</th><th>Max Angle</th></tr></thead>
+      <tbody>
+        <tr><td>Acro / Rate</td><td>No</td><td>No</td><td>FPV, freestyle, racing</td><td>Unlimited (360°)</td></tr>
+        <tr><td>Angle</td><td>Yes</td><td>Yes (auto-level)</td><td>Beginners, photography</td><td>~45–55°</td></tr>
+        <tr><td>Horizon</td><td>Yes (partial)</td><td>Partial</td><td>Transition learning</td><td>~60°, flips at max</td></tr>
+        <tr><td>Altitude Hold</td><td>+ Baro/Sonar</td><td>Yes + height</td><td>Beginners, cinematics</td><td>~45°</td></tr>
+        <tr><td>Position Hold</td><td>+ GPS</td><td>Yes + position</td><td>Photography, beginners</td><td>~30°</td></tr>
+        <tr><td>Mission/Auto</td><td>+ GPS + compass</td><td>Full autonomous</td><td>Mapping, inspection</td><td>Defined by mission</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Popular Flight Controller Processors</h3>
+  <div class="compare-grid">
+    <div class="compare-card">
+      <div class="compare-head">STM32F4 <span class="b b-y">LEGACY</span></div>
+      <div class="compare-body">
+        <div class="compare-row"><span class="ck">CPU</span><span class="cv">168MHz</span></div>
+        <div class="compare-row"><span class="ck">Loop Rate</span><span class="cv">8kHz gyro</span></div>
+        <div class="compare-row"><span class="ck">UART</span><span class="cv">4–5 ports</span></div>
+        <div class="compare-row"><span class="ck">Status</span><span class="cv">Avoid new builds</span></div>
+      </div>
+    </div>
+    <div class="compare-card">
+      <div class="compare-head">STM32F7 <span class="b b-g">GOOD</span></div>
+      <div class="compare-body">
+        <div class="compare-row"><span class="ck">CPU</span><span class="cv">216MHz</span></div>
+        <div class="compare-row"><span class="ck">Loop Rate</span><span class="cv">32kHz capable</span></div>
+        <div class="compare-row"><span class="ck">UART</span><span class="cv">6–7 ports</span></div>
+        <div class="compare-row"><span class="ck">Status</span><span class="cv">Good for most builds</span></div>
+      </div>
+    </div>
+    <div class="compare-card">
+      <div class="compare-head">STM32H7 <span class="b b-o">BEST</span></div>
+      <div class="compare-body">
+        <div class="compare-row"><span class="ck">CPU</span><span class="cv">480MHz</span></div>
+        <div class="compare-row"><span class="ck">Loop Rate</span><span class="cv">32kHz+ stable</span></div>
+        <div class="compare-row"><span class="ck">UART</span><span class="cv">8+ ports</span></div>
+        <div class="compare-row"><span class="ck">Status</span><span class="cv">Top performance</span></div>
+      </div>
+    </div>
+    <div class="compare-card">
+      <div class="compare-head">RP2040 <span class="b b-c">EMERGING</span></div>
+      <div class="compare-body">
+        <div class="compare-row"><span class="ck">CPU</span><span class="cv">Dual 133MHz</span></div>
+        <div class="compare-row"><span class="ck">Loop Rate</span><span class="cv">High</span></div>
+        <div class="compare-row"><span class="ck">UART</span><span class="cv">Multiple</span></div>
+        <div class="compare-row"><span class="ck">Status</span><span class="cv">Betaflight experimental</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Recommended Flight Controllers</h3>
+  <div class="card-grid">
+    <div class="card c-best">
+      <h4>Betaflight F7 / H7</h4>
+      <p>Matek F722, SpeedyBee F7/F405, Holybro Kakute. Full featured, good UART count, SD card for blackbox. Best for 4–7" builds.</p>
+      <span class="tag">FPV Freestyle / Racing</span>
+    </div>
+    <div class="card c-best">
+      <h4>KISS FC / KISS Ultra</h4>
+      <p>Premium closed ecosystem, buttery smooth flight feel. Popular with serious freestyle pilots. More expensive but excellent quality.</p>
+      <span class="tag">Premium FPV</span>
+    </div>
+    <div class="card">
+      <h4>Pixhawk 4 / 6C</h4>
+      <p>ArduPilot / PX4 ecosystem. Full GPS, autonomous flight, mission planning, gimbal control. For photography, mapping, long range. Not for FPV.</p>
+      <span class="tag">Autonomous / Photography</span>
+    </div>
+    <div class="card">
+      <h4>Raspberry Pi + Navio2</h4>
+      <p>Full Linux SBC with flight controller hat. Runs ArduPilot. Enables computer vision, ROS integration, custom software. Advanced builds.</p>
+      <span class="tag">Research / Advanced</span>
+    </div>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 7 — FRAMES                           ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch7">
+  <div class="ch-eyebrow"><span class="ch-num">07</span><span class="ch-line"></span>Structure</div>
+  <h2>Frames — <em>Geometry,</em><br>Materials & Design</h2>
+  <p class="lead">The frame is the skeleton. It determines prop size, CG location, component placement, crash survivability, and to some extent how the drone flies. Don't cheap out here.</p>
+
+  <h3>Frame Geometry Types</h3>
+  <div class="diagram">
+    <div class="diagram-label">FRAME SHAPES (TOP VIEW)</div>
+    <pre>
+  <span class="d-orange">X-FRAME (True X)</span>              <span class="d-cyan">STRETCH X</span>                 <span class="d-green">H-FRAME</span>
+
+     M1       M2                  M1      M2              M1      M2
+      ●───────●                    ●────────●              ●───────●
+      │╲     /│                   │\      /│               │       │
+      │ ╲   / │                   │ ╲    / │               │       │
+      │  [FC] │                   │  [FC]  │               │──[FC]─│
+      │ /   \ │                   │ /    \ │               │       │
+      │/     \│                   │/      \│               │       │
+      ●───────●                    ●────────●              ●───────●
+     M3       M4                  M3      M4              M3      M4
+
+  <span class="d-muted">Equal arm length</span>           <span class="d-muted">Longer front-back</span>         <span class="d-muted">Parallel arms</span>
+  <span class="d-muted">Balanced handling</span>          <span class="d-muted">Better HD video</span>          <span class="d-muted">Max component space</span>
+  <span class="d-muted">Standard FPV choice</span>         <span class="d-muted">Less prop in FOV</span>          <span class="d-muted">Photography drones</span>
+
+  ─────────────────────────────────────────────────────────────────
+  <span class="d-yellow">DEADCAT (Offset X)</span>            <span class="d-orange">BOX / WHOOP</span>
+
+     M1  M2                         ┌─────────────┐
+    ●    ●                           │  ┌──┐  ┌──┐ │
+    │\  /│                           │  │M1│  │M2│ │
+    │ ╲╱ │                           │  └──┘  └──┘ │
+    │[FC]│                           │    [FC]     │
+    │ /\ │                           │  ┌──┐  ┌──┐ │
+    │/  \│                           │  │M3│  │M4│ │
+    ●    ●                           │  └──┘  └──┘ │
+    M3   M4                         └─────────────┘
+
+  <span class="d-muted">Props out of camera view</span>      <span class="d-muted">Props fully guarded</span>
+  <span class="d-muted">Great for HD cinematic</span>        <span class="d-muted">Safe indoor flying</span>
+    </pre>
+  </div>
+
+  <h3>Frame Materials</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Material</th><th>Weight</th><th>Stiffness</th><th>Crash Resistance</th><th>Cost</th><th>Best For</th></tr></thead>
+      <tbody>
+        <tr><td>Carbon Fibre (3K UD)</td><td>Very Light</td><td>Excellent</td><td>Brittle (shatters)</td><td>High</td><td>FPV racing, performance builds</td></tr>
+        <tr><td>Carbon Fibre (3K Twill)</td><td>Very Light</td><td>Very Good</td><td>Slightly better</td><td>High</td><td>Freestyle, cinematic</td></tr>
+        <tr><td>G10 / FR4 Fibreglass</td><td>Medium</td><td>Good</td><td>Flexible (bends)</td><td>Low</td><td>Budget builds, beginners</td></tr>
+        <tr><td>Aluminium</td><td>Heavy</td><td>Good</td><td>Deforms</td><td>Medium</td><td>Photography, DIY custom</td></tr>
+        <tr><td>Nylon / TPU</td><td>Medium</td><td>Poor</td><td>Excellent (flexible)</td><td>Low</td><td>Prop guards, landing pads</td></tr>
+        <tr><td>Injected Moulded PC</td><td>Medium</td><td>Medium</td><td>Good</td><td>Very Low</td><td>Whoops, beginner RTF</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Frame Thickness Guide</h3>
+  <div class="callout c-cyan">
+    <div class="callout-label">ℹ Carbon Plate Thickness</div>
+    <p><strong>3" and smaller:</strong> 2mm arms sufficient. <strong>5" standard:</strong> 5mm arms (minimum 4mm). <strong>7":</strong> 5–6mm arms. <strong>Photography 10":</strong> 4mm arms but thicker centre plates. Thicker = stiffer = less vibration = cleaner video. But heavier. Racing: always maximum stiffness.</p>
+  </div>
+
+  <h3>Recommended Frames by Category</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Category</th><th>Frame</th><th>Size</th><th>Weight</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>5" FPV Freestyle</td><td>ImpulseRC Apex, Armattan Marmotte</td><td>5"</td><td>70–90g</td><td>Stiff, replaceable arms, proven</td></tr>
+        <tr><td>5" Racing</td><td>Lumenier QAV-X, Armattan Chameleon</td><td>5"</td><td>60–80g</td><td>Ultra stiff, minimal weight</td></tr>
+        <tr><td>5" Long Range</td><td>Flywoo Explorer, GEPRC Mark4</td><td>5–6"</td><td>80–120g</td><td>Space for GPS, capacity for larger packs</td></tr>
+        <tr><td>7" Long Range</td><td>GEPRC Crocodile, TBS Source One 7"</td><td>7"</td><td>130–180g</td><td>Large battery, efficient long flights</td></tr>
+        <tr><td>Cinematic</td><td>ImpulseRC ApexDC, Flywoo HexH20</td><td>5–6"</td><td>90–120g</td><td>HD cam mount, deadcat or stretch X</td></tr>
+        <tr><td>Budget 5"</td><td>TBS Source One, Diatone Roma</td><td>5"</td><td>80–100g</td><td>Open-source, widely available, cheap</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 8 — DRONE TYPES                      ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch8">
+  <div class="ch-eyebrow"><span class="ch-num">08</span><span class="ch-line"></span>Classification</div>
+  <h2>Every Drone <em>Type</em><br>& Configuration</h2>
+  <p class="lead">Drones come in enormously varied configurations. Understanding each type's purpose, strengths, and trade-offs is essential for choosing the right platform.</p>
+
+  <h3>By Motor Count</h3>
+  <div class="diagram">
+    <div class="diagram-label">MULTIROTOR CONFIGURATIONS</div>
+    <pre>
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  TRICOPTER (3 motors)                                            │
+  │  Unique: one motor tilts for yaw. Complex, rarely built today.   │
+  │  Pros: efficient. Cons: servo, mechanical complexity.            │
+  ├──────────────────────────────────────────────────────────────────┤
+  │  QUADCOPTER (4 motors) ← 99% of all drones                      │
+  │  Sweet spot of simplicity vs redundancy. Standard.               │
+  │  Cons: if one motor fails, drone crashes (no redundancy).        │
+  ├──────────────────────────────────────────────────────────────────┤
+  │  HEXACOPTER (6 motors)                                           │
+  │  Can fly with one motor failure (reduced performance).           │
+  │  Used in: commercial photography, survey, heavy lift.            │
+  │  More complex, heavier, costlier than quad.                      │
+  ├──────────────────────────────────────────────────────────────────┤
+  │  OCTOCOPTER (8 motors)                                           │
+  │  Maximum redundancy (can lose 2 motors).                         │
+  │  Cinema-grade camera drones. DJI Matrice 600.                    │
+  │  Heavy, expensive, large. Serious commercial use only.           │
+  ├──────────────────────────────────────────────────────────────────┤
+  │  COAXIAL OCTO (X8)                                               │
+  │  8 motors in 4 coaxial pairs (top/bottom, counter-rotating).     │
+  │  Compact footprint with high thrust. Used: DJI S1000, cinema.    │
+  └──────────────────────────────────────────────────────────────────┘
+    </pre>
+  </div>
+
+  <h3>FPV Drone Sub-Types</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">🐝</div>
+      <h4>Whoop (65–75mm)</h4>
+      <p>Fully ducted props. Tiny, safe, indoor capable. 1S–2S power. Perfect first FPV drone. Betaflight Whoop mode. EMAX Tinyhawk, BetaFPV Meteor.</p>
+      <span class="tag">Beginner / Indoor</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🦷</div>
+      <h4>Toothpick (2.5"–3")</h4>
+      <p>Ultra-lightweight long-range micro. Sub-100g AUW. Long flight times on small packs. Cinewhoops with HD cam. Amazing efficiency.</p>
+      <span class="tag">Micro / Long Range</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🎬</div>
+      <h4>Cinewhoop (3")</h4>
+      <p>Ducted props, HD camera (GoPro/RunCam), smooth stable video. Lower performance but buttery footage. BetaFPV Pavo, Flywoo Firefly.</p>
+      <span class="tag">HD Cinematic</span>
+    </div>
+    <div class="card c-best">
+      <div class="card-icon">🏎</div>
+      <h4>Standard 5" FPV</h4>
+      <p>The universal platform. Freestyle, racing, cinematic. 4S or 6S. Tweakable for any role. Most builds, most support, most community knowledge.</p>
+      <span class="tag">Universal Standard</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🌍</div>
+      <h4>Long Range 7"</h4>
+      <p>Large efficient props, GPS, long-range RC link (ExpressLRS/TBS Crossfire). 30–60+ minute flights. GEPRC Crocodile, Flywoo Explorer LR.</p>
+      <span class="tag">Long Range</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🏁</div>
+      <h4>Race Gates Quad</h4>
+      <p>Stripped bare. No camera weight, ultra-light carbon, 4-blade CF props, fastest possible response. 6S 1000mAh 100C packs. &lt;200g.</p>
+      <span class="tag">Pure Racing</span>
+    </div>
+  </div>
+
+  <h3>Photography & Commercial Types</h3>
+  <div class="card-grid card-grid-2">
+    <div class="card">
+      <div class="card-icon">📷</div>
+      <h4>Aerial Photography Quad</h4>
+      <p>DJI Phantom/Mavic style. Stabilized gimbal, GPS hold, auto-return, obstacle avoidance. Designed for still and video photography. Not FPV. Camera is primary payload.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🗺</div>
+      <h4>Mapping / Survey Drone</h4>
+      <p>Fixed wing or quad. Flies programmed grid missions. Overlapping photos processed by photogrammetry software (Pix4D, WebODM) to create orthomosaics and 3D models.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔍</div>
+      <h4>Inspection Drone</h4>
+      <p>Thermal camera + optical zoom. Inspects power lines, cell towers, wind turbines. Often runs on DJI Enterprise platform or Autel.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🚚</div>
+      <h4>Delivery / Heavy Lift</h4>
+      <p>Custom octocopters or specialized platforms. 10kg+ payload. Used by Wing, Amazon Air, Zipline. Requires full redundancy, parachute systems, fail-safes.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 9 — RADIO CONTROL                    ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch9">
+  <div class="ch-eyebrow"><span class="ch-num">09</span><span class="ch-line"></span>Control Link</div>
+  <h2>Radio Systems —<br><em>Transmitters & Links</em></h2>
+  <p class="lead">Your radio link is the only thing between you and a flyaway. Latency, range, reliability, and failsafe behaviour all come from this system.</p>
+
+  <h3>Radio Link Architecture</h3>
+  <div class="diagram">
+    <div class="diagram-label">RC SYSTEM OVERVIEW</div>
+    <pre>
+  Pilot hands                                       Drone
+  ─────────────                                 ─────────────
+  [TX MODULE]                                  [RX MODULE]
+  (transmitter                                 (receiver in
+   module in                                    drone)
+   radio)          ~~~~ RF Signal ~~~~►              │
+       │           2.4GHz or 900MHz                  │
+  [RADIO / TX]                              [FLIGHT CONTROLLER]
+  (EdgeTX FC →                              SBUS / CRSF / ELRS
+   RadioMaster,
+   FrSky, Jumper)
+
+  Latency chain: Stick → TX MCU → RF TX → RF RX → RX MCU → FC
+  Total: 5–25ms depending on protocol
+    </pre>
+  </div>
+
+  <h3>RC Protocols Comparison</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Protocol</th><th>Frequency</th><th>Range</th><th>Latency</th><th>Two-Way</th><th>Cost</th><th>Best For</th></tr></thead>
+      <tbody>
+        <tr><td>ExpressLRS (ELRS)</td><td>900MHz / 2.4GHz</td><td>30km+ (900MHz)</td><td>1–5ms</td><td>Yes</td><td>Low (open source)</td><td>Best overall — FPV + long range</td></tr>
+        <tr><td>TBS Crossfire</td><td>900MHz</td><td>40km+</td><td>5ms</td><td>Yes</td><td>Medium</td><td>Long range, trusted reliability</td></tr>
+        <tr><td>TBS Tracer</td><td>2.4GHz</td><td>5–10km</td><td>1.5ms</td><td>Yes</td><td>Medium</td><td>FPV racing, low latency</td></tr>
+        <tr><td>FrSky ACCESS</td><td>2.4GHz</td><td>3–5km</td><td>3ms</td><td>Yes</td><td>Medium</td><td>General FPV</td></tr>
+        <tr><td>FrSky D8/D16</td><td>2.4GHz</td><td>1.5–3km</td><td>9ms</td><td>Partial</td><td>Low</td><td>Budget, legacy</td></tr>
+        <tr><td>SBUS (signal only)</td><td>Wire only</td><td>Wired</td><td>7ms</td><td>No</td><td>Included</td><td>RX→FC connection standard</td></tr>
+        <tr><td>DJI OcuSync 3</td><td>2.4/5.8GHz</td><td>12–15km</td><td>15ms</td><td>Yes+HD video</td><td>High</td><td>DJI ecosystem</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="verdict">
+    <div class="verdict-tag">★ Recommendation</div>
+    <h4>ExpressLRS (ELRS) is the current gold standard</h4>
+    <p>Open source, extremely low latency (as low as 1ms at 500Hz packet rate), long range on 900MHz, supported by nearly all modern receivers and transmitter modules. Works with RadioMaster TX16S, Zorro, Pocket, and most EdgeTX transmitters. A 2.4GHz ELRS receiver costs ₹800–1200. Get this for any new build.</p>
+  </div>
+
+  <h3>Transmitter Selection</h3>
+  <div class="card-grid">
+    <div class="card c-best">
+      <div class="card-icon">🎮</div>
+      <h4>RadioMaster TX16S MkII</h4>
+      <p>Best all-rounder. Hall effect gimbals, EdgeTX, internal ELRS 2.4GHz module, full-size ergonomics. 16+ channels. ₹8,000–12,000. Buy this first.</p>
+      <span class="tag">Best All-Around</span>
+    </div>
+    <div class="card c-best">
+      <div class="card-icon">🕹</div>
+      <h4>RadioMaster Zorro / Pocket</h4>
+      <p>Compact gamepad-style. Hall gimbals, EdgeTX, internal ELRS. Perfect for travel and whoops/micros. ₹5,000–8,000.</p>
+      <span class="tag">Compact / Beginner</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">📡</div>
+      <h4>BetaFPV LiteRadio 3 Pro</h4>
+      <p>Budget-friendly full ELRS radio. Compact. Fewer channels but works great for 5" FPV. Good entry point. ₹3,500–4,500.</p>
+      <span class="tag">Budget Entry</span>
+    </div>
+  </div>
+
+  <h3>Failsafe — Critical Configuration</h3>
+  <div class="callout c-red">
+    <div class="callout-label">🚨 NEVER Skip Failsafe Setup</div>
+    <p>Failsafe defines what the drone does when it loses RC signal. Options: <strong>Disarm</strong> (motors stop — drone falls), <strong>Hold</strong> (hover in place), <strong>RTH/Return to Home</strong> (GPS required). For FPV without GPS: set failsafe to DISARM. For GPS-equipped: set to RTH. Test failsafe by turning off your radio at low altitude over soft ground BEFORE every new build flies for the first time.</p>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 10 — FPV SYSTEMS                     ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch10">
+  <div class="ch-eyebrow"><span class="ch-num">10</span><span class="ch-line"></span>FPV</div>
+  <h2>FPV Systems —<br><em>Analog & Digital</em></h2>
+  <p class="lead">First-Person View puts you in the pilot's seat. The video system determines your experience — latency, image quality, and range are all determined by this choice.</p>
+
+  <h3>FPV System Architecture</h3>
+  <div class="diagram">
+    <div class="diagram-label">FPV VIDEO CHAIN</div>
+    <pre>
+  On the DRONE:                          On the PILOT:
+  ┌──────────┐                           ┌─────────────────┐
+  │  CAMERA  │ ──[analog signal]──►      │  VIDEO RECEIVER │
+  │  (CMOS   │                           │  (in goggles)   │
+  │   sensor)│                           └────────┬────────┘
+  └──────────┘                                    │
+       │                                   ┌──────▼───────┐
+       ▼                                   │   DISPLAY    │
+  ┌──────────┐   ~5.8GHz RF   ~~~────►     │   (in goggle │
+  │   VTX    │ ─────────────────────       │    screens)  │
+  │ (video   │                             └──────────────┘
+  │ transmit)│
+  └──────────┘
+
+  For DIGITAL (DJI/Walksnail/HDZero):
+  Camera → Digital Video Encoder → Digital TX ──RF──► Digital RX → Goggles
+  Higher quality, more latency (20–40ms vs 1–5ms analog)
+    </pre>
+  </div>
+
+  <h3>Analog vs Digital — The Core Trade-off</h3>
+  <div class="pc">
+    <div class="pros">
+      <h5>✓ Analog FPV</h5>
+      <li>Ultra low latency (1–5ms)</li>
+      <li>Very cheap (₹500–2000 cam+VTX)</li>
+      <li>Universal — any VRX reads any VTX</li>
+      <li>No encoding delay</li>
+      <li>Penetrates obstacles better</li>
+      <li>Graceful degradation (gets fuzzy, not frozen)</li>
+    </div>
+    <div class="cons">
+      <h5>✗ Analog FPV</h5>
+      <li>Low resolution (576 lines ≈ potato quality)</li>
+      <li>Interference from other pilots</li>
+      <li>Cannot record full quality (only OSD overlay)</li>
+      <li>5.8GHz limited range outdoors</li>
+    </div>
+  </div>
+  <div class="pc">
+    <div class="pros">
+      <h5>✓ Digital FPV</h5>
+      <li>HD quality (720p–1080p in goggles)</li>
+      <li>Beautiful clear image</li>
+      <li>Low-latency digital (20–40ms — still flyable)</li>
+      <li>No frequency interference issues</li>
+      <li>DVR recorded at full resolution</li>
+    </div>
+    <div class="cons">
+      <h5>✗ Digital FPV</h5>
+      <li>Higher latency than analog (20–40ms)</li>
+      <li>Expensive (₹15,000–40,000 goggles+unit)</li>
+      <li>Locked ecosystem (DJI = DJI only)</li>
+      <li>Higher power draw</li>
+      <li>Can freeze/drop frames — worse than analog fuzz</li>
+    </div>
+  </div>
+
+  <h3>Digital FPV Systems Compared</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>System</th><th>Resolution</th><th>Latency</th><th>Range</th><th>Ecosystem</th><th>Cost (India)</th></tr></thead>
+      <tbody>
+        <tr><td>DJI O3 (Goggles 2)</td><td>1080p/60fps</td><td>~22ms</td><td>10km</td><td>Closed (DJI only)</td><td>₹40,000–60,000</td></tr>
+        <tr><td>DJI O3 (Goggles Integra)</td><td>1080p/60fps</td><td>~22ms</td><td>10km</td><td>Closed</td><td>₹30,000–40,000</td></tr>
+        <tr><td>Walksnail Avatar HD</td><td>1080p/60fps</td><td>~22ms</td><td>4–6km</td><td>Semi-open</td><td>₹20,000–35,000</td></tr>
+        <tr><td>HDZero</td><td>720p–1080p</td><td>~8ms (720p60)</td><td>2–4km</td><td>Open standard</td><td>₹20,000–30,000</td></tr>
+        <tr><td>Analog (best quality)</td><td>576 lines</td><td>1–3ms</td><td>3–5km</td><td>Universal</td><td>₹3,000–8,000</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Goggles Guide</h3>
+  <div class="card-grid card-grid-2">
+    <div class="card c-best">
+      <div class="card-icon">🥽</div>
+      <h4>Box Goggles (Eachine EV800D)</h4>
+      <p>Large screen, low cost (₹3,000–6,000), built-in DVR and diversity RX. Bulky but great for beginners. Can see screen without removing goggles to look up.</p>
+      <span class="tag">Beginner Analog</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🥽</div>
+      <h4>Compact Goggles (Fatshark Attitude / Scout)</h4>
+      <p>Small form factor, better image quality, modular receiver bay. ₹8,000–20,000 range. Standard for serious FPV pilots.</p>
+      <span class="tag">Intermediate Analog</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🥽</div>
+      <h4>DJI Goggles 2 / Integra</h4>
+      <p>Premium digital experience. Works only with DJI O3 system. Best image quality available for FPV. If you can afford it, it's transformative.</p>
+      <span class="tag">Premium Digital</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🥽</div>
+      <h4>Walksnail / HDZero Goggles</h4>
+      <p>Open ecosystem digital. HDZero has exceptionally low latency for digital. Good middle-ground between analog and DJI.</p>
+      <span class="tag">Mid Digital</span>
+    </div>
+  </div>
+
+  <h3>VTX Power Selection</h3>
+  <div class="callout c-orange">
+    <div class="callout-label">⚠ Legal & Practical Note</div>
+    <p>VTX power is regulated. In most countries, 25mW is the legal limit without license. India: use &lt;25mW or obtain an amateur radio license (5.8GHz is in unlicensed bands — but check TRAI/WPC rules). For local flying: 25–200mW. For long range outdoors: 400–800mW with proper antenna setups. Always use SmartAudio/IRC Tramp to control VTX power from your radio so you can set 25mW in controlled areas without opening the drone.</p>
+  </div>
+
+  <h3>FPV Camera Settings That Matter</h3>
+  <div class="diagram">
+    <div class="diagram-label">CAMERA CONFIG</div>
+    <pre>
+  KEY SETTINGS FOR FPV ANALOG CAMERAS:
+
+  Brightness/Contrast: Medium. Too bright = washed sky. Too dark = can't see shade.
+  Sharpness: Medium-High. Sharpening helps distinguish obstacles at speed.
+  WDR (Wide Dynamic Range): ON if available. Reduces the burnt-sky effect.
+  Noise Reduction: LOW. High NR adds latency and smears fast motion.
+  Camera Tilt: 15–45° downward from front facing
+               → 15° for slow cinema/proximity
+               → 30–35° for freestyle
+               → 45°+ for racing (you're always pitched forward)
+
+  RESOLUTION CHOICE:
+  NTSC: 480 lines, 60fps — smoother motion, common in Americas/Japan
+  PAL:  576 lines, 50fps — higher resolution, common in Europe/India
+
+  For FPV: NTSC recommended (smoother video = better piloting)
+    </pre>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 11 — GPS & AUTONOMY                  ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch11">
+  <div class="ch-eyebrow"><span class="ch-num">11</span><span class="ch-line"></span>Navigation</div>
+  <h2>GPS, Sensors<br>& <em>Autonomous Flight</em></h2>
+  <p class="lead">Adding GPS transforms a drone from a manually-flown aircraft into an autonomous system — capable of holding position, following missions, and returning home on command.</p>
+
+  <h3>GPS Module Breakdown</h3>
+  <div class="diagram">
+    <div class="diagram-label">GPS SYSTEM COMPONENTS</div>
+    <pre>
+  ┌──────────────────────────────────────────────────────────────┐
+  │  GPS MODULE (e.g. BN-880, Beitian BN-180, u-blox M8N/M9N)  │
+  │                                                              │
+  │  ┌─────────────────┐  ┌──────────────────┐                  │
+  │  │  GPS Antenna    │  │  Magnetometer    │  (compass)       │
+  │  │  (ceramic patch)│  │  HMC5883L / IST  │  on same module  │
+  │  └─────────────────┘  └──────────────────┘                  │
+  │           │                    │                             │
+  │  ┌────────▼────────────────────▼──────┐                     │
+  │  │    GPS Chipset (u-blox, Mediatek)  │                     │
+  │  │    - Parses satellite signals       │                     │
+  │  │    - Calculates lat/lon/alt/speed   │                     │
+  │  │    - Outputs NMEA or UBX protocol  │                     │
+  │  └─────────────────┬──────────────────┘                     │
+  │                    │ UART (4800–115200 baud)                 │
+  └────────────────────┼─────────────────────────────────────────┘
+                       │
+               To FC UART port
+
+  ACCURACY:
+  Standard GPS: 2.5–5m CEP (circular error probable)
+  GPS+GLONASS: 1.5–3m CEP
+  GPS+GLONASS+Galileo+BeiDou: 1–2m CEP (best modules)
+    </pre>
+  </div>
+
+  <h3>GPS-Enabled Flight Modes</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Mode</th><th>Requires</th><th>What It Does</th><th>Use Case</th></tr></thead>
+      <tbody>
+        <tr><td>Loiter / PosHold</td><td>GPS + compass + baro</td><td>Holds position in 3D space against wind</td><td>Photography, operator tasks</td></tr>
+        <tr><td>Return to Home (RTH)</td><td>GPS (home point)</td><td>Climbs to safe altitude, flies home, lands</td><td>Failsafe, battery low</td></tr>
+        <tr><td>Follow Me</td><td>GPS + target GPS</td><td>Drone follows a GPS-tracked person/vehicle</td><td>Sports, action filming</td></tr>
+        <tr><td>Auto Waypoint Mission</td><td>GPS + compass + GCS</td><td>Flies predefined GPS points at set altitude</td><td>Mapping, inspection, survey</td></tr>
+        <tr><td>Circle/Orbit</td><td>GPS + compass</td><td>Orbits a GPS coordinate at set radius/altitude</td><td>Cinematic, inspection</td></tr>
+        <tr><td>Land</td><td>GPS + baro + sonar</td><td>Descends to ground and disarms automatically</td><td>Auto or failsafe landing</td></tr>
+        <tr><td>Terrain Follow</td><td>GPS + terrain data</td><td>Maintains AGL altitude over variable terrain</td><td>Mapping, agriculture</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Magnetometer Interference — Critical Setup Note</h3>
+  <div class="callout c-red">
+    <div class="callout-label">🚨 Compass Calibration is Life-Critical</div>
+    <p>The compass (magnetometer) tells the drone which way is North — essential for GPS modes. It is <strong>extremely sensitive to interference from power cables, ESCs, and motors</strong>. Mount GPS/compass on a mast at least 10cm above the frame. Never run power wires near it. Calibrate compass after every significant build change. Compass errors cause <strong>toilet bowling</strong> (spinning around home point) and <strong>flyaways</strong>.</p>
+  </div>
+
+  <h3>ArduPilot vs PX4 vs Betaflight + GPS</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Firmware</th><th>GPS Modes</th><th>Mission Planning</th><th>Tuning Complexity</th><th>Best For</th></tr></thead>
+      <tbody>
+        <tr><td>Betaflight + GPS</td><td>Basic (rescue mode, RTH)</td><td>No</td><td>Easy</td><td>FPV with safety RTH</td></tr>
+        <tr><td>iNav</td><td>Full (waypoints, PosHold, RTH)</td><td>iNav Configurator</td><td>Medium</td><td>Long-range FPV + GPS</td></tr>
+        <tr><td>ArduPilot / APM</td><td>Advanced (all modes)</td><td>Mission Planner, QGC</td><td>Complex</td><td>Autonomous, commercial</td></tr>
+        <tr><td>PX4</td><td>Advanced (all modes)</td><td>QGroundControl</td><td>Complex</td><td>Research, enterprise</td></tr>
+        <tr><td>DJI NAZA/N3</td><td>Full (DJI ecosystem)</td><td>DJI GO / SDK</td><td>Easy (closed)</td><td>DJI commercial builds</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 12 — CAMERA DRONES                   ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch12">
+  <div class="ch-eyebrow"><span class="ch-num">12</span><span class="ch-line"></span>Cinematics</div>
+  <h2>Camera Drones &<br><em>Aerial Cinematics</em></h2>
+  <p class="lead">Getting great aerial footage requires understanding gimbals, camera choice, flight technique, and the physics of aerial stabilization.</p>
+
+  <h3>Gimbal Technology</h3>
+  <div class="diagram">
+    <div class="diagram-label">3-AXIS GIMBAL</div>
+    <pre>
+  3-AXIS STABILIZATION:
+
+  ROLL  ─── Keeps horizon level when drone banks
+  PITCH ─── Keeps camera angle when drone accelerates/decelerates
+  YAW   ─── Isolates camera from drone yaw rotation
+
+  ┌────────────────────────────────────────────────────────────────┐
+  │  DRONE BODY (tilts, banks, vibrates)                           │
+  │      │                                                         │
+  │  [YAW MOTOR] ─── isolates drone yaw                           │
+  │      │                                                         │
+  │  [ROLL MOTOR] ─── keeps horizon flat                          │
+  │      │                                                         │
+  │  [PITCH MOTOR] ─── stabilizes tilt                            │
+  │      │                                                         │
+  │  [CAMERA] ─── sees perfectly smooth world                     │
+  └────────────────────────────────────────────────────────────────┘
+
+  Gimbal IMU reads acceleration 1000× per second
+  Motors correct faster than vibrations can transmit
+  Result: cinema-smooth footage from a vehicle that's vibrating
+    </pre>
+  </div>
+
+  <h3>Camera Options by Quality Tier</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Camera</th><th>Resolution</th><th>Weight</th><th>Stabilization</th><th>Cost</th><th>Use On</th></tr></thead>
+      <tbody>
+        <tr><td>RunCam 5 Orange</td><td>4K/30fps</td><td>56g</td><td>None (electronic)</td><td>₹8,000</td><td>5" FPV, no gimbal</td></tr>
+        <tr><td>GoPro Hero 12</td><td>5.3K/60fps</td><td>153g</td><td>HyperSmooth (EIS)</td><td>₹40,000</td><td>5" FPV, cinewhoop</td></tr>
+        <tr><td>DJI Action 4</td><td>4K/120fps</td><td>148g</td><td>RockSteady (EIS)</td><td>₹35,000</td><td>5" FPV</td></tr>
+        <tr><td>Insta360 GO 3</td><td>2.7K/50fps</td><td>35g</td><td>FlowState (EIS)</td><td>₹30,000</td><td>Toothpick, micro FPV</td></tr>
+        <tr><td>DJI Gimbal + Cam</td><td>4K/60fps</td><td>200–400g</td><td>3-axis mechanical</td><td>₹25,000–80,000</td><td>Photography drones</td></tr>
+        <tr><td>Sony Alpha (mirrorless)</td><td>4K+/RAW</td><td>400–700g</td><td>IBIS + gimbal</td><td>₹100,000+</td><td>Hexacopter/Octocopter</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>ND Filters — Why They Matter for Aerial Video</h3>
+  <div class="callout c-cyan">
+    <div class="callout-label">ℹ 180° Shutter Rule</div>
+    <p>For cinematic motion blur, shutter speed should be <strong>2× frame rate</strong> (180° rule). At 30fps, use 1/60s. At 60fps, use 1/120s. On a bright day, this requires <strong>ND filters</strong> to avoid overexposure. ND4 = 2 stops. ND8 = 3 stops. ND16 = 4 stops. ND32 = 5 stops. Use Polar Pro or Freewell filter sets for your camera. Without NDs, your video looks sharp but uncinematic — stroboscopic and clinical.</p>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 13 — FIRMWARE & TUNING               ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch13">
+  <div class="ch-eyebrow"><span class="ch-num">13</span><span class="ch-line"></span>Software</div>
+  <h2>Firmware, Betaflight<br>& <em>PID Tuning</em></h2>
+  <p class="lead">A perfectly built drone flying badly is a software problem. Tuning PID values, filters, and rates transforms a mediocre build into a precise, responsive machine.</p>
+
+  <h3>Betaflight CLI — Essential Commands</h3>
+  <div class="code-block">
+    <div class="code-top"><div class="code-dot" style="background:#ff5f57"></div><div class="code-dot" style="background:#febc2e"></div><div class="code-dot" style="background:#28c840"></div>Betaflight CLI</div>
+    <pre><span class="cc"># Essential CLI commands for setup and tuning</span>
+
+<span class="cv">version</span>               <span class="cc"># Check firmware version</span>
+<span class="cv">dump</span>                  <span class="cc"># Dump all settings (backup before tuning!)</span>
+<span class="cv">diff all</span>              <span class="cc"># Show only changed settings from defaults</span>
+
+<span class="cc"># Motor configuration</span>
+<span class="cv">set motor_pwm_protocol</span> = <span class="cg">DSHOT600</span>
+<span class="cv">set digital_idle_percent</span> = <span class="cn">5.5</span>    <span class="cc"># 3-8% — minimum motor speed</span>
+<span class="cv">set use_unsynced_pwm</span> = <span class="ck">OFF</span>
+
+<span class="cc"># RPM Filtering (requires bidirectional DSHOT)</span>
+<span class="cv">set dshot_bidir</span> = <span class="ck">ON</span>
+<span class="cv">set rpm_filter_harmonics</span> = <span class="cn">3</span>
+
+<span class="cc"># Rates (how fast drone responds to stick input)</span>
+<span class="cv">set roll_rc_rate</span> = <span class="cn">107</span>
+<span class="cv">set pitch_rc_rate</span> = <span class="cn">107</span>
+<span class="cv">set yaw_rc_rate</span> = <span class="cn">90</span>
+<span class="cv">set roll_srate</span> = <span class="cn">70</span>        <span class="cc"># SuperRate: higher = faster at stick extremes</span>
+<span class="cv">set pitch_srate</span> = <span class="cn">70</span>
+<span class="cv">set yaw_srate</span> = <span class="cn">60</span>
+
+<span class="cc"># PID values (start with defaults, tune from here)</span>
+<span class="cv">set p_roll</span> = <span class="cn">45</span>
+<span class="cv">set i_roll</span> = <span class="cn">85</span>
+<span class="cv">set d_roll</span> = <span class="cn">35</span>
+<span class="cv">set f_roll</span> = <span class="cn">120</span>     <span class="cc"># Feed-forward: improves response without oscillation</span>
+
+<span class="cv">set p_pitch</span> = <span class="cn">47</span>
+<span class="cv">set i_pitch</span> = <span class="cn">90</span>
+<span class="cv">set d_pitch</span> = <span class="cn">36</span>
+<span class="cv">set f_pitch</span> = <span class="cn">125</span>
+
+<span class="cv">set p_yaw</span> = <span class="cn">40</span>
+<span class="cv">set i_yaw</span> = <span class="cn">100</span>
+<span class="cv">set d_yaw</span> = <span class="cn">0</span>         <span class="cc"># D on yaw usually 0 — yaw has no D benefit</span>
+
+<span class="cv">save</span>                   <span class="cc"># Always save after changes!</span></pre>
+  </div>
+
+  <h3>PID Symptoms Diagnosis</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Symptom</th><th>Likely Cause</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td>Oscillates / wiggles in air</td><td>P too high</td><td>Reduce P by 5–10% increments</td></tr>
+        <tr><td>Lazy, doesn't hold attitude</td><td>P too low</td><td>Increase P by 5–10%</td></tr>
+        <tr><td>Drifts slowly in one direction</td><td>I too low</td><td>Increase I</td></tr>
+        <tr><td>Overshoots and bounces back</td><td>I too high</td><td>Reduce I</td></tr>
+        <tr><td>Propwash oscillation on descent</td><td>D too low / filtering</td><td>Increase D, check RPM filtering</td></tr>
+        <tr><td>Hot motors / cooked D-term</td><td>D too high</td><td>Reduce D, increase filtering</td></tr>
+        <tr><td>Slow stick response feel</td><td>FF too low</td><td>Increase feed-forward</td></tr>
+        <tr><td>Jerky stick response</td><td>FF too high or rates issue</td><td>Reduce FF or smooth RC link</td></tr>
+        <tr><td>Toilet bowling (GPS mode)</td><td>Compass error</td><td>Recalibrate/relocate compass</td></tr>
+        <tr><td>Jello video</td><td>Vibration, prop balance</td><td>Balance props, add FC soft mount</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Tuning Process Flowchart</h3>
+  <div class="flow">
+    <div class="flow-title">// PID TUNING WORKFLOW</div>
+    <div class="flow-row"><div class="flow-box fo">Start with Betaflight defaults</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box">Enable Bidirectional DSHOT<br>+ RPM Filtering</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box">First hover test<br>Does it oscillate?</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-branch">
+      <div class="flow-col">
+        <div class="flow-box fr">YES — oscillates</div>
+        <div class="flow-box">Reduce P -10%<br>Retest</div>
+      </div>
+      <div class="flow-col">
+        <div class="flow-box fg">NO — stable hover</div>
+        <div class="flow-box fc">Try aggressive maneuver</div>
+        <div class="flow-branch">
+          <div class="flow-col">
+            <div class="flow-box">Propwash?</div>
+            <div class="flow-box">Increase D +5%</div>
+          </div>
+          <div class="flow-col">
+            <div class="flow-box fg">Clean flight</div>
+            <div class="flow-box">Blackbox log<br>Fine-tune FF</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="flow-row" style="margin-top:16px"><div class="flow-box fo">Record Blackbox → Analyze in PIDtoolbox</div></div>
+  </div>
+
+  <h3>RPM Filtering — The Modern Revolution</h3>
+  <div class="callout c-green">
+    <div class="callout-label">✓ Enable This on Every Build</div>
+    <p>RPM filtering uses real-time motor RPM data (via Bidirectional DSHOT) to create <strong>dynamic notch filters exactly at motor and prop noise frequencies</strong>. This eliminates the need for heavy low-pass filtering that adds latency. Result: cleaner D-term, less heat, better flight feel, cleaner video. Enable in Betaflight: Filtering tab → RPM filter ON. Set bidir_dshot = ON in CLI. This single feature improved FPV drone performance more than any hardware change in years.</p>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 14 — BUILD GUIDES                    ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch14">
+  <div class="ch-eyebrow"><span class="ch-num">14</span><span class="ch-line"></span>Build Guides</div>
+  <h2>Complete Build<br><em>Recipes</em></h2>
+  <p class="lead">Three complete builds covering beginner to advanced, with exact parts, wiring order, and setup steps.</p>
+
+  <h3>Build 1 — Budget 5" Freestyle (₹12,000–15,000)</h3>
+  <ul class="part-list">
+    <li><span class="part-num">FRAME</span><div><div class="part-name">TBS Source One V5 5"</div><div class="part-desc">Open-source CF frame. 5mm arms, replaceable. ~₹1,800</div></div></li>
+    <li><span class="part-num">MOTORS</span><div><div class="part-name">EMAX Eco II 2306 2400KV ×4</div><div class="part-desc">Budget tier but reliable. 4S compatible. ~₹400 each = ₹1,600</div></div></li>
+    <li><span class="part-num">4-IN-1 ESC</span><div><div class="part-name">JHEMCU 45A 4-in-1 BLHeli_32</div><div class="part-desc">Integrated BEC, telemetry, 45A per corner. ~₹2,500</div></div></li>
+    <li><span class="part-num">FC</span><div><div class="part-name">Betaflight F405 / SpeedyBee F405 V3</div><div class="part-desc">STM32F405, 6 UARTs, OSD, SD card. ~₹2,000–3,000</div></div></li>
+    <li><span class="part-num">CAMERA</span><div><div class="part-name">Foxeer Razer Mini</div><div class="part-desc">1200TVL analog, low latency. ~₹1,200</div></div></li>
+    <li><span class="part-num">VTX</span><div><div class="part-name">Rush Tank Solo 5.8GHz 0–400mW</div><div class="part-desc">SmartAudio, selectable power. ~₹1,500</div></div></li>
+    <li><span class="part-num">RECEIVER</span><div><div class="part-name">BetaFPV SuperP ELRS 2.4GHz</div><div class="part-desc">ELRS receiver, SPI or UART. ~₹800</div></div></li>
+    <li><span class="part-num">PROPS</span><div><div class="part-name">HQ 5.1×4.6×3 Tri-blade Nylon ×2 sets</div><div class="part-desc">2× CW + 2× CCW per set. ~₹200/set × 2 = ₹400</div></div></li>
+    <li><span class="part-num">BATTERY</span><div><div class="part-name">CNHL 1300mAh 4S 100C ×2</div><div class="part-desc">~₹2,000 each × 2 = ₹4,000</div></div></li>
+  </ul>
+
+  <h3>Wiring Order — 5" Build (Follow Exactly)</h3>
+  <ol class="steps">
+    <li><strong>Dry fit all components</strong> to frame before soldering anything. Identify cable routing, check ESC–FC stack fits, check camera angle.</li>
+    <li><strong>Solder motors to ESC</strong>: any 2 wires swapped = reverse rotation. Do this first while you have space. Use 22AWG silicone wire.</li>
+    <li><strong>Solder battery leads to 4-in-1 ESC</strong>: XT60 connector. Use flux, tin both sides first. DO NOT plug in battery yet. Large copper pads require high-temp iron (380°C).</li>
+    <li><strong>Solder capacitor</strong> (1000µF 35V) across battery pads. Observe polarity. Short lead = negative.</li>
+    <li><strong>FC–ESC stack</strong>: connect via supplied 8-pin cable or direct solder pads. Map UART/signal pads between boards.</li>
+    <li><strong>Solder VTX</strong>: 5V/GND from FC, Video and Audio signals. Install SMA pigtail through frame hole before soldering antenna connector.</li>
+    <li><strong>Solder camera</strong>: 5V/GND, video wire to VTX video input or FC OSD input.</li>
+    <li><strong>Bind receiver</strong> to radio before installing in frame. Test RC input works via Betaflight configurator.</li>
+    <li><strong>Motor spin direction check</strong>: connect to Betaflight, use Motor tab (NO PROPS), verify each motor spins correct direction. Swap any 2 motor wires to reverse.</li>
+    <li><strong>Betaflight configuration</strong>: set DSHOT600, enable RPM filter, assign receiver UART, configure failsafe, set rates. Mandatory before first flight.</li>
+  </ol>
+
+  <h3>Build 2 — Long Range 7" GPS Explorer (₹25,000–35,000)</h3>
+  <div class="card-grid card-grid-2">
+    <div class="card">
+      <h4>Frame</h4>
+      <p>GEPRC Crocodile Baby 7" — space for 18650 cells or large LiPo, GPS mast, long legs</p>
+    </div>
+    <div class="card">
+      <h4>Motors</h4>
+      <p>T-Motor F60 Pro IV 1750KV — efficient for 7", high quality, long life. ×4</p>
+    </div>
+    <div class="card">
+      <h4>Flight Controller</h4>
+      <p>Matek F722-SE — iNav compatible, barometer, OSD, 6 UARTs for GPS+RC+VTX+telemetry</p>
+    </div>
+    <div class="card">
+      <h4>GPS Module</h4>
+      <p>Beitian BN-880 — GPS+GLONASS+compass, 10Hz update rate, UART output. Mount on raised mast away from ESC</p>
+    </div>
+    <div class="card">
+      <h4>RC Link</h4>
+      <p>ELRS 900MHz module + receiver. At 900MHz: 30+ km theoretical range on open ground</p>
+    </div>
+    <div class="card">
+      <h4>Battery</h4>
+      <p>CNHL 4S 3300–4000mAh — ~30 minute flight time at cruise throttle on efficient 7" setup</p>
+    </div>
+  </div>
+
+  <h3>Build 3 — HD Cinematic 5" (₹40,000–55,000)</h3>
+  <div class="card-grid card-grid-2">
+    <div class="card">
+      <h4>Frame</h4>
+      <p>ImpulseRC Apex 5" or Flywoo HexH20 — Deadcat geometry (props out of FOV), solid HD cam mount</p>
+    </div>
+    <div class="card">
+      <h4>Video System</h4>
+      <p>DJI O3 Air Unit — 1080p60 in goggles, HD recording on SD card, low latency digital link</p>
+    </div>
+    <div class="card">
+      <h4>Action Camera</h4>
+      <p>GoPro Hero 12 or DJI Action 4 — mounted on TPU soft mount. ND filters essential.</p>
+    </div>
+    <div class="card">
+      <h4>Motors</h4>
+      <p>Xing 2306 2450KV or T-Motor F60 2550KV — top tier motors for minimal vibration in HD footage</p>
+    </div>
+    <div class="card">
+      <h4>Flight Controller</h4>
+      <p>SpeedyBee F7 V3 — H7 chip, 8 UARTs, blackbox SD, compatible with DJI O3 OSD</p>
+    </div>
+    <div class="card">
+      <h4>Battery</h4>
+      <p>Tattu R-Line 6S 1550mAh — 6S for efficiency, better flight time, less current draw vs 4S</p>
+    </div>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 15 — REGULATIONS                     ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch15">
+  <div class="ch-eyebrow"><span class="ch-num">15</span><span class="ch-line"></span>Legal & Safe</div>
+  <h2>Regulations,<br><em>India & Global</em></h2>
+  <p class="lead">Ignorance of drone regulations is not a legal defense. These rules exist because drones colliding with aircraft, people, or critical infrastructure can be catastrophic.</p>
+
+  <h3>India DGCA Drone Rules 2021</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Category</th><th>Weight</th><th>Registration</th><th>Pilot License</th><th>Where to Fly</th></tr></thead>
+      <tbody>
+        <tr><td>Nano</td><td>&lt;250g</td><td>Not required</td><td>Not required</td><td>Up to 50ft AGL, away from airports</td></tr>
+        <tr><td>Micro</td><td>250g–2kg</td><td>Required (UAS Portal)</td><td>Required (RPO)</td><td>Green zones only, permission for yellow</td></tr>
+        <tr><td>Small</td><td>2kg–25kg</td><td>Required</td><td>Required (RPO)</td><td>Green zones, prior permission for others</td></tr>
+        <tr><td>Medium</td><td>25kg–150kg</td><td>Required</td><td>Required (RPO)</td><td>Restricted — commercial operator only</td></tr>
+        <tr><td>Large</td><td>&gt;150kg</td><td>Required</td><td>Required (CPO)</td><td>Highly restricted</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout c-red">
+    <div class="callout-label">🚨 Never Fly Here — India Red Zones</div>
+    <p>Within 5km of any airport. Within 25km of international borders. Over military installations. Over the President's Estate, Parliament, Supreme Court, State Legislatures. Over critical infrastructure (power plants, refineries). At night (unless BVLOS permit). Over crowds. Violating these rules can result in imprisonment up to 1 year and fines up to ₹10 lakh under DGCA regulations and IT Act sections.</p>
+  </div>
+
+  <h3>Digital Sky Portal — How to Register</h3>
+  <ol class="steps">
+    <li>Go to <strong>digitalsky.dgca.gov.in</strong> — the official DGCA portal for drone registration and permissions.</li>
+    <li>Register as a Drone Operator. Upload ID proof, address, and drone details (serial number, manufacturer, max MTOW).</li>
+    <li>Drone receives a <strong>UIN (Unique Identification Number)</strong> — must be displayed on the drone.</li>
+    <li>Apply for <strong>UAOP (Unmanned Aircraft Operator Permit)</strong> for micro+ drones before flying.</li>
+    <li>For each flight in yellow zones: file a <strong>flight permission request</strong> via Digital Sky, minimum 24 hours before.</li>
+    <li>For FPV racing in a club: clubs can apply for a standing permission in a designated area.</li>
+  </ol>
+
+  <h3>Global Airspace Classifications</h3>
+  <div class="diagram">
+    <div class="diagram-label">AIRSPACE ZONES (Universal Concept)</div>
+    <pre>
+  Altitude
+  FL600 ┤ Class A — Controlled IFR airspace — NO DRONES
+        │
+  10000 ┤ Class B/C/D — Around major airports — STRICT PERMITS
+        │
+  5000  ┤ Class E — Transition airspace — Permits + VLOS only
+        │
+  1200  ┤ Class G — Uncontrolled airspace — Most drone flying
+   400  ┤ ─── Standard maximum drone altitude (400ft/120m AGL) ───
+        │
+   200  ┤ Most recreational flying happens here
+        │
+    0   ┤ Ground
+
+  AGL = Above Ground Level (not sea level)
+
+  Key concept: Even in Class G, you cannot fly within 5km of
+  an airport/helipad without Air Traffic Control permission.
+  Use apps: AirMap, B4UFLY, DJI Fly Safe map to check zones.
+    </pre>
+  </div>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║  CH 16 — TROUBLESHOOTING                 ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+<div class="chapter" id="ch16">
+  <div class="ch-eyebrow"><span class="ch-num">16</span><span class="ch-line"></span>Troubleshooting</div>
+  <h2>Diagnosis &<br><em>Problem Solving</em></h2>
+  <p class="lead">Every builder hits walls. This chapter is your reference for systematic diagnosis from first power-on to advanced flight issues.</p>
+
+  <h3>First Power-On Checklist</h3>
+  <div class="flow">
+    <div class="flow-title">// FIRST POWER-ON SEQUENCE</div>
+    <div class="flow-row"><div class="flow-box fo">Connect to Betaflight Configurator via USB (NO BATTERY YET)</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box">FC detected? Firmware correct? Ports showing?</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box fc">Configure: DSHOT600, ports for RX/VTX, receiver mode</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box">Bind receiver → check RC inputs tab → sticks move channels?</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box fg">Plug battery (NO PROPS) → Motors tab → spin each motor</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box">Correct spin direction? (X-frame: 1=CCW, 2=CW, 3=CW, 4=CCW)</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box fo">Set motor direction, install props, configure failsafe → FIRST HOVER</div></div>
+  </div>
+
+  <h3>Master Troubleshooting Table</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Problem</th><th>First Check</th><th>Second Check</th><th>Solution</th></tr></thead>
+      <tbody>
+        <tr><td>Motor doesn't spin at all</td><td>ESC power (battery plug)</td><td>Motor wires continuity</td><td>Check solder joints, ESC BEC fuse, motor wire shorts</td></tr>
+        <tr><td>One motor spins wrong way</td><td>Motor wire order</td><td>ESC motor direction setting</td><td>Swap any 2 motor wires OR BLHeliSuite motor direction</td></tr>
+        <tr><td>ESC beeping on power-on</td><td>Battery cell count vs ESC setting</td><td>Throttle calibration</td><td>Usually: ESC not receiving valid throttle signal. Check FC DSHOT config</td></tr>
+        <tr><td>No video in goggles</td><td>VTX powered (check 5V pad)</td><td>Frequency / band match</td><td>Match VTX band/channel to goggles. Check video wire connection</td></tr>
+        <tr><td>Video but very noisy</td><td>VTX antenna connected</td><td>VTX power level</td><td>Never power VTX without antenna. Increase power. Check LC filter on power</td></tr>
+        <tr><td>RC input not working</td><td>Correct UART assigned in Betaflight</td><td>Receiver powered</td><td>Set serial port to matching RX type. Re-bind receiver</td></tr>
+        <tr><td>Drone flips on takeoff</td><td>Motor spin directions</td><td>Prop direction (CW on CCW motor)</td><td>Fix motor directions. Check props are on correct motors</td></tr>
+        <tr><td>Drone drifts after takeoff</td><td>Gyro calibration (flat surface)</td><td>Accelerometer calibration</td><td>Calibrate gyro and acc in Betaflight on level surface</td></tr>
+        <tr><td>Hot motors after flight</td><td>D-term too high</td><td>Wrong prop size for motor KV</td><td>Reduce D-term. Check prop selection against motor specs</td></tr>
+        <tr><td>GPS not locking</td><td>Open sky (move outside)</td><td>Baud rate in Betaflight/iNav ports</td><td>Set GPS port baud to 115200, GPS protocol UBX. Wait 3–5 min outside</td></tr>
+        <tr><td>Compass errors / toilet bowl</td><td>Compass placement near ESC/motors</td><td>Calibration done?</td><td>Move GPS mast higher. Recalibrate. Check for magnetic interference</td></tr>
+        <tr><td>Short flight times</td><td>TWR too high (racing motors on photo build)</td><td>Battery internal resistance</td><td>Lower KV/larger prop for efficiency. Check pack IR. Fly at 50% throttle hover</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Blackbox — Your Most Powerful Tuning Tool</h3>
+  <div class="callout c-orange">
+    <div class="callout-label">⚡ Pro Tip — Always Use Blackbox</div>
+    <p>Betaflight Blackbox records gyro data, motor outputs, RC inputs, and PID corrections at 2–8kHz to an onboard SD card or SPI flash. Analyze in <strong>Betaflight Blackbox Explorer</strong> or <strong>PIDtoolbox</strong>. You can literally see oscillations in the data, find prop resonance frequencies, validate filter effectiveness, and tune PIDs without guessing. No serious tuner makes changes without Blackbox data. If your FC has an SD card slot — use it.</p>
+  </div>
+
+  <h3>Learning Path — From Zero to Expert</h3>
+  <div class="flow">
+    <div class="flow-title">// DRONE MASTERY PROGRESSION</div>
+    <div class="flow-row"><div class="flow-box fo">Week 1–2: Simulator (Velocidrone/Liftoff) — Learn Acro mode</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box fc">Week 3–4: Build first 65mm whoop — learn electronics</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box">Month 2: Fly whoop in acro — crashes, repairs, fundamentals</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box fg">Month 3–4: Build first 5" — this guide's Budget Build</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box">Month 5–6: Learn Betaflight tuning, blackbox analysis</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box fc">Month 7–12: Specialize — FPV racing, freestyle, long range, or cinematics</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box fg">Year 2+: Custom builds, GPS/autonomous, commercial work</div></div>
+    <div class="flow-row"><div class="flow-arrow">▼</div></div>
+    <div class="flow-row"><div class="flow-box fo">EXPERT — You're the person others ask for help</div></div>
+  </div>
+
+  <div class="verdict">
+    <div class="verdict-tag">Final Note</div>
+    <h4>The simulator is not optional for beginners</h4>
+    <p>Velocidrone (₹400 on Steam) or the free Liftoff demo will save you ₹10,000–15,000 in crash repairs. Your brain needs muscle memory for Acro mode before real props spin. 20–30 hours in the sim on Acro mode = you won't crash your first 5" into the ground on maiden flight. This is the advice every experienced pilot gives and every beginner ignores. Don't be that person.</p>
+  </div>
+
+  <div style="text-align:center; padding: 60px 0 20px; opacity:0.5;">
+    <div style="font-family:var(--mono); font-size:11px; color:var(--text3); letter-spacing:3px; text-transform:uppercase;">
+      END OF GUIDE — FLY SAFE, FLY LEGAL, FLY WELL
+    </div>
+    <div style="margin-top:16px; font-size:32px;">🚁</div>
+  </div>
+</div>
+
+</main>
+
+<footer style="background:var(--deep); border-top:1px solid var(--border); padding:24px 48px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; font-family:var(--mono); font-size:11px; color:var(--text3); letter-spacing:1px;">
+  <span>DRONE MASTERY — Complete Technical Bible</span>
+  <span>16 Chapters · Zero to Professional</span>
+</footer>
+
+<script>
+  // Close sidenav on link click (mobile)
+  document.querySelectorAll('.sidenav a').forEach(a => {
+    a.addEventListener('click', () => {
+      document.querySelector('.sidenav').classList.remove('open');
+    });
+  });
+</script>
+</body>
+</html>

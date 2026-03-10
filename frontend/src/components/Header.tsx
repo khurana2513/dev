@@ -16,6 +16,7 @@ export default function Header() {
   const [userMenuOpen, setUserMenuOpen]       = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen]   = useState(false);
   const [scrolled, setScrolled]               = useState(false);
+  const [isFullscreenActive, setIsFullscreenActive] = useState(false);
 
   const [location, setLocation] = useLocation();
 
@@ -50,6 +51,12 @@ export default function Header() {
     const handleScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const onFSChange = () => setIsFullscreenActive(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFSChange);
+    return () => document.removeEventListener("fullscreenchange", onFSChange);
   }, []);
 
   const handleLogoClick = (e: React.MouseEvent) => {
@@ -94,8 +101,11 @@ export default function Header() {
   }, []);
 
   const isActive = (path: string) => location === path || location.startsWith(path + "/");
+  const isActiveExact = (path: string) => location === path;
 
   // Hide header completely on the sign-in page — Login is a full-screen overlay
+  // Also hide during browser fullscreen (practice sessions)
+  if (isFullscreenActive) return null;
 
   const CARD_STYLE = {
     background: "linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card)/0.95) 100%)",
@@ -123,10 +133,10 @@ export default function Header() {
     background: conic-gradient(
       from 0deg,
       transparent 0deg,
-      transparent 340deg,
-      rgba(167, 139, 250, 0.3) 350deg,
-      rgba(255, 255, 255, 0.95) 357deg,
-      rgba(167, 139, 250, 0.3) 360deg
+      transparent 338deg,
+      rgba(167, 139, 250, 0.2) 348deg,
+      rgba(192, 168, 255, 0.85) 356deg,
+      rgba(167, 139, 250, 0.2) 360deg
     );
     -webkit-mask:
       linear-gradient(#fff 0 0) content-box,
@@ -261,12 +271,12 @@ export default function Header() {
                       </div>
                     </Link>
                     <Link href="/tools/gridmaster">
-                      <div className={navItem(isActive("/tools/gridmaster"))} onClick={() => setGamesOpen(false)}>
+                      <div className={navItem(isActiveExact("/tools/gridmaster"))} onClick={() => setGamesOpen(false)}>
                         <Grid3X3 className="w-4 h-4" />Vedic Grid
                       </div>
                     </Link>
-                    <Link href="/tools/gridmaster?tab=magic">
-                      <div className={navItem(isActive("/tools/gridmaster"))} onClick={() => setGamesOpen(false)}>
+                    <Link href="/tools/gridmaster/magic">
+                      <div className={navItem(isActiveExact("/tools/gridmaster/magic"))} onClick={() => setGamesOpen(false)}>
                         <Sparkles className="w-4 h-4" />Magic Square
                       </div>
                     </Link>
@@ -384,15 +394,9 @@ export default function Header() {
                           <div className="p-4 border-b-2 border-border/50" style={{ background: "rgba(124,58,237,0.06)" }}>
                             <div style={{ color: "#e2e8f0", fontSize: 13.5, fontWeight: 600, marginBottom: 2 }}>{displayName}</div>
                             <div style={{ color: "rgba(255,255,255,0.48)", fontSize: 12, marginBottom: 10 }}>{user.email}</div>
-                            {user.public_id && (
-                              <div style={{ fontSize: 11.5, marginBottom: 8 }}>
-                                <span style={{ color: "rgba(255,255,255,0.35)" }}>ID: </span>
-                                <span style={{ fontFamily: "monospace", color: "#a78bfa", fontWeight: 600 }}>{user.public_id}</span>
-                              </div>
-                            )}
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 2 }}>
+                              {user.public_id && <span style={{ fontSize: 11, fontFamily: "monospace", fontWeight: 700, color: "#a78bfa", background: "rgba(167,139,250,0.13)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 6, padding: "2px 9px" }}>{user.public_id}</span>}
                               <span style={{ fontSize: 11, fontWeight: 600, color: "#a78bfa", background: "rgba(167,139,250,0.13)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 6, padding: "2px 9px" }}>{user.total_points} pts</span>
-                              {user.branch && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.62)", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "2px 9px" }}>{user.branch}</span>}
                               {user.course && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.62)", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "2px 9px" }}>{user.course}</span>}
                               {user.level && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.62)", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "2px 9px" }}>Lvl {user.level}</span>}
                             </div>
@@ -514,7 +518,7 @@ export default function Header() {
               <Link href="/tools/gridmaster" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Grid3X3 className="w-4 h-4" />⊞ Vedic Grid</div>
               </Link>
-              <Link href="/tools/gridmaster?tab=magic" onClick={() => setMobileMenuOpen(false)}>
+              <Link href="/tools/gridmaster/magic" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Sparkles className="w-4 h-4" />Magic Square</div>
               </Link>
               {!isAuthenticated && (

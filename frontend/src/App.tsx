@@ -208,6 +208,7 @@ function AppContent() {
               <Route path="/terms-of-service" component={TermsOfService} />
               <Route path="/about" component={AboutUs} />
               <Route path="/tools/gridmaster" component={GridMaster} />
+              <Route path="/tools/gridmaster/magic" component={GridMaster} />
               <Route path="/tools/soroban" component={SorobanAbacus} />
               <Route path="/pricing" component={Pricing} />
               <Route path="/admin/access-control">

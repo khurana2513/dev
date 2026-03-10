@@ -1,18 +1,17 @@
-import { useState } from "react";
-import { Link } from "wouter";
-import { ArrowLeft, Grid3X3, LayoutGrid } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { ArrowLeft } from "lucide-react";
 import { GridGame } from "../tools/gridmaster/games/GridGame";
 import { MagicSquareGame } from "../tools/gridmaster/games/MagicSquareGame";
 import { ToastContainer } from "../tools/gridmaster/components/ToastContainer";
 import { useToast } from "../tools/gridmaster/hooks/useToast";
 
 const CSS_VARS = `
-  :root {
+  .gridmaster-page {
     --bg: #0a0a0f;
     --surface: #14141c;
     --surface2: #1b1b25;
     --surface3: #23232f;
-    --border: rgba(255,255,255,0.07);
+    --gm-border: rgba(255,255,255,0.07);
     --border2: rgba(255,255,255,0.12);
     --text: #eef0f7;
     --text2: #9896b0;
@@ -30,10 +29,8 @@ const CSS_VARS = `
 type Tab = "grid" | "magic";
 
 export default function GridMaster() {
-  const [activeTab, setActiveTab] = useState<Tab>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("tab") === "magic" ? "magic" : "grid";
-  });
+  const [location] = useLocation();
+  const activeTab: Tab = location === "/tools/gridmaster/magic" ? "magic" : "grid";
   const { toasts, add: addToast } = useToast();
 
   return (
@@ -41,6 +38,7 @@ export default function GridMaster() {
       <style>{CSS_VARS}</style>
 
       <div
+        className="gridmaster-page"
         style={{
           minHeight: "100vh",
           background: "#07070F",
@@ -63,11 +61,11 @@ export default function GridMaster() {
             style={{
               maxWidth: 960,
               margin: "0 auto",
-              padding: "0 24px",
-              height: 64,
+              padding: "0 clamp(12px,3vw,24px)",
+              height: "clamp(52px,8vw,64px)",
               display: "flex",
               alignItems: "center",
-              gap: 16,
+              gap: "clamp(10px,2vw,16px)",
             }}
           >
             <Link href="/">
@@ -105,16 +103,18 @@ export default function GridMaster() {
                   fontSize: 17,
                   fontWeight: 700,
                   fontFamily: "'Playfair Display', Georgia, serif",
-                  background: "linear-gradient(135deg, #9b8cff, #4ecdc4)",
+                  background: activeTab === "grid"
+                    ? "linear-gradient(135deg, #4ecdc4, #35b5ac)"
+                    : "linear-gradient(135deg, #e8c97e, #d4a855)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   letterSpacing: "-0.3px",
                 }}
               >
-                GridMaster
+                {activeTab === "grid" ? "Vedic Grid Builder" : "Magic Square Puzzle"}
               </div>
               <div style={{ fontSize: 11, color: "#6d6b85", letterSpacing: "0.15em", textTransform: "uppercase", marginTop: 1 }}>
-                Magic Square Games
+                {activeTab === "grid" ? "Siamese Method" : "Number Logic Game"}
               </div>
             </div>
 
@@ -123,42 +123,13 @@ export default function GridMaster() {
         </div>
 
         {/* ── Main Content ── */}
-        <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px 64px" }}>
-
-          {/* ── Tab Switcher ── */}
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              marginBottom: 28,
-              background: "#14141c",
-              border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: 14,
-              padding: 6,
-              width: "fit-content",
-            }}
-          >
-            <TabBtn
-              active={activeTab === "grid"}
-              onClick={() => setActiveTab("grid")}
-              icon={<Grid3X3 size={15} />}
-              label="Grid Builder"
-              accent="#4ecdc4"
-            />
-            <TabBtn
-              active={activeTab === "magic"}
-              onClick={() => setActiveTab("magic")}
-              icon={<LayoutGrid size={15} />}
-              label="Magic Square"
-              accent="#e8c97e"
-            />
-          </div>
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "clamp(20px,4vw,32px) clamp(12px,3vw,24px) 64px" }}>
 
           {/* ── Description ── */}
           <div
             style={{
               marginBottom: 24,
-              padding: "14px 20px",
+              padding: "clamp(10px,2vw,14px) clamp(14px,3vw,20px)",
               background: "#14141c",
               border: "1px solid rgba(255,255,255,0.07)",
               borderRadius: 12,
@@ -169,8 +140,8 @@ export default function GridMaster() {
           >
             {activeTab === "grid" ? (
               <>
-                <span style={{ color: "#4ecdc4", fontWeight: 600 }}>Grid Builder</span>
-                {" — "}Build an odd-order magic square using the{" "}
+                <span style={{ color: "#4ecdc4", fontWeight: 600 }}>Vedic Grid Builder</span>
+                {" — "}Build an odd-order magic square step-by-step using the{" "}
                 <strong style={{ color: "#eef0f7" }}>Siamese method</strong>. Click cells to place numbers
                 in sequence — the algorithm guides you to the correct position automatically.
               </>
@@ -190,7 +161,7 @@ export default function GridMaster() {
               background: "#0e0e16",
               border: "1px solid rgba(255,255,255,0.07)",
               borderRadius: 16,
-              padding: "24px 20px",
+              padding: "clamp(14px,3vw,24px) clamp(12px,2.5vw,20px)",
             }}
           >
             {activeTab === "grid" ? (
@@ -205,53 +176,5 @@ export default function GridMaster() {
         <ToastContainer toasts={toasts} />
       </div>
     </>
-  );
-}
-
-/* ── Tab Button Component ── */
-interface TabBtnProps {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  accent: string;
-}
-
-function TabBtn({ active, onClick, icon, label, accent }: TabBtnProps) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 7,
-        padding: "9px 18px",
-        borderRadius: 10,
-        border: active ? `1px solid ${accent}40` : "1px solid transparent",
-        background: active ? `${accent}18` : "transparent",
-        color: active ? accent : "#6d6b85",
-        fontSize: 13,
-        fontWeight: active ? 600 : 500,
-        fontFamily: "'DM Sans', sans-serif",
-        cursor: "pointer",
-        transition: "all 0.18s",
-        whiteSpace: "nowrap",
-      }}
-      onMouseEnter={e => {
-        if (!active) {
-          (e.currentTarget as HTMLButtonElement).style.color = "#9896b0";
-          (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.04)";
-        }
-      }}
-      onMouseLeave={e => {
-        if (!active) {
-          (e.currentTarget as HTMLButtonElement).style.color = "#6d6b85";
-          (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-        }
-      }}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }

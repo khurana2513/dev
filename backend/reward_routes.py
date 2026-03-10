@@ -6,20 +6,22 @@ Provides:
   - GET  /rewards/badges           — all badge statuses (earned + locked)
   - GET  /rewards/points/history   — paginated point events
   - GET  /rewards/streak           — current streak info
-  - GET  /rewards/leaderboard      — live leaderboard (+ optional branch filter)
+  - GET  /rewards/streak/calendar  — monthly streak calendar (qualifying days)
+  - GET  /rewards/leaderboard      — live leaderboard (all_time | weekly)
   - GET  /rewards/weekly-summary   — weekly points breakdown
   - GET  /rewards/super-journey    — SUPER badge journey progress
 """
 
 import logging
-from typing import Optional
-from datetime import datetime, timedelta, time as dt_time
+import calendar as _calendar
+from typing import Optional, List
+from datetime import datetime, timedelta, time as dt_time, date as _date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
-from models import User, StudentProfile, get_db
+from models import User, StudentProfile, get_db, PointsLog, Attempt, PracticeSession, PaperAttempt
 from auth import get_current_user
 from reward_models import (
     RewardEvent,
@@ -38,6 +40,8 @@ from reward_schemas import (
     LeaderboardEntryOut,
     WeeklySummaryOut,
     NextMilestoneOut,
+    StreakCalendarDay,
+    StreakCalendarResponse,
 )
 from timezone_utils import get_ist_now, IST_TIMEZONE, ist_to_utc, utc_to_ist
 
@@ -223,6 +227,115 @@ def get_points_history(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# GET /rewards/streak/calendar  (registered BEFORE /streak — more specific first)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/streak/calendar", response_model=StreakCalendarResponse)
+def get_streak_calendar(
+    year: int = Query(..., ge=2020, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Monthly qualifying-day calendar.
+    Uses exactly 2 DB queries for the whole month (never N queries).
+    Logic mirrors StreakService.count_qualifying_today exactly.
+    """
+    from streak_service import STREAK_THRESHOLD, VEDIC_MATH_LEVEL_PREFIX
+    from collections import defaultdict
+
+    IST_OFFSET = timedelta(hours=5, minutes=30)
+    student_id = current_user.id
+    today_ist = get_ist_now().date()
+    _, days_in_month = _calendar.monthrange(year, month)
+
+    # Month boundaries (IST → timezone-aware UTC)
+    month_first_ist = datetime.combine(_date(year, month, 1), dt_time.min).replace(tzinfo=IST_TIMEZONE)
+    if month == 12:
+        month_next_ist = datetime.combine(_date(year + 1, 1, 1), dt_time.min).replace(tzinfo=IST_TIMEZONE)
+    else:
+        month_next_ist = datetime.combine(_date(year, month + 1, 1), dt_time.min).replace(tzinfo=IST_TIMEZONE)
+
+    month_utc_start = ist_to_utc(month_first_ist)
+    month_utc_end   = ist_to_utc(month_next_ist)
+
+    # --- Batch query 1: Mental Math + Burst Mode ----------------------------
+    # Attempt.created_at is Column(DateTime) — naive UTC stored in DB.
+    # We compare with timezone-aware UTC (same as streak_service does, and it works).
+    attempt_timestamps = (
+        db.query(Attempt.created_at)
+        .join(PracticeSession, Attempt.session_id == PracticeSession.id)
+        .filter(
+            PracticeSession.user_id == student_id,
+            PracticeSession.difficulty_mode != "custom",
+            Attempt.created_at >= month_utc_start,
+            Attempt.created_at < month_utc_end,
+        )
+        .all()
+    )
+
+    # --- Batch query 2: Vedic Math papers -----------------------------------
+    # PaperAttempt.completed_at is Column(DateTime(timezone=True)) — aware UTC.
+    paper_rows = (
+        db.query(
+            PaperAttempt.completed_at,
+            (PaperAttempt.correct_answers + PaperAttempt.wrong_answers).label("total"),
+        )
+        .filter(
+            PaperAttempt.user_id == student_id,
+            PaperAttempt.completed_at.isnot(None),
+            PaperAttempt.completed_at >= month_utc_start,
+            PaperAttempt.completed_at < month_utc_end,
+            PaperAttempt.paper_level.like(VEDIC_MATH_LEVEL_PREFIX + "%"),
+        )
+        .all()
+    )
+
+    # --- Aggregate by IST calendar day in Python ----------------------------
+    day_counts: dict = defaultdict(int)
+
+    for (ts,) in attempt_timestamps:
+        if ts is None:
+            continue
+        # Naive UTC → IST: fixed +5:30 offset
+        ist_day = (ts + IST_OFFSET).date()
+        day_counts[ist_day] += 1
+
+    for (ts, total) in paper_rows:
+        if ts is None:
+            continue
+        # Aware UTC → IST via helper
+        ist_day = utc_to_ist(ts).date() if (ts.tzinfo is not None) else (ts + IST_OFFSET).date()
+        day_counts[ist_day] += (total or 0)
+
+    # --- Build per-day response ---------------------------------------------
+    days_out: List[StreakCalendarDay] = []
+    qualified_count = 0
+    elapsed = 0
+
+    for day_num in range(1, days_in_month + 1):
+        ist_date = _date(year, month, day_num)
+        if ist_date > today_ist:
+            days_out.append(StreakCalendarDay(date=ist_date.isoformat(), qualified=False, count=0))
+            continue
+        elapsed += 1
+        count = day_counts.get(ist_date, 0)
+        qualified = count >= STREAK_THRESHOLD
+        if qualified:
+            qualified_count += 1
+        days_out.append(StreakCalendarDay(date=ist_date.isoformat(), qualified=qualified, count=count))
+
+    return StreakCalendarResponse(
+        year=year,
+        month=month,
+        days=days_out,
+        qualified_count=qualified_count,
+        total_days=elapsed,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # GET /rewards/streak
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -268,46 +381,72 @@ def get_streak(
 def get_leaderboard(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-    branch: Optional[str] = Query(None, description="Filter by branch"),
+    period: str = Query("all_time", description="all_time or weekly"),
     limit: int = Query(100, ge=1, le=500),
 ):
     """
-    Live leaderboard — ranks by User.total_points.
-    Optionally filtered by StudentProfile.branch.
+    Live leaderboard — ranks by all-time or weekly points.
     """
-    query = (
-        db.query(
-            User.id,
-            User.name,
-            User.total_points,
-            User.avatar_url,
-            StudentProfile.branch,
+    if period == "weekly":
+        # Sum PointsLog for the rolling 7-day window (IST)
+        now_ist = get_ist_now()
+        week_start_ist = (now_ist - timedelta(days=7)).replace(
+            hour=0, minute=0, second=0, microsecond=0
         )
-        .outerjoin(StudentProfile, StudentProfile.user_id == User.id)
-        .filter(
-            User.role == "student",
-            User.is_archived == False,
+        week_start_utc = ist_to_utc(week_start_ist)
+
+        points_subq = (
+            db.query(
+                PointsLog.user_id,
+                func.coalesce(func.sum(PointsLog.points), 0).label("weekly_points"),
+            )
+            .filter(PointsLog.created_at >= week_start_utc)
+            .group_by(PointsLog.user_id)
+            .subquery()
         )
-    )
 
-    if branch:
-        query = query.filter(StudentProfile.branch == branch)
-
-    query = query.order_by(desc(User.total_points)).limit(limit)
-    rows = query.all()
-
-    # Total count of ALL eligible students (not capped by limit)
-    total_count = (
-        db.query(func.count(User.id))
-        .outerjoin(StudentProfile, StudentProfile.user_id == User.id)
-        .filter(
-            User.role == "student",
-            User.is_archived == False,
+        rows = (
+            db.query(
+                User.id,
+                User.name,
+                func.coalesce(points_subq.c.weekly_points, 0).label("display_points"),
+                User.avatar_url,
+                StudentProfile.branch,
+                StudentProfile.course,
+                StudentProfile.level,
+            )
+            .outerjoin(StudentProfile, StudentProfile.user_id == User.id)
+            .outerjoin(points_subq, points_subq.c.user_id == User.id)
+            .filter(
+                User.role == "student",
+                User.is_archived == False,
+                func.coalesce(points_subq.c.weekly_points, 0) > 0,
+            )
+            .order_by(desc(func.coalesce(points_subq.c.weekly_points, 0)))
+            .limit(limit)
+            .all()
         )
-    )
-    if branch:
-        total_count = total_count.filter(StudentProfile.branch == branch)
-    total_students = total_count.scalar() or 0
+    else:
+        # All time
+        rows = (
+            db.query(
+                User.id,
+                User.name,
+                User.total_points.label("display_points"),
+                User.avatar_url,
+                StudentProfile.branch,
+                StudentProfile.course,
+                StudentProfile.level,
+            )
+            .outerjoin(StudentProfile, StudentProfile.user_id == User.id)
+            .filter(
+                User.role == "student",
+                User.is_archived == False,
+            )
+            .order_by(desc(User.total_points))
+            .limit(limit)
+            .all()
+        )
 
     entries = []
     for rank, row in enumerate(rows, start=1):
@@ -316,34 +455,34 @@ def get_leaderboard(
             student_id=row.id,
             student_name=row.name or "Unknown",
             branch=row.branch or "",
-            total_points=row.total_points or 0,
+            course=row.course or "",
+            level=row.level or "",
+            total_points=row.display_points or 0,
             avatar_url=row.avatar_url,
             is_current_user=(row.id == current_user.id),
         ))
 
-    # Determine current user's rank if not in the list
+    # Total eligible students
+    total_students = (
+        db.query(func.count(User.id))
+        .filter(User.role == "student", User.is_archived == False)
+        .scalar()
+    ) or 0
+
+    # Current user's rank
     current_user_rank = None
     for e in entries:
         if e.is_current_user:
             current_user_rank = e.rank
             break
-
     if current_user_rank is None:
         current_user_rank = _compute_live_rank(db, current_user.id)
-
-    # Get available branches for filter dropdown
-    branches = (
-        db.query(func.distinct(StudentProfile.branch))
-        .filter(StudentProfile.branch.isnot(None))
-        .all()
-    )
-    available_branches = sorted([b[0] for b in branches if b[0]])
 
     return LeaderboardResponse(
         entries=entries,
         current_user_rank=current_user_rank,
         total_participants=total_students,
-        available_branches=available_branches,
+        available_branches=[],  # branch filter removed
     )
 
 

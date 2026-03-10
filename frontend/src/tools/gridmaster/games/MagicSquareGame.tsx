@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   generateMagicSquare, getMagicSum, generatePuzzle, validateGrid,
   MIN_CLUES, formatTime, Grid
@@ -15,12 +15,15 @@ type CellState = 'correct' | 'wrong' | 'hint' | 'duplicate';
 
 const SIZES = [3, 4, 5, 6, 7, 8, 9];
 
-function getCellPx(n: number): number {
-  if (n <= 4) return 68;
-  if (n <= 5) return 62;
-  if (n <= 6) return 56;
-  if (n <= 7) return 52;
-  return 48; // 8, 9
+function getCellPx(n: number, fs = false): number {
+  const base = (() => {
+    if (n <= 4) return 68;
+    if (n <= 5) return 62;
+    if (n <= 6) return 56;
+    if (n <= 7) return 52;
+    return 48; // 8, 9
+  })();
+  return fs ? Math.round(base * 1.25) : base;
 }
 
 export function MagicSquareGame({ onToast }: Props) {
@@ -39,13 +42,37 @@ export function MagicSquareGame({ onToast }: Props) {
   const [paused, setPaused] = useState(false);
   const [solved, setSolved] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const { secs, reset: resetTimer } = useTimer(running && !paused && !solved);
 
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (!document.fullscreenElement) {
+          if (containerRef.current) containerRef.current.scrollTop = 0;
+          containerRef.current?.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    };
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('keydown', handleKey);
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('fullscreenchange', handleFsChange);
+    };
+  }, []);
+
   const magicSum = getMagicSum(n);
   const totalCells = n * n;
-  const cellPx = getCellPx(n);
+  const cellPx = getCellPx(n, isFullscreen);
   const fontSize = cellPx >= 62 ? 20 : cellPx >= 52 ? 17 : 14;
 
   const filledCount = useMemo(
@@ -195,7 +222,7 @@ export function MagicSquareGame({ onToast }: Props) {
   ];
 
   return (
-    <div className={styles.wrap}>
+    <div ref={containerRef} className={`${styles.wrap}${isFullscreen ? ' ' + styles.wrapFs : ''}`}>
 
       {/* ── How to Play Modal ── */}
       {showModal && (
@@ -255,6 +282,18 @@ export function MagicSquareGame({ onToast }: Props) {
           </button>
           <button className={`${styles.btn} ${styles.btnInfo}`} onClick={() => setShowModal(true)}>
             ? How to Play
+          </button>
+          <button
+            className={`${styles.btn} ${styles.btnGhost}`}
+            onClick={() => {
+              if (!document.fullscreenElement) {
+                if (containerRef.current) containerRef.current.scrollTop = 0;
+                containerRef.current?.requestFullscreen().catch(() => {});
+              } else document.exitFullscreen().catch(() => {});
+            }}
+            title="Fullscreen (press F)"
+          >
+            {isFullscreen ? '⛶ Exit' : '⛶ Full'}
           </button>
         </div>
       </div>
@@ -378,6 +417,62 @@ export function MagicSquareGame({ onToast }: Props) {
           <div className={styles.successIcon}>✨</div>
           <h2>Magic!</h2>
           <p>Solved in {formatTime(secs)} — all sums equal <strong>{magicSum}</strong></p>
+        </div>
+      )}
+
+      {/* ── Fullscreen HUD ── */}
+      {isFullscreen && (
+        <div className={styles.fsHud}>
+          <div className={styles.fsHudInner}>
+            <div className={styles.fsChip}>
+              <span className={styles.fsChipLabel}>Time</span>
+              <span className={styles.fsChipValue}>{paused ? '⏸ ' : ''}{formatTime(secs)}</span>
+            </div>
+            <div className={styles.fsDivider} />
+            <div className={styles.fsChip}>
+              <span className={styles.fsChipLabel}>Magic Sum</span>
+              <span className={styles.fsChipValue}>{magicSum}</span>
+            </div>
+            <div className={styles.fsChip}>
+              <span className={styles.fsChipLabel}>Filled</span>
+              <span className={styles.fsChipValue}>{filledCount}/{totalCells}</span>
+            </div>
+            <div className={styles.fsDivider} />
+            <button
+              className={`${styles.fsBtn} ${running && paused ? styles.fsBtnActive : ''}`}
+              onClick={() => { sfx.click(); if (!running) { setRunning(true); return; } setPaused(p => !p); }}
+            >
+              {running ? (paused ? '▶ Resume' : '⏸ Pause') : '▶ Start'}
+            </button>
+            <button
+              className={styles.fsBtn}
+              onClick={useHintFn}
+              disabled={hints === 0 || solved}
+            >
+              💡 Hint ({hints})
+            </button>
+            <button
+              className={styles.fsBtn}
+              onClick={revealAll}
+              disabled={solved}
+            >
+              👁 Reveal
+            </button>
+            <button
+              className={`${styles.fsBtn} ${styles.fsBtnCheck}`}
+              onClick={checkSolution}
+              disabled={solved || paused}
+            >
+              ✓ Check
+            </button>
+            <span className={styles.fsHint}>ESC to exit</span>
+            <button
+              className={`${styles.fsBtn} ${styles.fsBtnExit}`}
+              onClick={() => document.exitFullscreen()}
+            >
+              ⛶ Exit
+            </button>
+          </div>
         </div>
       )}
     </div>

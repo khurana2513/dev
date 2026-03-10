@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Professional Home Automation Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Sora:wght@300;400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e3a5f;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #00ff88;
+    --warn: #ffcc00;
+    --danger: #ff4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --green: #22c55e;
+    --purple: #a855f7;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  /* HERO */
+  .hero {
+    background: linear-gradient(135deg, #0a0e1a 0%, #0d1b2e 50%, #0a1628 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 60px 40px 50px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(0,255,136,0.05) 0%, transparent 50%);
+  }
+  .hero-tag {
+    display: inline-block;
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.3);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    position: relative;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--muted); font-size: 16px; max-width: 600px; position: relative; }
+
+  /* NAV */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin: 30px 40px;
+    padding: 24px 30px;
+  }
+  .toc h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toc a:hover { border-color: var(--border); background: var(--surface2); color: var(--accent); }
+  .toc-num { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+  /* MAIN */
+  main { padding: 0 40px 80px; max-width: 1100px; }
+
+  .section {
+    margin-bottom: 60px;
+    scroll-margin-top: 20px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.2);
+    padding: 4px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .section h2 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .section h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 28px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section h3::before {
+    content: '▸';
+    color: var(--accent2);
+    font-size: 12px;
+  }
+  .section p { color: #b0bec5; margin-bottom: 14px; }
+
+  /* CARDS */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card-icon { font-size: 24px; margin-bottom: 12px; }
+  .card h4 { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .card p { font-size: 13px; color: var(--muted); margin: 0; }
+  .card.recommended { border-color: var(--accent3); }
+  .card.recommended::before {
+    content: '★ RECOMMENDED';
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent3);
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  .card.warn-card { border-color: var(--warn); }
+
+  /* COMPARISON TABLE */
+  .comparison {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 13px;
+  }
+  .comparison th {
+    background: var(--surface2);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 12px 16px;
+    text-align: left;
+    border: 1px solid var(--border);
+  }
+  .comparison td {
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    color: #b0bec5;
+    vertical-align: top;
+  }
+  .comparison tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .comparison tr:hover td { background: rgba(0,212,255,0.04); }
+  .comparison td:first-child { color: #fff; font-weight: 600; }
+
+  /* BADGES */
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .badge-green { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+  .badge-red { background: rgba(255,68,68,0.15); color: var(--danger); border: 1px solid rgba(255,68,68,0.3); }
+  .badge-yellow { background: rgba(255,204,0,0.15); color: var(--warn); border: 1px solid rgba(255,204,0,0.3); }
+  .badge-blue { background: rgba(0,212,255,0.15); color: var(--accent); border: 1px solid rgba(0,212,255,0.3); }
+  .badge-purple { background: rgba(168,85,247,0.15); color: var(--purple); border: 1px solid rgba(168,85,247,0.3); }
+
+  /* CODE BLOCKS */
+  .code-block {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin: 16px 0;
+    overflow: hidden;
+  }
+  .code-header {
+    background: var(--surface2);
+    padding: 8px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .code-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .code-block pre {
+    padding: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #c9d1d9;
+    overflow-x: auto;
+  }
+  .code-block pre .kw { color: #ff7b72; }
+  .code-block pre .fn { color: #d2a8ff; }
+  .code-block pre .str { color: #a5d6ff; }
+  .code-block pre .num { color: #79c0ff; }
+  .code-block pre .cm { color: #8b949e; font-style: italic; }
+  .code-block pre .var { color: #ffa657; }
+
+  /* WIRING DIAGRAM */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin: 20px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    overflow-x: auto;
+  }
+  .diagram-title {
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+  .wire { color: #ffa657; }
+  .component { color: var(--accent3); }
+  .label { color: var(--muted); }
+  .power { color: var(--danger); }
+  .neutral { color: #60a5fa; }
+  .ground { color: var(--accent3); }
+
+  /* CALLOUTS */
+  .callout {
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    font-size: 14px;
+  }
+  .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .callout.danger { background: rgba(255,68,68,0.08); border: 1px solid rgba(255,68,68,0.25); }
+  .callout.danger .callout-icon, .callout.danger strong { color: var(--danger); }
+  .callout.tip { background: rgba(0,212,255,0.06); border: 1px solid rgba(0,212,255,0.2); }
+  .callout.tip .callout-icon, .callout.tip strong { color: var(--accent); }
+  .callout.success { background: rgba(0,255,136,0.06); border: 1px solid rgba(0,255,136,0.2); }
+  .callout.success .callout-icon, .callout.success strong { color: var(--accent3); }
+  .callout.warn { background: rgba(255,204,0,0.06); border: 1px solid rgba(255,204,0,0.2); }
+  .callout.warn .callout-icon, .callout.warn strong { color: var(--warn); }
+  .callout p { color: #b0bec5; margin: 0; }
+
+  /* STEP LIST */
+  .steps { counter-reset: step; list-style: none; margin: 16px 0; }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding: 14px 16px 14px 52px;
+    margin-bottom: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: #b0bec5;
+    font-size: 14px;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px; height: 24px;
+    background: var(--accent);
+    color: #000;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .steps li strong { color: #fff; }
+
+  /* PROS/CONS */
+  .pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .pros, .cons {
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .pros { border: 1px solid rgba(34,197,94,0.3); }
+  .cons { border: 1px solid rgba(255,68,68,0.3); }
+  .pros h5 { color: var(--green); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .cons h5 { color: var(--danger); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .pros li, .cons li { font-size: 13px; color: #b0bec5; margin-bottom: 6px; padding-left: 16px; position: relative; }
+  .pros li::before { content: '✓'; position: absolute; left: 0; color: var(--green); font-size: 11px; }
+  .cons li::before { content: '✗'; position: absolute; left: 0; color: var(--danger); font-size: 11px; }
+
+  /* METHOD CARDS */
+  .method {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    margin: 20px 0;
+    position: relative;
+  }
+  .method.best { border-color: var(--accent3); }
+  .method-badge {
+    position: absolute;
+    top: -10px; right: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .method h4 { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .method > p { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+  /* RELAY VISUAL */
+  .relay-vis {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    margin: 16px 0;
+    overflow-x: auto;
+  }
+
+  /* VERDICT */
+  .verdict-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 13px;
+  }
+  .verdict-table th {
+    background: rgba(0,212,255,0.1);
+    color: var(--accent);
+    padding: 10px 14px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: 1px solid var(--border);
+  }
+  .verdict-table td {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    color: #b0bec5;
+  }
+  .verdict-table td:first-child { color: #fff; font-weight: 600; }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 30px 40px;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  @media (max-width: 600px) {
+    .hero, main, footer { padding-left: 20px; padding-right: 20px; }
+    .toc { margin: 20px; }
+    .pros-cons { grid-template-columns: 1fr; }
+    .card-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-tag">NodeMCU • ESP8266 • IoT • Home Automation</div>
+  <h1>Professional Room<br><span>Automation System</span></h1>
+  <p>Complete guide to wiring 4 switchboards with relays, manual control, and IoT — from basic concepts to professional-grade deployment.</p>
+</div>
+
+<div class="toc">
+  <h3>// Table of Contents</h3>
+  <div class="toc-grid">
+    <a href="#s1"><span class="toc-num">01</span> Core Concepts First</a>
+    <a href="#s2"><span class="toc-num">02</span> Relay Deep Dive (NO/NC)</a>
+    <a href="#s3"><span class="toc-num">03</span> Wiring Methods Compared</a>
+    <a href="#s4"><span class="toc-num">04</span> 4-Board Architecture</a>
+    <a href="#s5"><span class="toc-num">05</span> NodeMCU Setup</a>
+    <a href="#s6"><span class="toc-num">06</span> Full Code</a>
+    <a href="#s7"><span class="toc-num">07</span> Platform Options</a>
+    <a href="#s8"><span class="toc-num">08</span> Recommendations</a>
+    <a href="#s9"><span class="toc-num">09</span> Safety & Pro Tips</a>
+  </div>
+</div>
+
+<main>
+
+<!-- SECTION 1 -->
+<div class="section" id="s1">
+  <div class="section-header">
+    <span class="section-num">01</span>
+    <h2>Core Concepts — Understand This First</h2>
+  </div>
+
+  <p>Before wiring anything, you need to understand how electricity flows in your room and why relays exist. Let's use a simple analogy.</p>
+
+  <h3>The Water Analogy</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">⚡</div>
+      <h4>Live Wire (Phase)</h4>
+      <p>Like a pipe with pressurized water — it carries the actual electricity. In India: <strong>230V AC, Red/Brown wire</strong>. This is dangerous, always respect it.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔵</div>
+      <h4>Neutral Wire</h4>
+      <p>Like the drain pipe — completes the circuit. Current flows Live → Load → Neutral. <strong>Black/Blue wire</strong>. Also present at high current levels.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🟢</div>
+      <h4>Earth/Ground Wire</h4>
+      <p>Safety wire — only carries current if something goes wrong. <strong>Green/Yellow wire</strong>. Never skip this in professional installs.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔌</div>
+      <h4>Load</h4>
+      <p>The device you're controlling — a bulb, fan, socket. It sits between Live and Neutral in the circuit. The switch breaks or completes this path.</p>
+    </div>
+  </div>
+
+  <h3>How a Switch Actually Works</h3>
+  <div class="diagram">
+    <div class="diagram-title">// Basic Switch Circuit</div>
+    <pre>
+  <span class="power">LIVE (230V) ──────┬──── [SWITCH] ────── [BULB] ──────┐</span>
+                    │                                      │
+                    │    When switch OPEN  → No current   │
+                    │    When switch CLOSE → Bulb lights  │
+                    │                                      │
+  <span class="neutral">NEUTRAL ──────────────────────────────────────────────┘</span>
+
+  Simple, right? A relay is just an ELECTRICALLY CONTROLLED switch.
+  Instead of your finger pressing it, a 5V signal from NodeMCU triggers it.
+    </pre>
+  </div>
+
+  <div class="callout tip">
+    <div class="callout-icon">💡</div>
+    <div><strong>Key Insight:</strong> <p>Your existing wall switches are just mechanical switches interrupting the Live wire. Relays replace (or sit in parallel with) these switches, letting NodeMCU do the same thing electronically.</p></div>
+  </div>
+</div>
+
+<!-- SECTION 2 -->
+<div class="section" id="s2">
+  <div class="section-header">
+    <span class="section-num">02</span>
+    <h2>Relay Deep Dive — NO vs NC Explained</h2>
+  </div>
+
+  <p>This is where most beginners get confused. A relay has <strong>two sides</strong> — a control side (low voltage) and a switch side (high voltage). They are electrically isolated.</p>
+
+  <h3>Relay Pin Layout</h3>
+  <div class="relay-vis">
+    <pre>
+  ┌─────────────────────────────────────────────────┐
+  │                  RELAY MODULE                    │
+  │                                                  │
+  │  CONTROL SIDE (5V)    │   SWITCH SIDE (230V AC)  │
+  │  ┌──────────────┐     │   ┌──────────────────┐   │
+  │  │ VCC  GND  IN │     │   │ COM   NO    NC   │   │
+  │  └──────────────┘     │   └──────────────────┘   │
+  │   ↑     ↑     ↑       │     ↑      ↑      ↑      │
+  │  +5V   GND  GPIO      │  Common  N.Open  N.Closed │
+  │                       │                           │
+  │  NodeMCU controls ────┘── This side controls 230V │
+  └─────────────────────────────────────────────────┘
+
+  COM = Common — always connect your Live wire here
+  NO  = Normally Open — circuit is OPEN when relay is OFF
+  NC  = Normally Closed — circuit is CLOSED when relay is OFF
+    </pre>
+  </div>
+
+  <h3>NO (Normally Open) — Most Common for Lights</h3>
+  <div class="method best">
+    <div class="method-badge badge badge-green">DEFAULT CHOICE</div>
+    <h4>Normally Open (NO)</h4>
+    <p>Circuit is broken (open) by default. Relay activates → circuit closes → device turns ON.</p>
+    <div class="relay-vis">
+      <pre>
+  Relay OFF (default):   COM ──╳── NO   (circuit broken, device OFF)
+  Relay ON (energized):  COM ─────── NO  (circuit complete, device ON)
+
+  Wiring: LIVE → COM → NO → [BULB] → NEUTRAL
+
+  NodeMCU GPIO HIGH → Relay triggers → NO connects to COM → Bulb ON
+  NodeMCU GPIO LOW  → Relay resets   → NO disconnects    → Bulb OFF
+      </pre>
+    </div>
+    <div class="pros-cons">
+      <div class="pros">
+        <h5>✓ Advantages</h5>
+        <ul>
+          <li>Safe default — device is OFF if NodeMCU loses power or crashes</li>
+          <li>Standard for lights and fans</li>
+          <li>Less wear on relay contacts</li>
+          <li>Lower power consumption (relay coil not energized at rest)</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h5>✗ Disadvantages</h5>
+        <ul>
+          <li>Devices turn OFF on NodeMCU reset/reboot</li>
+          <li>Not ideal for things that must stay ON during power outages</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>NC (Normally Closed) — For Fail-Safe Applications</h3>
+  <div class="method">
+    <div class="method-badge badge badge-yellow">SPECIAL USE CASE</div>
+    <h4>Normally Closed (NC)</h4>
+    <p>Circuit is complete (closed) by default. Relay activates → circuit opens → device turns OFF.</p>
+    <div class="relay-vis">
+      <pre>
+  Relay OFF (default):   COM ─────── NC  (circuit complete, device ON)
+  Relay ON (energized):  COM ──╳── NC   (circuit broken, device OFF)
+
+  Wiring: LIVE → COM → NC → [DEVICE] → NEUTRAL
+
+  NodeMCU GPIO HIGH → Relay triggers → NC disconnects → Device OFF
+  NodeMCU GPIO LOW  → Relay resets   → NC connects    → Device ON
+
+  LOGIC IS INVERTED — LOW turns device ON, HIGH turns it OFF
+      </pre>
+    </div>
+    <div class="callout warn">
+      <div class="callout-icon">⚠️</div>
+      <div><strong>When to use NC:</strong> <p>Use NC for devices that should remain ON if your NodeMCU dies — like security lights, refrigerators, or heaters in cold climates. For normal home automation (lights, fans), always use NO.</p></div>
+    </div>
+  </div>
+
+  <h3>Important: Active LOW vs Active HIGH Relays</h3>
+  <div class="callout warn">
+    <div class="callout-icon">⚠️</div>
+    <div><strong>Most relay modules are ACTIVE LOW!</strong>
+    <p>This means sending GPIO LOW (0V) = Relay ON, and GPIO HIGH (3.3V) = Relay OFF. This is counterintuitive but very common. Always check your module. In code, initialize pins HIGH to keep relays off on boot, and write LOW to turn them on.</p></div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><div class="code-dot" style="background:#ff5f57"></div><div class="code-dot" style="background:#febc2e"></div><div class="code-dot" style="background:#28c840"></div> Active LOW Relay Logic</div>
+    <pre><span class="cm">// For ACTIVE LOW relay modules (most common Chinese modules)</span>
+<span class="fn">pinMode</span>(<span class="var">RELAY_PIN</span>, OUTPUT);
+<span class="fn">digitalWrite</span>(<span class="var">RELAY_PIN</span>, <span class="num">HIGH</span>);  <span class="cm">// Initialize OFF (relay not energized)</span>
+
+<span class="cm">// To turn device ON:</span>
+<span class="fn">digitalWrite</span>(<span class="var">RELAY_PIN</span>, <span class="num">LOW</span>);   <span class="cm">// Activates relay → device ON</span>
+
+<span class="cm">// To turn device OFF:</span>
+<span class="fn">digitalWrite</span>(<span class="var">RELAY_PIN</span>, <span class="num">HIGH</span>);  <span class="cm">// Deactivates relay → device OFF</span></pre>
+  </div>
+</div>
+
+<!-- SECTION 3 -->
+<div class="section" id="s3">
+  <div class="section-header">
+    <span class="section-num">03</span>
+    <h2>Wiring Methods Compared — All Your Options</h2>
+  </div>
+
+  <p>You mentioned finding multiple wiring methods. Here's every approach, explained with its trade-offs.</p>
+
+  <h3>Method A: Direct Relay Replacement (No Manual Switch)</h3>
+  <div class="method">
+    <div class="method-badge badge badge-red">NOT RECOMMENDED</div>
+    <h4>Remove wall switch, relay-only control</h4>
+    <p>Relay completely replaces the manual switch. IoT-only control.</p>
+    <div class="diagram">
+      <pre>
+  <span class="power">LIVE ──── [RELAY COM] ──── [RELAY NO] ──── [BULB] ──── NEUTRAL</span>
+
+  Wall switch is completely removed or bypassed.
+  Only NodeMCU can control the device.
+      </pre>
+    </div>
+    <div class="pros-cons">
+      <div class="pros"><h5>✓ Pros</h5><ul><li>Simple wiring</li><li>Clean circuit</li></ul></div>
+      <div class="cons"><h5>✗ Cons</h5><ul><li>No manual control if WiFi/NodeMCU fails</li><li>Guests can't use the switch</li><li>Not practical at all</li></ul></div>
+    </div>
+  </div>
+
+  <h3>Method B: Relay in Series with Switch (Both control independently)</h3>
+  <div class="method">
+    <div class="method-badge badge badge-red">AVOID</div>
+    <h4>Switch AND relay both in series</h4>
+    <p>BOTH must be ON for device to work. If switch is OFF, relay can't turn it on.</p>
+    <div class="diagram">
+      <pre>
+  <span class="power">LIVE ─── [WALL SWITCH] ─── [RELAY COM→NO] ─── [BULB] ─── NEUTRAL</span>
+
+  Device ON only when: Switch=ON AND Relay=ON
+  This is a logic AND gate — almost never what you want.
+      </pre>
+    </div>
+    <div class="pros-cons">
+      <div class="pros"><h5>✓ Pros</h5><ul><li>Has a "master off" via wall switch</li></ul></div>
+      <div class="cons"><h5>✗ Cons</h5><ul><li>Must leave switch ON at all times for IoT to work</li><li>Confusing for users</li><li>Not independent control</li></ul></div>
+    </div>
+  </div>
+
+  <h3>Method C: Relay in Parallel with Switch ⭐ BEST METHOD</h3>
+  <div class="method best">
+    <div class="method-badge badge badge-green">✓ RECOMMENDED</div>
+    <h4>Relay bypasses the existing wall switch</h4>
+    <p>The relay is wired in PARALLEL with the existing wall switch. Either the switch OR the relay can independently turn the device on. This is the professional standard.</p>
+    <div class="diagram">
+      <pre>
+                    ┌──── [WALL SWITCH] ────┐
+  <span class="power">LIVE ─────────────┤                       ├──────── [BULB] ──── NEUTRAL</span>
+                    └──── [RELAY COM→NO] ────┘
+
+  Think of it like two doors into the same room:
+  - Either door being open = you can enter (device ON)
+  - Wall switch ON → device ON  (even if relay is off)
+  - Relay ON → device ON        (even if switch is off)
+  - Both ON → device ON         (no problem, they're parallel)
+
+  TRUTH TABLE:
+  Switch=OFF, Relay=OFF → Device OFF
+  Switch=ON,  Relay=OFF → Device ON  (manual control works)
+  Switch=OFF, Relay=ON  → Device ON  (IoT control works)
+  Switch=ON,  Relay=ON  → Device ON  (both ON = still just ON)
+      </pre>
+    </div>
+    <div class="callout danger">
+      <div class="callout-icon">🚨</div>
+      <div><strong>State Sync Problem — You MUST handle this!</strong>
+      <p>If the light is ON via switch (relay=OFF), and you send an IoT "turn OFF" command, the relay turns off — but the switch is still ON, so the light stays on! Solution: Use smart switches that can detect their position (like momentary push buttons), or use the relay to control power to the switch circuit itself. See Section 5 for the code solution.</p></div>
+    </div>
+    <div class="pros-cons">
+      <div class="pros"><h5>✓ Pros</h5><ul><li>Full manual control preserved</li><li>Full IoT control</li><li>Professional standard approach</li><li>Safe fallback if WiFi dies</li><li>Guests can use switches normally</li></ul></div>
+      <div class="cons"><h5>✗ Cons</h5><ul><li>State synchronization needs handling in code</li><li>Slightly more complex wiring</li></ul></div>
+    </div>
+  </div>
+
+  <h3>Method D: Replace Switches with Momentary Push Buttons (Premium)</h3>
+  <div class="method best">
+    <div class="method-badge badge badge-purple">PREMIUM / PROFESSIONAL</div>
+    <h4>Momentary buttons + relay = perfect sync</h4>
+    <p>Replace toggle switches with momentary push buttons. Each button press TOGGLES the relay state via NodeMCU. This completely solves the state sync problem and is used in all professional smart home products.</p>
+    <div class="diagram">
+      <pre>
+  [PUSH BUTTON] ──── GPIO Input (interrupt-driven)
+                           │
+                           ▼
+                    NodeMCU toggles relay
+                           │
+                           ▼
+                    [RELAY] ──── [BULB]
+
+  Press button → NodeMCU sees falling edge → Toggles relay state
+  Relay tracks state perfectly — IoT and button always in sync!
+  This is how Sonoff, Shelly, and other smart switches work internally.
+      </pre>
+    </div>
+    <div class="pros-cons">
+      <div class="pros"><h5>✓ Pros</h5><ul><li>Perfect state synchronization</li><li>No confusion between switch and relay state</li><li>Debounce easily handled in code</li><li>Industry standard for smart switches</li></ul></div>
+      <div class="cons"><h5>✗ Cons</h5><ul><li>Must replace existing toggle switches</li><li>Requires electrician if not DIY</li><li>Push buttons feel different from traditional switches</li></ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4 -->
+<div class="section" id="s4">
+  <div class="section-header">
+    <span class="section-num">04</span>
+    <h2>4-Board Architecture — How to Connect Everything</h2>
+  </div>
+
+  <p>With 4 switchboards, you have multiple devices to control. The key decisions: centralized vs distributed NodeMCU, and how many relays per board.</p>
+
+  <h3>Architecture Option A: One Central NodeMCU (Best for your case)</h3>
+  <div class="method best">
+    <div class="method-badge badge badge-green">RECOMMENDED FOR 4 BOARDS</div>
+    <h4>Single NodeMCU + 8-channel relay module controls all boards</h4>
+    <div class="diagram">
+      <pre>
+  ┌─────────────────────────────────────────────────────────────┐
+  │                    CENTRAL CONTROL BOX                       │
+  │                                                              │
+  │   [NodeMCU ESP8266]  ←→  WiFi / Internet                    │
+  │        │                                                     │
+  │        └── [8-Channel Relay Module]                          │
+  │               │                                              │
+  │               ├── Relay 1 ── Board 1, Light 1                │
+  │               ├── Relay 2 ── Board 1, Fan                    │
+  │               ├── Relay 3 ── Board 2, Light 1                │
+  │               ├── Relay 4 ── Board 2, Light 2                │
+  │               ├── Relay 5 ── Board 3, Light                  │
+  │               ├── Relay 6 ── Board 3, Socket                 │
+  │               ├── Relay 7 ── Board 4, Light                  │
+  │               └── Relay 8 ── Board 4, Fan                    │
+  │                                                              │
+  └─────────────────────────────────────────────────────────────┘
+
+  Manual switches on each board connect to NodeMCU GPIO inputs
+  (with 10kΩ pull-up resistors) for state tracking
+      </pre>
+    </div>
+    <div class="card-grid">
+      <div class="card recommended">
+        <div class="card-icon">🔧</div>
+        <h4>8-Channel Relay Module</h4>
+        <p>One board with 8 isolated relays. Controls up to 8 devices. ~₹200-400. Uses opto-isolation for safety. Get the blue Songle brand modules.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📦</div>
+        <h4>4-Channel Relay Module</h4>
+        <p>If you have only 4 devices total (one per board). Simpler, cheaper. ~₹150-250.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔌</div>
+        <h4>NodeMCU ESP8266</h4>
+        <p>Has 11 usable GPIO pins — enough for 8 relay outputs + 8 switch inputs (with I2C expander if needed).</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>GPIO Pin Assignment (NodeMCU ESP8266)</h3>
+  <div class="diagram">
+    <pre>
+  NodeMCU GPIO   →   Function          Notes
+  ───────────────────────────────────────────────────────
+  GPIO 5  (D1)   →   Relay 1 (Board1)  Safe to use
+  GPIO 4  (D2)   →   Relay 2 (Board1)  Safe to use
+  GPIO 0  (D3)   →   Relay 3 (Board2)  Boot-sensitive — keep HIGH at boot
+  GPIO 2  (D4)   →   Relay 4 (Board2)  Boot-sensitive — keep HIGH at boot
+  GPIO 14 (D5)   →   Relay 5 (Board3)  Safe to use
+  GPIO 12 (D6)   →   Relay 6 (Board3)  Safe to use
+  GPIO 13 (D7)   →   Relay 7 (Board4)  Safe to use
+  GPIO 15 (D8)   →   Relay 8 (Board4)  Must be LOW at boot — use carefully
+  GPIO 16 (D0)   →   Reserved          Deep sleep wake, avoid for relays
+
+  INPUTS (Manual Switch detection):
+  GPIO 9  (SD2)  →   Avoid — used by flash
+  GPIO 10 (SD3)  →   Avoid — used by flash
+  Use I2C expander (PCF8574) for more inputs if needed
+    </pre>
+  </div>
+
+  <div class="callout danger">
+    <div class="callout-icon">🚨</div>
+    <div><strong>Boot Pin Warning:</strong>
+    <p>GPIO 0, 2, and 15 affect NodeMCU boot mode. If a relay on GPIO 0 or 2 is active LOW and the relay module pulls these pins LOW at power-on, your NodeMCU won't boot! Initialize these pins HIGH in the first line of setup(), or use opto-isolated relay modules that don't affect the GPIO during boot.</p></div>
+  </div>
+
+  <h3>Full Wiring Diagram — One Device Per Relay</h3>
+  <div class="diagram">
+    <pre>
+  ┌──────────────────────────────────────────────────────────────────┐
+  │                        POWER SUPPLY                               │
+  │   230V AC Mains ─────────────────────────────────────────────    │
+  │         │                                                         │
+  │   [5V HI-LINK or Adapter] → 5V DC for NodeMCU + Relay VCC        │
+  └────────────────┬─────────────────────────────────────────────────┘
+                   │
+  ┌────────────────▼─────────────────────────────────────────────────┐
+  │  RELAY MODULE (8-channel, opto-isolated)                          │
+  │                                                                   │
+  │  VCC ←── 5V DC                                                    │
+  │  GND ←── GND (common with NodeMCU)                                │
+  │  IN1 ←── NodeMCU D1 (GPIO 5)   [Relay 1]                         │
+  │  IN2 ←── NodeMCU D2 (GPIO 4)   [Relay 2]                         │
+  │  IN3 ←── NodeMCU D3 (GPIO 0)   [Relay 3]                         │
+  │  IN4 ←── NodeMCU D4 (GPIO 2)   [Relay 4]                         │
+  │                                                                   │
+  │  Each Relay's HIGH VOLTAGE SIDE:                                  │
+  │  RELAY1: COM ←── Live | NO ──► Board1 Light via existing switch   │
+  │  RELAY2: COM ←── Live | NO ──► Board1 Fan via existing switch     │
+  └──────────────────────────────────────────────────────────────────┘
+
+  SWITCHBOARD WIRING (Parallel Method — for each device):
+
+  MAINS LIVE ──┬──── [EXISTING WALL SWITCH] ────┬──── [LIGHT] ──── NEUTRAL
+               └──── [RELAY COM → NO]  ──────────┘
+
+  NodeMCU reads switch state:
+  SWITCH ──── [10kΩ to 3.3V] ──── GPIO INPUT ──── GND (via switch)
+    </pre>
+  </div>
+</div>
+
+<!-- SECTION 5 -->
+<div class="section" id="s5">
+  <div class="section-header">
+    <span class="section-num">05</span>
+    <h2>NodeMCU Setup — Hardware Checklist</h2>
+  </div>
+
+  <h3>Components You Need</h3>
+  <table class="comparison">
+    <thead>
+      <tr><th>Component</th><th>Specification</th><th>Approx Cost (India)</th><th>Where to Buy</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>NodeMCU ESP8266 v3</td><td>CH340 USB chip, 11 GPIO pins</td><td>₹180–300</td><td>Robu.in, Amazon, Flipkart</td></tr>
+      <tr><td>8-Channel Relay Module</td><td>5V coil, opto-isolated, Songle relays</td><td>₹350–500</td><td>Robu.in, Electronicscomp</td></tr>
+      <tr><td>HI-LINK HLK-PM01</td><td>230V to 5V 600mA, in-wall power supply</td><td>₹200–350</td><td>Robu.in, Amazon</td></tr>
+      <tr><td>10kΩ Resistors</td><td>For pull-up on switch inputs</td><td>₹10 for 50pcs</td><td>Any electronics shop</td></tr>
+      <tr><td>0.1µF Capacitors</td><td>Debounce for switch inputs</td><td>₹20 for 20pcs</td><td>Any electronics shop</td></tr>
+      <tr><td>Junction Box</td><td>IP65 rated, for housing electronics</td><td>₹150–300</td><td>Electrical shops</td></tr>
+      <tr><td>Heat Shrink Tubing</td><td>For insulating wire connections</td><td>₹50 for pack</td><td>Amazon, electronics shops</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tip">
+    <div class="callout-icon">💡</div>
+    <div><strong>HI-LINK vs Phone Charger:</strong>
+    <p>Don't use a phone charger adapter for power inside your switchboard. Use a HI-LINK HLK-PM01 — it's designed for in-wall installation, is compact, and properly rated for continuous use. It costs ₹200-350 and is significantly safer and more reliable.</p></div>
+  </div>
+
+  <h3>Why Opto-Isolated Relay Modules?</h3>
+  <div class="card-grid">
+    <div class="card recommended">
+      <div class="card-icon">🛡️</div>
+      <h4>Opto-Isolated (Get This)</h4>
+      <p>The high-voltage relay side is electrically isolated from NodeMCU using an optocoupler. A voltage spike on the AC side cannot damage your NodeMCU. Required for professional installs.</p>
+    </div>
+    <div class="card warn-card">
+      <div class="card-icon">⚠️</div>
+      <h4>Non-Isolated (Avoid)</h4>
+      <p>Direct connection between relay coil and NodeMCU GPIO. A relay arc or spike can destroy your NodeMCU instantly. Cheaper but dangerous for mains voltage work.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 6 -->
+<div class="section" id="s6">
+  <div class="section-header">
+    <span class="section-num">06</span>
+    <h2>Complete Professional Code</h2>
+  </div>
+
+  <p>This code handles: WiFi connection, MQTT control, manual switch input with debounce, state synchronization, and OTA updates.</p>
+
+  <div class="code-block">
+    <div class="code-header"><div class="code-dot" style="background:#ff5f57"></div><div class="code-dot" style="background:#febc2e"></div><div class="code-dot" style="background:#28c840"></div> home_automation.ino — Full Professional Code</div>
+    <pre><span class="cm">/*
+ * Professional Room Automation System
+ * NodeMCU ESP8266 + 4-Channel Relay + MQTT
+ * Features: Manual switch, IoT control, state sync, OTA update
+ */</span>
+
+<span class="kw">#include</span> <span class="str">&lt;ESP8266WiFi.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;PubSubClient.h&gt;</span>      <span class="cm">// MQTT library</span>
+<span class="kw">#include</span> <span class="str">&lt;ArduinoOTA.h&gt;</span>         <span class="cm">// Over-the-air update</span>
+<span class="kw">#include</span> <span class="str">&lt;EEPROM.h&gt;</span>             <span class="cm">// Persist state across reboots</span>
+
+<span class="cm">// ── WiFi Config ──────────────────────────────────────</span>
+<span class="kw">const char</span>* <span class="var">WIFI_SSID</span>     = <span class="str">"YOUR_WIFI_NAME"</span>;
+<span class="kw">const char</span>* <span class="var">WIFI_PASS</span>     = <span class="str">"YOUR_WIFI_PASSWORD"</span>;
+
+<span class="cm">// ── MQTT Config ──────────────────────────────────────</span>
+<span class="kw">const char</span>* <span class="var">MQTT_SERVER</span>   = <span class="str">"broker.hivemq.com"</span>; <span class="cm">// Free public broker</span>
+<span class="kw">const int</span>   <span class="var">MQTT_PORT</span>     = <span class="num">1883</span>;
+<span class="kw">const char</span>* <span class="var">DEVICE_ID</span>     = <span class="str">"room_controller_01"</span>;
+
+<span class="cm">// ── Relay Pins (Active LOW) ───────────────────────────</span>
+<span class="kw">const int</span> <span class="var">RELAY_PINS</span>[<span class="num">4</span>] = {<span class="num">5</span>, <span class="num">4</span>, <span class="num">14</span>, <span class="num">12</span>}; <span class="cm">// D1,D2,D5,D6</span>
+
+<span class="cm">// ── Switch Input Pins ────────────────────────────────</span>
+<span class="kw">const int</span> <span class="var">SWITCH_PINS</span>[<span class="num">4</span>] = {<span class="num">13</span>, <span class="num">3</span>, <span class="num">1</span>, <span class="num">16</span>}; <span class="cm">// D7, RX, TX, D0</span>
+<span class="cm">// Note: Use push buttons for best results (see Section 3, Method D)</span>
+
+<span class="cm">// ── MQTT Topics ──────────────────────────────────────</span>
+<span class="kw">const char</span>* <span class="var">CMD_TOPICS</span>[<span class="num">4</span>] = {
+  <span class="str">"home/room/relay1/set"</span>,
+  <span class="str">"home/room/relay2/set"</span>,
+  <span class="str">"home/room/relay3/set"</span>,
+  <span class="str">"home/room/relay4/set"</span>
+};
+<span class="kw">const char</span>* <span class="var">STATE_TOPICS</span>[<span class="num">4</span>] = {
+  <span class="str">"home/room/relay1/state"</span>,
+  <span class="str">"home/room/relay2/state"</span>,
+  <span class="str">"home/room/relay3/state"</span>,
+  <span class="str">"home/room/relay4/state"</span>
+};
+
+<span class="cm">// ── State Tracking ───────────────────────────────────</span>
+<span class="kw">bool</span> <span class="var">relayState</span>[<span class="num">4</span>] = {<span class="kw">false</span>, <span class="kw">false</span>, <span class="kw">false</span>, <span class="kw">false</span>};
+<span class="kw">int</span>  <span class="var">lastSwitchState</span>[<span class="num">4</span>] = {<span class="num">HIGH</span>, <span class="num">HIGH</span>, <span class="num">HIGH</span>, <span class="num">HIGH</span>};
+<span class="kw">unsigned long</span> <span class="var">lastDebounce</span>[<span class="num">4</span>] = {<span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>};
+<span class="kw">const unsigned long</span> <span class="var">DEBOUNCE_MS</span> = <span class="num">50</span>;
+
+WiFiClient <span class="var">wifiClient</span>;
+PubSubClient <span class="var">mqtt</span>(<span class="var">wifiClient</span>);
+
+<span class="cm">// ── Set Relay + Publish State ─────────────────────────</span>
+<span class="kw">void</span> <span class="fn">setRelay</span>(<span class="kw">int</span> <span class="var">index</span>, <span class="kw">bool</span> <span class="var">on</span>) {
+  <span class="var">relayState</span>[<span class="var">index</span>] = <span class="var">on</span>;
+  <span class="fn">digitalWrite</span>(<span class="var">RELAY_PINS</span>[<span class="var">index</span>], <span class="var">on</span> ? <span class="num">LOW</span> : <span class="num">HIGH</span>); <span class="cm">// Active LOW!</span>
+
+  <span class="cm">// Publish state to MQTT (retained = true, so apps see current state)</span>
+  <span class="var">mqtt</span>.<span class="fn">publish</span>(<span class="var">STATE_TOPICS</span>[<span class="var">index</span>], <span class="var">on</span> ? <span class="str">"ON"</span> : <span class="str">"OFF"</span>, <span class="kw">true</span>);
+
+  <span class="cm">// Save to EEPROM so state persists after power loss</span>
+  EEPROM.<span class="fn">write</span>(<span class="var">index</span>, <span class="var">on</span> ? <span class="num">1</span> : <span class="num">0</span>);
+  EEPROM.<span class="fn">commit</span>();
+}
+
+<span class="cm">// ── MQTT Message Handler ──────────────────────────────</span>
+<span class="kw">void</span> <span class="fn">onMqttMessage</span>(<span class="kw">char</span>* <span class="var">topic</span>, <span class="kw">byte</span>* <span class="var">payload</span>, <span class="kw">unsigned int</span> <span class="var">len</span>) {
+  String <span class="var">msg</span> = <span class="str">""</span>;
+  <span class="kw">for</span> (<span class="kw">int</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="var">len</span>; <span class="var">i</span>++) <span class="var">msg</span> += (<span class="kw">char</span>)<span class="var">payload</span>[<span class="var">i</span>];
+
+  <span class="kw">for</span> (<span class="kw">int</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="num">4</span>; <span class="var">i</span>++) {
+    <span class="kw">if</span> (String(<span class="var">topic</span>) == String(<span class="var">CMD_TOPICS</span>[<span class="var">i</span>])) {
+      <span class="kw">if</span> (<span class="var">msg</span> == <span class="str">"ON"</span>)     <span class="fn">setRelay</span>(<span class="var">i</span>, <span class="kw">true</span>);
+      <span class="kw">else if</span> (<span class="var">msg</span> == <span class="str">"OFF"</span>)  <span class="fn">setRelay</span>(<span class="var">i</span>, <span class="kw">false</span>);
+      <span class="kw">else if</span> (<span class="var">msg</span> == <span class="str">"TOGGLE"</span>) <span class="fn">setRelay</span>(<span class="var">i</span>, !<span class="var">relayState</span>[<span class="var">i</span>]);
+    }
+  }
+}
+
+<span class="cm">// ── WiFi Connection ───────────────────────────────────</span>
+<span class="kw">void</span> <span class="fn">connectWiFi</span>() {
+  WiFi.<span class="fn">begin</span>(<span class="var">WIFI_SSID</span>, <span class="var">WIFI_PASS</span>);
+  <span class="kw">while</span> (WiFi.<span class="fn">status</span>() != WL_CONNECTED) {
+    <span class="fn">delay</span>(<span class="num">500</span>);
+  }
+}
+
+<span class="cm">// ── MQTT Reconnect ────────────────────────────────────</span>
+<span class="kw">void</span> <span class="fn">reconnectMQTT</span>() {
+  <span class="kw">while</span> (!<span class="var">mqtt</span>.<span class="fn">connected</span>()) {
+    <span class="kw">if</span> (<span class="var">mqtt</span>.<span class="fn">connect</span>(<span class="var">DEVICE_ID</span>)) {
+      <span class="kw">for</span> (<span class="kw">int</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="num">4</span>; <span class="var">i</span>++) {
+        <span class="var">mqtt</span>.<span class="fn">subscribe</span>(<span class="var">CMD_TOPICS</span>[<span class="var">i</span>]);
+        <span class="cm">// Re-publish current state on reconnect</span>
+        <span class="var">mqtt</span>.<span class="fn">publish</span>(<span class="var">STATE_TOPICS</span>[<span class="var">i</span>], <span class="var">relayState</span>[<span class="var">i</span>] ? <span class="str">"ON"</span> : <span class="str">"OFF"</span>, <span class="kw">true</span>);
+      }
+    } <span class="kw">else</span> {
+      <span class="fn">delay</span>(<span class="num">5000</span>);
+    }
+  }
+}
+
+<span class="cm">// ── Setup ─────────────────────────────────────────────</span>
+<span class="kw">void</span> <span class="fn">setup</span>() {
+  EEPROM.<span class="fn">begin</span>(<span class="num">16</span>);
+
+  <span class="cm">// Init relays FIRST — keep them OFF during boot</span>
+  <span class="kw">for</span> (<span class="kw">int</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="num">4</span>; <span class="var">i</span>++) {
+    <span class="fn">pinMode</span>(<span class="var">RELAY_PINS</span>[<span class="var">i</span>], OUTPUT);
+    <span class="fn">digitalWrite</span>(<span class="var">RELAY_PINS</span>[<span class="var">i</span>], <span class="num">HIGH</span>); <span class="cm">// OFF (active LOW module)</span>
+  }
+
+  <span class="cm">// Init switch inputs with internal pull-up</span>
+  <span class="kw">for</span> (<span class="kw">int</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="num">4</span>; <span class="var">i</span>++) {
+    <span class="fn">pinMode</span>(<span class="var">SWITCH_PINS</span>[<span class="var">i</span>], INPUT_PULLUP);
+    <span class="var">lastSwitchState</span>[<span class="var">i</span>] = <span class="fn">digitalRead</span>(<span class="var">SWITCH_PINS</span>[<span class="var">i</span>]);
+  }
+
+  <span class="cm">// Restore state from EEPROM</span>
+  <span class="kw">for</span> (<span class="kw">int</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="num">4</span>; <span class="var">i</span>++) {
+    <span class="kw">bool</span> <span class="var">savedState</span> = EEPROM.<span class="fn">read</span>(<span class="var">i</span>) == <span class="num">1</span>;
+    <span class="fn">setRelay</span>(<span class="var">i</span>, <span class="var">savedState</span>);
+  }
+
+  <span class="fn">connectWiFi</span>();
+
+  <span class="cm">// OTA Update setup</span>
+  ArduinoOTA.<span class="fn">setHostname</span>(<span class="str">"room-controller"</span>);
+  ArduinoOTA.<span class="fn">begin</span>();
+
+  <span class="var">mqtt</span>.<span class="fn">setServer</span>(<span class="var">MQTT_SERVER</span>, <span class="var">MQTT_PORT</span>);
+  <span class="var">mqtt</span>.<span class="fn">setCallback</span>(<span class="var">onMqttMessage</span>);
+}
+
+<span class="cm">// ── Main Loop ─────────────────────────────────────────</span>
+<span class="kw">void</span> <span class="fn">loop</span>() {
+  ArduinoOTA.<span class="fn">handle</span>(); <span class="cm">// Handle OTA updates</span>
+
+  <span class="kw">if</span> (!<span class="var">mqtt</span>.<span class="fn">connected</span>()) <span class="fn">reconnectMQTT</span>();
+  <span class="var">mqtt</span>.<span class="fn">loop</span>();
+
+  <span class="cm">// ── Manual Switch Handling with Debounce ──</span>
+  <span class="kw">for</span> (<span class="kw">int</span> <span class="var">i</span> = <span class="num">0</span>; <span class="var">i</span> &lt; <span class="num">4</span>; <span class="var">i</span>++) {
+    <span class="kw">int</span> <span class="var">reading</span> = <span class="fn">digitalRead</span>(<span class="var">SWITCH_PINS</span>[<span class="var">i</span>]);
+
+    <span class="kw">if</span> (<span class="var">reading</span> != <span class="var">lastSwitchState</span>[<span class="var">i</span>]) {
+      <span class="var">lastDebounce</span>[<span class="var">i</span>] = <span class="fn">millis</span>();
+    }
+
+    <span class="kw">if</span> ((<span class="fn">millis</span>() - <span class="var">lastDebounce</span>[<span class="var">i</span>]) &gt; <span class="var">DEBOUNCE_MS</span>) {
+      <span class="kw">if</span> (<span class="var">reading</span> == <span class="num">LOW</span>) {         <span class="cm">// Button pressed (pull-up → LOW when pressed)</span>
+        <span class="fn">setRelay</span>(<span class="var">i</span>, !<span class="var">relayState</span>[<span class="var">i</span>]); <span class="cm">// Toggle!</span>
+      }
+    }
+
+    <span class="var">lastSwitchState</span>[<span class="var">i</span>] = <span class="var">reading</span>;
+  }
+}</pre>
+  </div>
+
+  <div class="callout success">
+    <div class="callout-icon">✅</div>
+    <div><strong>What this code handles:</strong>
+    <p>WiFi auto-reconnect, MQTT auto-reconnect, debounced button presses, state persistence across power cuts (EEPROM), retained MQTT messages (apps see current state immediately), OTA firmware updates (no USB needed for future updates), and active-LOW relay logic.</p></div>
+  </div>
+</div>
+
+<!-- SECTION 7 -->
+<div class="section" id="s7">
+  <div class="section-header">
+    <span class="section-num">07</span>
+    <h2>Platform Options — Control from Phone</h2>
+  </div>
+
+  <table class="comparison">
+    <thead>
+      <tr><th>Platform</th><th>Protocol</th><th>Setup Difficulty</th><th>Cost</th><th>Best For</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Home Assistant</td>
+        <td>MQTT / ESPHome</td>
+        <td><span class="badge badge-yellow">Medium</span></td>
+        <td>Free (self-hosted)</td>
+        <td>Power users, local control, privacy, Alexa/Google integration</td>
+      </tr>
+      <tr>
+        <td>Blynk IoT</td>
+        <td>Blynk Protocol</td>
+        <td><span class="badge badge-green">Easy</span></td>
+        <td>Free tier / ₹800/yr</td>
+        <td>Beginners, quick app with no coding</td>
+      </tr>
+      <tr>
+        <td>MQTT + MQTT Dash</td>
+        <td>MQTT</td>
+        <td><span class="badge badge-green">Easy</span></td>
+        <td>Free</td>
+        <td>Custom app dashboard, flexible</td>
+      </tr>
+      <tr>
+        <td>ESPHome + HA</td>
+        <td>Native API / MQTT</td>
+        <td><span class="badge badge-yellow">Medium</span></td>
+        <td>Free</td>
+        <td><strong>Best overall — professional grade</strong></td>
+      </tr>
+      <tr>
+        <td>Tasmota</td>
+        <td>MQTT</td>
+        <td><span class="badge badge-yellow">Medium</span></td>
+        <td>Free (open source)</td>
+        <td>Pre-built firmware, no coding needed</td>
+      </tr>
+      <tr>
+        <td>Google Home / Alexa</td>
+        <td>Cloud API</td>
+        <td><span class="badge badge-red">Hard (needs HA)</span></td>
+        <td>Free</td>
+        <td>Voice control — pair with Home Assistant</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout success">
+    <div class="callout-icon">🏆</div>
+    <div><strong>Recommended Stack:</strong>
+    <p><strong>ESPHome firmware</strong> on NodeMCU + <strong>Home Assistant</strong> on Raspberry Pi or old PC/phone + <strong>Nabu Casa</strong> (₹500/month) for remote access. This gives you: local control (no internet needed), cloud backup, Google/Alexa voice control, mobile app, automations, schedules, and energy monitoring — all in one free/cheap stack.</p></div>
+  </div>
+</div>
+
+<!-- SECTION 8 -->
+<div class="section" id="s8">
+  <div class="section-header">
+    <span class="section-num">08</span>
+    <h2>Final Recommendations — What to Use When</h2>
+  </div>
+
+  <table class="verdict-table">
+    <thead>
+      <tr><th>Your Situation</th><th>Best Wiring Method</th><th>Best Platform</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Quick DIY, keep existing switches</td>
+        <td>Relay in Parallel (Method C)</td>
+        <td>Blynk or MQTT Dash</td>
+      </tr>
+      <tr>
+        <td>Professional, long-term setup</td>
+        <td>Push Buttons + Relay (Method D)</td>
+        <td>ESPHome + Home Assistant</td>
+      </tr>
+      <tr>
+        <td>Voice control (Alexa/Google)</td>
+        <td>Any method</td>
+        <td>Home Assistant + Nabu Casa</td>
+      </tr>
+      <tr>
+        <td>No coding skills</td>
+        <td>Relay in Parallel (Method C)</td>
+        <td>Tasmota + MQTT Dash</td>
+      </tr>
+      <tr>
+        <td>Maximum reliability / fail-safe</td>
+        <td>NC wiring for critical devices</td>
+        <td>Home Assistant (local)</td>
+      </tr>
+      <tr>
+        <td>Rental room (reversible install)</td>
+        <td>Method C — don't remove switches</td>
+        <td>Blynk (easiest to remove)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>My Top Recommendation for Your Case</h3>
+  <div class="method best">
+    <div class="method-badge badge badge-green">OVERALL BEST</div>
+    <h4>Method C + ESPHome + Home Assistant</h4>
+    <p>Keep existing toggle switches, wire relays in parallel, use the code above, and control via Home Assistant. This is exactly how commercial smart switches like Shelly work — and you'll build it yourself for ₹800-1200 total for the whole room.</p>
+    <ul class="steps">
+      <li><strong>Buy:</strong> NodeMCU ESP8266, 8-ch relay module, HI-LINK HLK-PM01, push buttons (optional), resistors</li>
+      <li><strong>Wire:</strong> Each relay in parallel with its wall switch (Method C)</li>
+      <li><strong>Flash:</strong> Upload the code from Section 6 via Arduino IDE</li>
+      <li><strong>Control:</strong> Install MQTT Dash app, connect to HiveMQ broker — instant phone control</li>
+      <li><strong>Upgrade later:</strong> Add Home Assistant on a Raspberry Pi for full automation, voice control, schedules</li>
+    </ul>
+  </div>
+</div>
+
+<!-- SECTION 9 -->
+<div class="section" id="s9">
+  <div class="section-header">
+    <span class="section-num">09</span>
+    <h2>Safety Rules — Non-Negotiable</h2>
+  </div>
+
+  <div class="callout danger">
+    <div class="callout-icon">☠️</div>
+    <div><strong>230V AC is lethal. Always follow these rules:</strong>
+    <p>Turn off your MCB/breaker before working on any mains wiring. Never touch live wires. Use insulated tools. Test your circuit with a non-contact voltage tester before touching anything.</p></div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">🔒</div>
+      <h4>Always use a junction box</h4>
+      <p>House your NodeMCU and relay module in a proper IP-rated enclosure. No exposed circuits.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🌡️</div>
+      <h4>Check relay ratings</h4>
+      <p>Use relays rated for at least 10A/250V. Songle SRD-05VDC-SL-C is the reliable standard. Don't control motors larger than the relay can handle.</p>
+    </div>
+    <div class="card recommended">
+      <div class="card-icon">🔌</div>
+      <h4>Always switch the LIVE wire</h4>
+      <p>The relay/switch must interrupt the Live (phase) wire, not the neutral. Switching neutral leaves the device energized — dangerous.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔥</div>
+      <h4>Use proper wire gauge</h4>
+      <p>For lights: 1mm² (standard). For fans and heaters: 1.5mm² minimum. Never use thin hookup wire for mains connections.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚡</div>
+      <h4>Add a fuse</h4>
+      <p>Put a 5A or 10A fuse (as appropriate) on the Live line entering your relay module. Protects against shorts.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🛡️</div>
+      <h4>Isolate AC from DC</h4>
+      <p>Keep mains wiring on one side of the relay module. DC control wiring on the other side. Never mix them in the same cable run.</p>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<footer>
+  <span>// Home Automation Reference Guide · NodeMCU ESP8266</span>
+  <span>Professional Room Automation System</span>
+</footer>
+
+</body>
+</html>

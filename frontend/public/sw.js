@@ -3,27 +3,40 @@
  * ✓ Caches static assets
  * ✓ Serves cached content when offline
  * ✓ Gracefully handles API failures with offline message
+ *
+ * DEPLOYMENT NOTE: Bump CACHE_VERSION on every production deploy so that
+ * returning users with an active service worker immediately pick up new
+ * asset hashes.  Format: 'v<semver>-<YYYYMMDD>'
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2-20260311';
 const CACHE_NAMES = {
   static: `static-${CACHE_VERSION}`,
   api: `api-${CACHE_VERSION}`,
   dynamic: `dynamic-${CACHE_VERSION}`
 };
 
-// Assets to cache on install
+// Only cache the shell — Vite hashes all other assets, so they never go stale.
+// index.html itself is served with no-cache headers by nginx, so we intentionally
+// do NOT cache it here to ensure users always reload the latest entry point.
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/favicon.ico'
 ];
 
-// API routes to cache
+// API routes safe to serve stale while revalidating (non-sensitive, infrequently updated)
 const CACHEABLE_APIS = [
-  '/api/users/profile',
   '/api/leaderboard',
   '/api/papers'
+];
+
+// Sensitive / session-specific routes that must NEVER be cached
+const NEVER_CACHE_APIS = [
+  '/api/users/me',
+  '/api/users/profile',
+  '/api/auth',
+  '/api/admin',
+  '/api/subscriptions',
+  '/api/payments',
 ];
 
 /**
@@ -103,11 +116,17 @@ self.addEventListener('fetch', (event: any) => {
  * Try network first, fall back to cache, then offline page
  */
 async function handleApiRequest(request: Request): Promise<Response> {
+  // Never cache auth / admin / payment / profile routes
+  const isSensitive = NEVER_CACHE_APIS.some(p => request.url.includes(p));
+  if (isSensitive) {
+    return fetch(request);
+  }
+
   try {
     // Try network first
     const networkResponse = await fetch(request);
     
-    // Cache successful responses
+    // Cache successful responses for non-sensitive cacheable APIs
     if (networkResponse.ok && CACHEABLE_APIS.some(api => request.url.includes(api))) {
       const cache = await caches.open(CACHE_NAMES.api);
       cache.put(request, networkResponse.clone());

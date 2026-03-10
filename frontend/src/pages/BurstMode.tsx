@@ -521,9 +521,9 @@ export default function BurstMode() {
       @keyframes bm-lightning-in { from{opacity:0;transform:rotate(-10deg) scale(.6)} to{opacity:1;transform:rotate(0) scale(1)} }
       @keyframes bm-bg-breathe { 0%,100%{opacity:.6} 50%{opacity:1} }
       @keyframes bm-card-hover-glow { 0%,100%{box-shadow:0 0 20px rgba(249,115,22,0)} 50%{box-shadow:0 0 28px rgba(249,115,22,.18)} }
-      .bm-mode-card { all: unset; display: block; box-sizing: border-box; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease !important; }
-      .bm-mode-card:hover { transform: translateY(-6px) !important; border-color: rgba(249,115,22,.3) !important; box-shadow: 0 16px 48px rgba(0,0,0,.35), 0 0 32px rgba(249,115,22,.08) !important; animation: bm-card-hover-glow 2s ease infinite !important; }
-      .bm-mode-card:active { transform: translateY(-3px) scale(.98) !important; }
+      .bm-mode-card { all: unset; display: block; box-sizing: border-box; transition: transform .45s cubic-bezier(.4,0,.2,1), border-color .45s cubic-bezier(.4,0,.2,1), box-shadow .45s cubic-bezier(.4,0,.2,1) !important; }
+      .bm-mode-card:hover { transform: translateY(-6px) !important; border-color: rgba(249,115,22,.3) !important; box-shadow: 0 16px 48px rgba(0,0,0,.35), 0 0 28px rgba(249,115,22,.14) !important; }
+      .bm-mode-card:active { transform: translateY(-2px) scale(.98) !important; }
       .bm-mode-card:hover .bm-card-accent { opacity: 1 !important; }
       .bm-mode-card:hover .bm-card-icon { background: var(--bm-burstdim) !important; border-color: rgba(249,115,22,.3) !important; box-shadow: 0 0 20px rgba(249,115,22,.15) !important; }
       .bm-diff-btn { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 14px 12px; border-radius: 12px; border: 1px solid var(--bm-bdr2); background: var(--bm-surf2); font-family: var(--bm-fm); font-size: 15px; font-weight: 600; color: var(--bm-white2); cursor: pointer; text-align: center; transition: all .2s cubic-bezier(.4,0,.2,1); }
@@ -545,6 +545,12 @@ export default function BurstMode() {
         .bm-modes-grid{grid-template-columns:repeat(2,1fr)!important}
         .bm-action-grid{grid-template-columns:1fr 1fr!important}
       }
+      @media(max-width:480px){
+        .bm-stats-grid{grid-template-columns:repeat(2,1fr)!important}
+        .bm-modes-grid{grid-template-columns:1fr 1fr!important}
+        .bm-action-grid{grid-template-columns:1fr!important}
+        .bm-mode-card{padding:20px 12px!important}
+      }
     `;
     document.head.appendChild(style);
   }, []);
@@ -558,6 +564,30 @@ export default function BurstMode() {
     setPhase("config");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  // ── Countdown beep (soft, gamified) ─────────────────────────────────────
+  const countdownAudioRef = useRef<AudioContext | null>(null);
+  const playCountdownTone = useCallback((num: number) => {
+    try {
+      if (!countdownAudioRef.current) countdownAudioRef.current = new AudioContext();
+      const ctx = countdownAudioRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+      const t = ctx.currentTime;
+      const freq = num === 0 ? 880 : num === 1 ? 660 : num === 2 ? 520 : 440;
+      const dur = num === 0 ? 0.25 : 0.15;
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(freq, t);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.18, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(t);
+      o.stop(t + dur + 0.01);
+    } catch (_) {}
+  }, []);
 
   // ── Start game ───────────────────────────────────────────────────────────
 
@@ -581,6 +611,7 @@ export default function BurstMode() {
   useEffect(() => {
     if (phase !== "countdown") return;
     if (countdownNum <= 0) {
+      playCountdownTone(0);
       // Start playing — generate first question with anti-repeat seeding
       let q = generateBurstQuestion(selectedOp!, selectedOption, 1);
       for (let i = 0; i < 12 && recentTextsRef.current.includes(q.text); i++) {
@@ -594,9 +625,10 @@ export default function BurstMode() {
       setPhase("playing");
       return;
     }
+    playCountdownTone(countdownNum);
     const t = setTimeout(() => setCountdownNum((n) => n - 1), 1000);
     return () => clearTimeout(t);
-  }, [phase, countdownNum, selectedOp, selectedOption]);
+  }, [phase, countdownNum, selectedOp, selectedOption, playCountdownTone]);
 
   // Timer effect
   useEffect(() => {
@@ -791,6 +823,7 @@ export default function BurstMode() {
   // Fullscreen toggle
   const toggleFullScreen = useCallback(() => {
     if (!document.fullscreenElement) {
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
       document.documentElement.requestFullscreen().catch(() => {});
       setIsFullScreen(true);
     } else {
@@ -818,6 +851,22 @@ export default function BurstMode() {
       document.removeEventListener("keydown", onKey);
     };
   }, [phase, toggleFullScreen]);
+
+  // Lock scroll & hide header during fullscreen; exit fullscreen when session ends
+  useEffect(() => {
+    if (isFullScreen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isFullScreen]);
+
+  useEffect(() => {
+    if (phase !== "playing" && phase !== "countdown" && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, [phase]);
 
   // ── Computed ─────────────────────────────────────────────────────────────
 
@@ -871,7 +920,7 @@ export default function BurstMode() {
         )}
 
         {/* Hero banner — Glow Crown */}
-        <div style={{ position: "relative", overflow: "hidden", borderRadius: "0 0 28px 28px", padding: "52px 32px 56px", background: "linear-gradient(145deg, #1A1008 0%, #1F1510 40%, #0E0B08 100%)", borderBottom: "1px solid rgba(249,115,22,.2)" }}>
+        <div style={{ position: "relative", overflow: "hidden", borderRadius: "0 0 28px 28px", padding: "clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)", background: "linear-gradient(145deg, #1A1008 0%, #1F1510 40%, #0E0B08 100%)", borderBottom: "1px solid rgba(249,115,22,.2)" }}>
           {/* Atmospheric glow */}
           <div style={{ position: "absolute", top: "-20%", left: "50%", transform: "translateX(-50%)", width: 500, height: 400, background: "radial-gradient(ellipse at center, rgba(249,115,22,.12) 0%, rgba(249,115,22,.04) 50%, transparent 70%)", pointerEvents: "none", animation: "bm-bg-breathe 6s ease-in-out infinite" }} />
           {/* Grid pattern */}
@@ -891,40 +940,37 @@ export default function BurstMode() {
             <p style={{ fontFamily: "var(--bm-fb)", fontSize: 16, fontWeight: 300, color: "rgba(255,255,255,.5)", margin: "0 0 16px" }}>
               60 seconds. Unlimited questions. Push your speed to the limit.
             </p>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--bm-burstdim)", border: "1px solid rgba(249,115,22,.22)", borderRadius: 100, padding: "6px 16px", fontFamily: "var(--bm-fm)", fontSize: 12, color: "var(--bm-burst2)" }}>
-                ⚡ 10 modes available · 60s each
-              </div>
-              <button
-                onClick={() => setShowGuide(true)}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, border: "1px solid rgba(249,115,22,.25)", background: "rgba(249,115,22,.08)", fontFamily: "var(--bm-fm)", fontSize: 11, fontWeight: 600, color: "var(--bm-burst2)", cursor: "pointer", transition: "all .2s", letterSpacing: ".02em" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,.15)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(249,115,22,.4)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,.08)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(249,115,22,.25)"; }}
-              >
-                <BookOpen style={{ width: 13, height: 13 }} />
-                How to Use
-              </button>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--bm-burstdim)", border: "1px solid rgba(249,115,22,.22)", borderRadius: 100, padding: "6px 16px", fontFamily: "var(--bm-fm)", fontSize: 12, color: "var(--bm-burst2)" }}>
+              ⚡ 10 modes available · 60s each
             </div>
+          </div>
+        </div>
+
+        {/* ── Sticky nav bar: back + how to use (below hero) ── */}
+        <div style={{ position: "sticky", top: 0, zIndex: 40, background: "rgba(6,7,15,0.92)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "0 clamp(12px,3vw,28px)" }}>
+          <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0" }}>
+            <Link href="/">
+              <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#B8BDD8", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontWeight: 500, fontSize: 13, flexShrink: 0 }}>
+                <ArrowLeft style={{ width: 14, height: 14 }} />
+                Back
+              </button>
+            </Link>
+            <button
+              onClick={() => setShowGuide(true)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, border: "1px solid rgba(249,115,22,.25)", background: "rgba(249,115,22,.08)", fontFamily: "var(--bm-fm)", fontSize: 11, fontWeight: 600, color: "var(--bm-burst2)", cursor: "pointer", transition: "all .2s", letterSpacing: ".02em" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,.15)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(249,115,22,.4)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,.08)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(249,115,22,.25)"; }}
+            >
+              <BookOpen style={{ width: 13, height: 13 }} />
+              How to Use
+            </button>
           </div>
         </div>
 
         <div style={{ position: "relative", zIndex: 1 }}>
 
-          {/* Back to Dashboard - moved above cards on left */}
-          <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px 20px" }}>
-            <Link href="/dashboard">
-              <span
-                style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "var(--bm-fb)", fontSize: 14, fontWeight: 500, color: "var(--bm-muted)", textDecoration: "none", cursor: "pointer", transition: "color .2s, gap .2s" }}
-                onMouseEnter={(e) => { const el = e.currentTarget as HTMLSpanElement; el.style.color = "var(--bm-white2)"; el.style.gap = "10px"; }}
-                onMouseLeave={(e) => { const el = e.currentTarget as HTMLSpanElement; el.style.color = "var(--bm-muted)"; el.style.gap = "8px"; }}
-              >
-                ← Back to Dashboard
-              </span>
-            </Link>
-          </div>
-
           {/* Mode cards grid */}
-          <div className="bm-modes-grid" style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px 16px" }}>
+          <div className="bm-modes-grid" style={{ maxWidth: 1100, margin: "0 auto", padding: "clamp(20px,4vw,32px) clamp(12px,3vw,24px) 16px" }}>
             {(Object.entries(BURST_OPERATIONS) as [BurstOperationType, BurstConfig][]).map(
               ([key, config], index) => {
                 const range = getPointsRange(key);
@@ -1139,7 +1185,7 @@ export default function BurstMode() {
         )}
 
         {/* Top bar */}
-        <div style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(6,7,15,.9)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--bm-bdr)", height: 64, display: "grid", gridTemplateColumns: "80px 1fr 160px", alignItems: "center", padding: "0 24px" }}>
+        <div style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(6,7,15,.9)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--bm-bdr)", height: "clamp(52px,8vw,64px)", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "0 clamp(12px,3vw,24px)", gap: "clamp(8px,2vw,16px)" }}>
           {/* Back button */}
           <button
             onClick={handleBack}
@@ -1196,7 +1242,7 @@ export default function BurstMode() {
             <div
               key={currentQuestion.id}
               className="bm-number-slam"
-              style={{ fontFamily: "var(--bm-fm)", fontSize: "clamp(56px, 10vw, 110px)", fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1, marginBottom: 32, display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: "0 2px" }}
+              style={{ fontFamily: "var(--bm-fm)", fontSize: "clamp(84px, 15vw, 165px)", fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1, marginBottom: 32, display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: "0 2px" }}
             >
               {currentQuestion.text.replace(" =", "").split(" ").map((token, i) => {
                 const isOp = ["÷", "×", "+", "−", "-", "of"].includes(token);
@@ -1250,13 +1296,6 @@ export default function BurstMode() {
   if (phase === "results") {
     const config = selectedOp ? BURST_OPERATIONS[selectedOp] : null;
     const avgTime = results.length > 0 ? results.reduce((s, r) => s + r.timeTaken, 0) / results.length : 0;
-    const bestStreak = (() => {
-      let max = 0, cur = 0;
-      for (const r of results) {
-        if (r.isCorrect) { cur++; max = Math.max(max, cur); } else { cur = 0; }
-      }
-      return max;
-    })();
     // Calculate points earned for display — use backend value when available
     const perCorrectPts = selectedOp ? getPointsForOption(selectedOp, selectedOption) : 0;
     const localPtsEstimate = perCorrectPts * correctCount;
@@ -1267,7 +1306,7 @@ export default function BurstMode() {
         {/* Background glow */}
         <div style={{ position: "fixed", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 60% 50% at 50% 15%, rgba(249,115,22,.06) 0%, rgba(123,92,229,.04) 50%, transparent 70%)" }} />
 
-        <div style={{ maxWidth: 700, margin: "0 auto", padding: "40px 24px 60px", position: "relative", zIndex: 1 }}>
+        <div style={{ maxWidth: 700, margin: "0 auto", padding: "clamp(24px,5vw,40px) clamp(14px,3vw,24px) 60px", position: "relative", zIndex: 1 }}>
           {/* Completion header */}
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <div className="bm-scale-in" style={{ width: 64, height: 64, borderRadius: 20, margin: "0 auto 20px", background: "linear-gradient(135deg, var(--bm-burst), #C2410C)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 40px rgba(249,115,22,.35), 0 0 0 1px rgba(249,115,22,.2)" }}>
@@ -1301,22 +1340,22 @@ export default function BurstMode() {
 
           {/* Secondary stats */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-            <div style={{ background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 16, padding: "18px 22px", display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 16, padding: "clamp(12px,2.5vw,18px) clamp(14px,3vw,22px)", display: "flex", alignItems: "center", gap: "clamp(10px,2vw,14px)" }}>
               <div style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(123,92,229,.12)", border: "1px solid rgba(123,92,229,.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Clock style={{ width: 18, height: 18, color: "var(--bm-purple2)" }} />
               </div>
               <div>
-                <div style={{ fontFamily: "var(--bm-fm)", fontSize: 22, fontWeight: 800, color: "var(--bm-white)" }}>{avgTime.toFixed(1)}s</div>
+                <div style={{ fontFamily: "var(--bm-fm)", fontSize: "clamp(18px,3vw,22px)", fontWeight: 800, color: "var(--bm-white)" }}>{avgTime.toFixed(1)}s</div>
                 <div style={{ fontFamily: "var(--bm-fb)", fontSize: 12, color: "var(--bm-muted)", marginTop: 2 }}>Avg. per question</div>
               </div>
             </div>
-            <div style={{ background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 16, padding: "18px 22px", display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 16, padding: "clamp(12px,2.5vw,18px) clamp(14px,3vw,22px)", display: "flex", alignItems: "center", gap: "clamp(10px,2vw,14px)" }}>
               <div style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(245,158,11,.12)", border: "1px solid rgba(245,158,11,.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Flame style={{ width: 18, height: 18, color: "var(--bm-gold)" }} />
+                <Trophy style={{ width: 18, height: 18, color: "var(--bm-gold)" }} />
               </div>
               <div>
-                <div style={{ fontFamily: "var(--bm-fm)", fontSize: 22, fontWeight: 800, color: "var(--bm-white)" }}>{bestStreak}</div>
-                <div style={{ fontFamily: "var(--bm-fb)", fontSize: 12, color: "var(--bm-muted)", marginTop: 2 }}>Best streak</div>
+                <div style={{ fontFamily: "var(--bm-fm)", fontSize: "clamp(18px,3vw,22px)", fontWeight: 800, color: "var(--bm-white)" }}>{correctCount} / {results.length}</div>
+                <div style={{ fontFamily: "var(--bm-fb)", fontSize: 12, color: "var(--bm-muted)", marginTop: 2 }}>Score</div>
               </div>
             </div>
           </div>
@@ -1343,20 +1382,20 @@ export default function BurstMode() {
               <RotateCcw style={{ width: 15, height: 15 }} />Burst Again
             </button>
             <button
-              onClick={() => { /* navigate to dashboard */ window.location.href = "/dashboard"; }}
-              style={{ background: "linear-gradient(135deg, var(--bm-green), #059669)", border: "none", borderRadius: 14, padding: "14px 10px", color: "white", fontFamily: "var(--bm-fd)", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 6px 20px rgba(16,185,129,.2)", cursor: "pointer", transition: "all .25s ease" }}
-              onMouseEnter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = "translateY(-2px)"; b.style.boxShadow = "0 12px 32px rgba(16,185,129,.32)"; }}
-              onMouseLeave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = ""; b.style.boxShadow = "0 6px 20px rgba(16,185,129,.2)"; }}
-            >
-              <Trophy style={{ width: 15, height: 15 }} />Dashboard
-            </button>
-            <button
               onClick={resetToSelect}
               style={{ background: "var(--bm-surf2)", border: "1px solid var(--bm-bdr2)", borderRadius: 14, padding: "14px 10px", color: "var(--bm-white2)", fontFamily: "var(--bm-fd)", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", transition: "all .2s" }}
               onMouseEnter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = "rgba(249,115,22,.3)"; b.style.color = "var(--bm-white)"; }}
               onMouseLeave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = "var(--bm-bdr2)"; b.style.color = "var(--bm-white2)"; }}
             >
               <Zap style={{ width: 15, height: 15 }} />New Mode
+            </button>
+            <button
+              onClick={() => { window.location.href = "/dashboard"; }}
+              style={{ background: "linear-gradient(135deg, var(--bm-green), #059669)", border: "none", borderRadius: 14, padding: "14px 10px", color: "white", fontFamily: "var(--bm-fd)", fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 6px 20px rgba(16,185,129,.2)", cursor: "pointer", transition: "all .25s ease" }}
+              onMouseEnter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = "translateY(-2px)"; b.style.boxShadow = "0 12px 32px rgba(16,185,129,.32)"; }}
+              onMouseLeave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = ""; b.style.boxShadow = "0 6px 20px rgba(16,185,129,.2)"; }}
+            >
+              <Trophy style={{ width: 15, height: 15 }} />Dashboard
             </button>
           </div>
 
@@ -1377,10 +1416,11 @@ export default function BurstMode() {
                 <div
                   key={i}
                   className="bm-fade-up"
-                  style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto", gap: 12, alignItems: "center", padding: "14px 20px", borderBottom: i < results.length - 1 ? "1px solid var(--bm-bdr)" : undefined, transition: "background .15s ease", borderLeft: r.isCorrect ? "2px solid rgba(16,185,129,.15)" : "2px solid rgba(239,68,68,.2)", paddingLeft: 18, animationDelay: `${i * 0.04}s` }}
+                  style={{ display: "grid", gridTemplateColumns: "auto 1fr auto auto auto", gap: 12, alignItems: "center", padding: "14px 20px", borderBottom: i < results.length - 1 ? "1px solid var(--bm-bdr)" : undefined, transition: "background .15s ease", borderLeft: r.isCorrect ? "2px solid rgba(16,185,129,.15)" : "2px solid rgba(239,68,68,.2)", paddingLeft: 18, animationDelay: `${i * 0.04}s` }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,.02)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ""; }}
                 >
+                  <span style={{ fontFamily: "var(--bm-fm)", fontSize: 11, fontWeight: 700, color: "var(--bm-muted)", minWidth: "1.5rem", textAlign: "right" }}>{i + 1}.</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {r.isCorrect
                       ? <CheckCircle2 style={{ width: 16, height: 16, color: "var(--bm-green)", flexShrink: 0 }} />

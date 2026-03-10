@@ -26,6 +26,9 @@ class UserResponse(UserBase):
     is_archived: bool = False
     created_at: datetime
     public_id: Optional[str] = None  # Student public ID (TH-0001 format)
+    branch: Optional[str] = None
+    course: Optional[str] = None
+    level: Optional[str] = None
     
     @field_serializer('created_at')
     def serialize_created_at(self, dt: datetime, _info) -> str:

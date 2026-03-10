@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Advanced Room Automation — Professional Build Guide</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,400&display=swap');
+
+:root {
+  --ink: #0c0f0a;
+  --paper: #f5f0e8;
+  --paper2: #ede8df;
+  --paper3: #e4ddd2;
+  --accent: #c0392b;
+  --accent2: #2980b9;
+  --accent3: #27ae60;
+  --amber: #d68910;
+  --muted: #7a6f62;
+  --border: #c8bfb0;
+  --code-bg: #1a1a1a;
+  --code-text: #e8e3da;
+  --warn-bg: #fef9ec;
+  --warn-border: #f39c12;
+  --danger-bg: #fdf0ee;
+  --danger-border: #c0392b;
+  --ok-bg: #eef8f3;
+  --ok-border: #27ae60;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+/* HEADER */
+header {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: repeating-linear-gradient(
+    0deg, transparent, transparent 39px,
+    rgba(255,255,255,0.03) 39px, rgba(255,255,255,0.03) 40px
+  ),
+  repeating-linear-gradient(
+    90deg, transparent, transparent 39px,
+    rgba(255,255,255,0.03) 39px, rgba(255,255,255,0.03) 40px
+  );
+}
+.header-inner {
+  position: relative;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 64px 48px 56px;
+}
+.header-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header-label::after {
+  content: '';
+  height: 1px;
+  width: 60px;
+  background: var(--accent);
+  display: inline-block;
+}
+header h1 {
+  font-size: clamp(36px, 6vw, 68px);
+  font-weight: 900;
+  line-height: 1.0;
+  letter-spacing: -2px;
+  margin-bottom: 24px;
+  font-style: italic;
+}
+header h1 em { font-style: normal; color: var(--accent); }
+.header-meta {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.meta-pill {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 2px;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.6);
+}
+.meta-pill.hot { border-color: var(--accent); color: var(--accent); }
+
+/* LAYOUT */
+.page { max-width: 1080px; margin: 0 auto; padding: 0 48px; }
+
+/* TOC STRIP */
+.toc-strip {
+  background: var(--ink);
+  border-bottom: 3px solid var(--accent);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.toc-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 48px;
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.toc-inner::-webkit-scrollbar { display: none; }
+.toc-link {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  text-decoration: none;
+  padding: 14px 18px;
+  white-space: nowrap;
+  border-right: 1px solid rgba(255,255,255,0.08);
+  transition: color 0.2s, background 0.2s;
+}
+.toc-link:hover { color: #fff; background: rgba(255,255,255,0.06); }
+.toc-link span { color: var(--accent); margin-right: 6px; }
+
+/* SECTIONS */
+.section {
+  padding: 72px 0 48px;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 48px;
+}
+.section:last-child { border-bottom: none; }
+
+.section-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-eyebrow::before {
+  content: attr(data-num);
+  background: var(--accent);
+  color: #fff;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.section > h2 {
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -1px;
+  margin-bottom: 20px;
+}
+.section > .lead {
+  font-size: 18px;
+  color: var(--muted);
+  font-style: italic;
+  margin-bottom: 36px;
+  max-width: 680px;
+  font-weight: 300;
+}
+
+h3 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin: 36px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--ink);
+}
+h4 {
+  font-family: 'Fraunces', serif;
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+p { margin-bottom: 14px; color: #2a2520; }
+strong { font-weight: 700; color: var(--ink); }
+
+/* CALLOUTS */
+.callout {
+  margin: 24px 0;
+  padding: 18px 22px;
+  border-left: 4px solid;
+  font-size: 14px;
+  border-radius: 0 6px 6px 0;
+}
+.callout.danger { background: var(--danger-bg); border-color: var(--accent); }
+.callout.warn { background: var(--warn-bg); border-color: var(--warn-border); }
+.callout.ok { background: var(--ok-bg); border-color: var(--accent3); }
+.callout.info { background: #eef4fb; border-color: var(--accent2); }
+.callout-head {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.callout.danger .callout-head { color: var(--accent); }
+.callout.warn .callout-head { color: var(--amber); }
+.callout.ok .callout-head { color: var(--accent3); }
+.callout.info .callout-head { color: var(--accent2); }
+.callout p { margin: 0; color: #2a2520; font-size: 14px; }
+
+/* CODE */
+.code-wrap {
+  margin: 20px 0;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #2a2a2a;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.code-bar {
+  background: #2a2a2a;
+  padding: 8px 16px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.code-bar::before {
+  content: '●●●';
+  color: #555;
+  letter-spacing: 3px;
+  font-size: 8px;
+}
+pre {
+  background: var(--code-bg);
+  padding: 24px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--code-text);
+  overflow-x: auto;
+}
+.kw { color: #f97583; }
+.fn { color: #b392f0; }
+.str { color: #9ecbff; }
+.num { color: #79b8ff; }
+.cm { color: #6a737d; font-style: italic; }
+.var { color: #ffab70; }
+.key { color: #85e89d; }
+.type { color: #f0e68c; }
+
+/* TABLES */
+.tbl-wrap { overflow-x: auto; margin: 20px 0; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+th {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 12px 16px;
+  text-align: left;
+}
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: #2a2520;
+}
+tr:nth-child(even) td { background: var(--paper2); }
+td:first-child { font-weight: 700; font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+
+/* BADGES */
+.b {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.b-red { background: #fde8e8; color: var(--accent); border: 1px solid #f5c6c6; }
+.b-green { background: #e8f8ee; color: #1e8449; border: 1px solid #b7dfc8; }
+.b-blue { background: #e8f1fb; color: #1a5276; border: 1px solid #aac9e8; }
+.b-amber { background: #fef5e7; color: #a04000; border: 1px solid #f5cba7; }
+.b-black { background: var(--ink); color: var(--paper); }
+
+/* CARDS */
+.card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.card {
+  background: var(--paper2);
+  border: 1px solid var(--border);
+  padding: 20px;
+  border-radius: 4px;
+  position: relative;
+}
+.card.star {
+  border-color: var(--accent3);
+  background: var(--ok-bg);
+}
+.card.star::before {
+  content: 'BEST';
+  position: absolute;
+  top: -10px; right: 12px;
+  background: var(--accent3);
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 8px;
+  letter-spacing: 1px;
+}
+.card h4 { font-size: 16px; margin-bottom: 6px; }
+.card p { font-size: 13px; color: var(--muted); margin: 0; }
+
+/* DIAGRAM */
+.diagram {
+  background: var(--paper3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 24px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  line-height: 2;
+  overflow-x: auto;
+  margin: 20px 0;
+  box-shadow: inset 0 1px 4px rgba(0,0,0,0.07);
+}
+.diagram .live { color: #c0392b; font-weight: 600; }
+.diagram .neutral { color: #2980b9; font-weight: 600; }
+.diagram .ctrl { color: #27ae60; }
+.diagram .note { color: #7a6f62; font-style: italic; }
+.diagram .hi { color: #d68910; font-weight: 700; }
+
+/* STEPS */
+ol.steps { list-style: none; margin: 20px 0; counter-reset: s; }
+ol.steps li {
+  counter-increment: s;
+  padding: 14px 16px 14px 52px;
+  margin-bottom: 10px;
+  background: var(--paper2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  position: relative;
+  font-size: 14px;
+}
+ol.steps li::before {
+  content: counter(s);
+  position: absolute;
+  left: 14px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px;
+  background: var(--ink);
+  color: var(--paper);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 2px;
+}
+
+/* PROS/CONS */
+.pc { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+.pros, .cons { padding: 16px; border-radius: 4px; }
+.pros { background: var(--ok-bg); border: 1px solid var(--ok-border); }
+.cons { background: var(--danger-bg); border: 1px solid var(--danger-border); }
+.pros h5 { color: #1e8449; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+.cons h5 { color: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+.pros li, .cons li { font-size: 13px; margin-bottom: 5px; padding-left: 14px; position: relative; list-style: none; }
+.pros li::before { content: '✓'; position: absolute; left: 0; color: #1e8449; }
+.cons li::before { content: '✗'; position: absolute; left: 0; color: var(--accent); }
+
+/* VERDICT BOX */
+.verdict {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 28px 32px;
+  border-radius: 4px;
+  margin: 28px 0;
+  border-left: 6px solid var(--accent);
+}
+.verdict-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+.verdict h4 { color: var(--paper); font-size: 20px; margin-bottom: 10px; }
+.verdict p { color: rgba(245,240,232,0.75); font-size: 14px; margin: 0; }
+
+/* DIVIDER */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 32px 0;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* LOAD TYPE TABLE  */
+.load-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 20px 0; }
+.load-card {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.load-card-head {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 8px 14px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.load-card-body { padding: 12px 14px; background: var(--paper2); }
+.load-card-body p { font-size: 12.5px; color: var(--muted); margin: 0; }
+.load-card-body .spec { color: var(--ink); font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+
+footer {
+  background: var(--ink);
+  color: rgba(245,240,232,0.4);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 24px 48px;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .header-inner, .page, footer { padding-left: 20px; padding-right: 20px; }
+  .toc-inner { padding-left: 20px; }
+  .pc { grid-template-columns: 1fr; }
+  .card-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-label">Advanced Build Guide</div>
+    <h1>Professional<br><em>Room Automation</em><br>System</h1>
+    <div class="header-meta">
+      <div class="meta-pill hot">Mixed Loads — Lights · Fans · Sockets</div>
+      <div class="meta-pill">4 Switchboards</div>
+      <div class="meta-pill">Manual + App + Voice</div>
+      <div class="meta-pill">ESPHome · Home Assistant · Google/Alexa</div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc-strip">
+  <div class="toc-inner">
+    <a class="toc-link" href="#s1"><span>01</span>Load Types</a>
+    <a class="toc-link" href="#s2"><span>02</span>Relay Selection</a>
+    <a class="toc-link" href="#s3"><span>03</span>Wiring Architecture</a>
+    <a class="toc-link" href="#s4"><span>04</span>Fan Speed Control</a>
+    <a class="toc-link" href="#s5"><span>05</span>Socket Safety</a>
+    <a class="toc-link" href="#s6"><span>06</span>ESPHome Config</a>
+    <a class="toc-link" href="#s7"><span>07</span>Home Assistant</a>
+    <a class="toc-link" href="#s8"><span>08</span>Voice Control</a>
+    <a class="toc-link" href="#s9"><span>09</span>Full BOM</a>
+    <a class="toc-link" href="#s10"><span>10</span>Safety</a>
+  </div>
+</nav>
+
+<div class="page">
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section" id="s1">
+  <div class="section-eyebrow" data-num="01">Load Classification</div>
+  <h2>Lights, Fans & Sockets<br>Are NOT the Same Load</h2>
+  <p class="lead">Each load type has different electrical behaviour. Treating them the same is the #1 amateur mistake — it causes relay failure, fire hazards, and poor control.</p>
+
+  <h3>Your Three Load Types — Key Differences</h3>
+  <div class="load-grid">
+    <div class="load-card">
+      <div class="load-card-head">💡 Light (Resistive)</div>
+      <div class="load-card-body">
+        <div class="spec">0.5A – 1A per bulb</div>
+        <p>LED: purely resistive. No inrush. Simplest load. Any relay handles this easily. Standard relay wiring, NO port, done.</p>
+      </div>
+    </div>
+    <div class="load-card">
+      <div class="load-card-head">🌀 Ceiling Fan (Inductive)</div>
+      <div class="load-card-body">
+        <div class="spec">0.3A – 0.5A running, 3–5× inrush</div>
+        <p>Inductive motor. Creates back-EMF on switch-off. Needs a snubber circuit or rated relay. Speed needs a TRIAC/dimmer, NOT relay.</p>
+      </div>
+    </div>
+    <div class="load-card">
+      <div class="load-card-head">🔌 Socket (Unknown)</div>
+      <div class="load-card-body">
+        <div class="spec">Up to 6A / 16A depending on rating</div>
+        <p>Unknown device will be plugged in. Could be a phone charger or an iron. Must use a high-rated relay AND add protection. Consider carefully.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-head">⚠ Critical — Fan Inrush Current</div>
+    <p>A ceiling fan draws 3–5× its running current at startup (inrush). A fan rated at 0.4A running may pull 1.5–2A for the first 100ms. This causes relay contact arcing over time. Always use a relay rated at ≥10A for fans, and add a snubber (0.1µF + 100Ω in series across the relay contacts).</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section" id="s2">
+  <div class="section-eyebrow" data-num="02">Hardware Selection</div>
+  <h2>Choosing the Right<br>Relay for Each Load</h2>
+  <p class="lead">One relay module does NOT fit all. Here's exactly what to use for each device type in your room.</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Device</th><th>Relay Type</th><th>Relay Rating</th><th>Special Requirement</th><th>Module to Buy</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>LED Light</td>
+          <td>Standard SPDT</td>
+          <td>5A / 250V AC</td>
+          <td>None</td>
+          <td>SRD-05VDC-SL-C (any 8ch module)</td>
+        </tr>
+        <tr>
+          <td>Ceiling Fan (ON/OFF only)</td>
+          <td>Standard SPDT</td>
+          <td><strong>10A / 250V AC</strong></td>
+          <td>Snubber across contacts</td>
+          <td>JQC-3F (10A) relay module</td>
+        </tr>
+        <tr>
+          <td>Ceiling Fan (Speed Control)</td>
+          <td><strong>TRIAC / BT136</strong></td>
+          <td>N/A (solid state)</td>
+          <td>Requires zero-cross detection</td>
+          <td>RobotDyn AC Dimmer Module</td>
+        </tr>
+        <tr>
+          <td>Socket (≤6A devices)</td>
+          <td>Standard SPDT</td>
+          <td><strong>16A / 250V AC</strong></td>
+          <td>Fuse on Live before relay</td>
+          <td>HJQ-78F (16A) or dedicated smart plug</td>
+        </tr>
+        <tr>
+          <td>Socket (heavy — AC, heater)</td>
+          <td><span class="b b-red">DO NOT AUTOMATE</span></td>
+          <td>—</td>
+          <td>Use a dedicated contactor instead</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="divider">RELAY MODULE RECOMMENDATION</div>
+
+  <div class="card-row">
+    <div class="card star">
+      <h4>8-Ch Opto-Isolated Module</h4>
+      <p>SRD-05VDC relays, opto-isolated inputs, 10A contacts. Handles lights perfectly. Use for all light circuits. ~₹350-500.</p>
+    </div>
+    <div class="card star">
+      <h4>RobotDyn AC Dimmer</h4>
+      <p>TRIAC-based, 1–8 channel, 3.3V logic compatible. Zero-cross detection built-in. Required for fan speed control. ~₹250 per channel.</p>
+    </div>
+    <div class="card">
+      <h4>16A Relay (per socket)</h4>
+      <p>HJQ-78F or similar rated 16A/250V. One per socket you want to control. Don't use 10A relays on sockets — too risky. ~₹80-120 each.</p>
+    </div>
+    <div class="card">
+      <h4>PCF8574 I²C Expander</h4>
+      <p>Adds 8 GPIO pins over just 2 wires (SDA/SCL). Essential since NodeMCU only has ~11 usable GPIO and you need many inputs + outputs. ~₹80.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section" id="s3">
+  <div class="section-eyebrow" data-num="03">System Architecture</div>
+  <h2>4-Board Wiring<br>Architecture</h2>
+  <p class="lead">Professional topology for a room with 4 mixed switchboards — centralized control, distributed switching, safe mains isolation.</p>
+
+  <h3>System Overview</h3>
+  <div class="diagram">
+<pre>
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │                       CENTRAL CONTROL BOX (Inside wall / false ceiling) │
+  │   ┌─────────────────────────────────────────────────────────────┐      │
+  │   │  NodeMCU ESP8266 (ESPHome)                                  │      │
+  │   │  │                                                          │      │
+  │   │  ├── I²C (SDA/SCL) ──── PCF8574 (8 extra GPIO)             │      │
+  │   │  │                                                          │      │
+  │   │  ├── D1,D2,D5,D6 ──── 8-Ch Relay Module (Lights)           │      │
+  │   │  ├── D7, PCF GPIO ─── Push Button Inputs                    │      │
+  │   │  ├── RX/TX (via level shifter) ─── AC Dimmer (Fan speed)   │      │
+  │   │  └── A0 (analog) ─── Optional: current sensor              │      │
+  │   │                                                             │      │
+  │   │  Power: HLK-PM01 (230V→5V) + AMS1117 (5V→3.3V)           │      │
+  │   └─────────────────────────────────────────────────────────────┘      │
+  │                                                                          │
+  │   Mains Live ─── [10A Fuse] ─── [Relay COM ports]                       │
+  │   Mains Neutral ─────────────── [All device neutral rails]              │
+  └──────────────────────────────────────────────────────────────────────────┘
+          │               │               │               │
+          ▼               ▼               ▼               ▼
+     [Board 1]       [Board 2]       [Board 3]       [Board 4]
+    Light + Fan     2 Lights        Light + Socket   Fan + Socket
+    Push btn ×2     Push btn ×2     Push btn ×2      Push btn ×2
+</pre>
+  </div>
+
+  <h3>Per-Device Wiring (Parallel Method — The Only Right Way)</h3>
+  <div class="diagram">
+<pre>
+  <span class="note">─── FOR LIGHTS (Simple) ──────────────────────────────────────────</span>
+
+  <span class="live">LIVE ─────┬──── [PUSH BUTTON] ──────────────┬──── [LED BULB] ──── NEUTRAL</span>
+  <span class="live">          └──── [RELAY COM → NO] ────────────┘</span>
+
+  NodeMCU GPIO (Push Btn Input, INPUT_PULLUP) ←─── Push Button ──── GND
+  NodeMCU GPIO (Relay Output, active LOW)     ──→  Relay IN pin
+
+
+  <span class="note">─── FOR FANS (ON/OFF + Speed) ────────────────────────────────────</span>
+
+  <span class="live">LIVE ─────────────── [RELAY COM → NO] ──── [AC DIMMER IN] ──── [FAN] ──── NEUTRAL</span>
+                                                     ▲
+  NodeMCU UART TX  ──────────────────────────────────┘ (PWM signal for speed)
+  NodeMCU GPIO     ──→  Relay IN pin (master ON/OFF)
+
+  <span class="note">IMPORTANT: Relay controls master power. Dimmer controls speed.
+  Set dimmer to last-known level before energizing relay to avoid inrush spike.</span>
+
+
+  <span class="note">─── FOR SOCKETS ───────────────────────────────────────────────────</span>
+
+  <span class="live">LIVE ─── [6A Fuse] ─── [16A RELAY COM → NO] ─── [SOCKET LIVE TERMINAL]</span>
+  <span class="neutral">NEUTRAL ─────────────────────────────────────── [SOCKET NEUTRAL TERMINAL]</span>
+  <span class="ctrl">EARTH ───────────────────────────────────────── [SOCKET EARTH TERMINAL]</span>
+
+  NodeMCU GPIO ──→ 16A Relay IN pin
+
+  <span class="note">ALWAYS fuse the socket circuit. If a short circuit occurs in the plugged
+  device, the fuse blows — not your relay or wiring.</span>
+</pre>
+  </div>
+
+  <div class="callout ok">
+    <div class="callout-head">✓ Why Push Buttons, Not Toggle Switches</div>
+    <p>Push buttons feed into NodeMCU GPIO and trigger a TOGGLE in software. This means relay state is always tracked in software — no mismatch between physical switch position and relay state. The relay is the ONLY thing that controls device power. This is exactly how Sonoff, Shelly, and all commercial smart switches work. Replace your existing rockers with momentary push buttons (₹15–30 each).</p>
+  </div>
+
+  <h3>GPIO Assignment — NodeMCU ESP8266</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>GPIO</th><th>NodeMCU Pin</th><th>Assigned To</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>GPIO5</td><td>D1</td><td>Relay 1 — Board1 Light</td><td>Safe, no boot restriction</td></tr>
+        <tr><td>GPIO4</td><td>D2</td><td>Relay 2 — Board1 Fan (master)</td><td>Safe</td></tr>
+        <tr><td>GPIO14</td><td>D5</td><td>Relay 3 — Board2 Light 1</td><td>Safe</td></tr>
+        <tr><td>GPIO12</td><td>D6</td><td>Relay 4 — Board2 Light 2</td><td>Safe</td></tr>
+        <tr><td>GPIO13</td><td>D7</td><td>Relay 5 — Board3 Light</td><td>Safe</td></tr>
+        <tr><td>GPIO15</td><td>D8</td><td>Relay 6 — Board3 Socket</td><td>Must boot LOW — opto-isolated module required</td></tr>
+        <tr><td>GPIO0</td><td>D3</td><td>Relay 7 — Board4 Fan (master)</td><td>Boot sensitive — init HIGH first</td></tr>
+        <tr><td>GPIO2</td><td>D4</td><td>Relay 8 — Board4 Socket</td><td>Boot sensitive — init HIGH first</td></tr>
+        <tr><td>GPIO1 (TX)</td><td>TX</td><td>AC Dimmer (Fan 1 speed)</td><td>Use software serial if debug needed</td></tr>
+        <tr><td>GPIO3 (RX)</td><td>RX</td><td>AC Dimmer (Fan 2 speed)</td><td>Use software serial if debug needed</td></tr>
+        <tr><td>GPIO16</td><td>D0</td><td>Push Button 1</td><td>No internal pull-up — use external 10kΩ</td></tr>
+        <tr><td>GPIO9/10</td><td>SD2/SD3</td><td>⛔ AVOID</td><td>Connected to flash memory — do not use</td></tr>
+        <tr><td>GPIO4/5 (I²C)</td><td>D2/D1</td><td>PCF8574 SDA/SCL</td><td>Shared with relays 1&2 via I²C bus</td></tr>
+        <tr><td>PCF8574 P0–P7</td><td>Via I²C</td><td>Push Buttons 1–8</td><td>All 8 switch inputs via expander</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout danger">
+    <div class="callout-head">☠ Boot Pin Rules — Read This</div>
+    <p><strong>GPIO0</strong> and <strong>GPIO2</strong> must be HIGH at boot, <strong>GPIO15</strong> must be LOW at boot — these are ROM boot mode pins. If you have active-LOW relay modules connected to GPIO0/2 and the module pulls them LOW, the NodeMCU enters flash mode and won't run. Fix: use opto-isolated relay modules (the isolator keeps GPIO state stable), initialize these pins HIGH in the <em>very first line</em> of setup(), or use GPIO expanders for these relay channels.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section" id="s4">
+  <div class="section-eyebrow" data-num="04">Fan Speed Control</div>
+  <h2>Variable Fan Speed<br>via TRIAC Dimmer</h2>
+  <p class="lead">A relay is binary. Fan speed control requires phase-cutting the AC waveform — that's a TRIAC, not a relay.</p>
+
+  <h3>How AC Fan Speed Control Works</h3>
+  <div class="diagram">
+<pre>
+  Normal AC sine wave:          ─╱╲──╱╲──╱╲─  (full voltage = full speed)
+
+  Phase-cut (50% power):        ──╱╲────╱╲───  (half wave = ~70% speed)
+
+  Phase-cut (25% power):        ───╲──────╲──  (quarter wave = ~40% speed)
+
+  The TRIAC turns ON partway through each half-cycle.
+  Zero-cross detector tells the MCU exactly when the sine crosses 0V,
+  so it can time the TRIAC trigger precisely for consistent dimming.
+
+  NodeMCU → [RobotDyn Dimmer] → Fan motor
+  PWM value 0–255 → maps to 0–100% phase angle
+</pre>
+  </div>
+
+  <h3>Capacitor-Based Speed Control (Traditional, No MCU)</h3>
+  <div class="diagram">
+<pre>
+  Traditional fan regulators use series capacitors to reduce voltage.
+  Avoid this method for IoT — you can't control capacitor switching digitally
+  without complex relay banks. Use the TRIAC dimmer instead.
+
+  However: keep the existing capacitor (2µF–4µF) in the fan itself for
+  starting torque — it's part of the fan motor circuit, not the regulator.
+</pre>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-head">⚠ Compatibility Warning</div>
+    <p>TRIAC dimmers work with <strong>inductive motor fans</strong> (most ceiling fans). They do NOT work with BLDC fans (inverter fans). Check your fan type. If your fan has a remote or inverter label, use relay ON/OFF only and control speed via the fan's own IR remote using an IR blaster on NodeMCU instead.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section" id="s5">
+  <div class="section-eyebrow" data-num="05">Socket Automation</div>
+  <h2>Smart Sockets —<br>Do It Right or Don't</h2>
+  <p class="lead">Automating a wall socket is the highest-risk part of this project. The device you'll plug in is unknown at installation time.</p>
+
+  <h3>Decision Tree — Should You Automate This Socket?</h3>
+  <div class="diagram">
+<pre>
+  What will be plugged into this socket?
+           │
+           ├── Phone charger / laptop / LED strip / small appliances (≤1000W)
+           │          → YES, automate with a 16A relay + 6A fuse
+           │
+           ├── Electric iron / hair dryer / room heater (1000–2000W)
+           │          → MAYBE — use a 16A relay, 16A fuse, thick wire (2.5mm²)
+           │            Consider: is the socket always used for this device?
+           │
+           ├── Air conditioner / water heater / washing machine (>2000W)
+           │          → NO — use a smart plug/contactor designed for the load
+           │            Never control these from a standard relay module
+           │
+           └── Unknown / general use socket
+                      → Automate ONLY with proper protection:
+                        16A relay + 10A fuse + RCBO on the circuit
+</pre>
+  </div>
+
+  <div class="callout ok">
+    <div class="callout-head">✓ Professional Approach for General Sockets</div>
+    <p>If the socket is for general use, use a <strong>smart plug</strong> (like TP-Link Tapo P100 or Mi Smart Plug) in the socket instead of wiring a relay behind it. Flash Tapo with custom firmware, or integrate via the Tapo integration in Home Assistant. This way the socket is still physically accessible and you haven't wired high-current relays behind a panel that might handle unknown loads.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section" id="s6">
+  <div class="section-eyebrow" data-num="06">Firmware</div>
+  <h2>ESPHome Configuration<br>(Recommended over Arduino IDE)</h2>
+  <p class="lead">ESPHome is YAML-based firmware for ESP8266/ESP32. No C++, no manual MQTT, no OTA headaches. Compiles to production firmware. Integrates natively with Home Assistant. This is the industry standard for DIY smart home.</p>
+
+  <h3>Why ESPHome over Manual Arduino Code</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Feature</th><th>Arduino IDE (Manual)</th><th>ESPHome</th></tr></thead>
+      <tbody>
+        <tr><td>WiFi Reconnect</td><td>Write it yourself</td><td><span class="b b-green">Built-in</span></td></tr>
+        <tr><td>OTA Updates</td><td>Add ArduinoOTA library</td><td><span class="b b-green">Built-in</span></td></tr>
+        <tr><td>MQTT</td><td>Add PubSubClient, handle reconnect</td><td><span class="b b-green">Built-in</span></td></tr>
+        <tr><td>Home Assistant Native</td><td>Write custom integration</td><td><span class="b b-green">Native API</span></td></tr>
+        <tr><td>Button Debounce</td><td>Write it yourself</td><td><span class="b b-green">Built-in</span></td></tr>
+        <tr><td>State Persistence</td><td>EEPROM manually</td><td><span class="b b-green">restore_mode config</span></td></tr>
+        <tr><td>I²C Expander</td><td>Include library, write driver</td><td><span class="b b-green">One YAML line</span></td></tr>
+        <tr><td>AC Dimmer</td><td>Complex ISR code</td><td><span class="b b-green">ac_dimmer component</span></td></tr>
+        <tr><td>Logging / Debug</td><td>Serial.print()</td><td><span class="b b-green">Built-in web + HA logs</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Complete ESPHome YAML — Your Room</h3>
+  <div class="code-wrap">
+    <div class="code-bar">room_controller.yaml — ESPHome Config</div>
+    <pre><span class="cm"># ── Device Identity ─────────────────────────────────────────────</span>
+<span class="key">esphome</span>:
+  <span class="key">name</span>: room-controller
+  <span class="key">friendly_name</span>: <span class="str">"My Room"</span>
+  <span class="key">on_boot</span>:
+    <span class="key">priority</span>: <span class="num">600</span>          <span class="cm"># Run BEFORE WiFi — set relays off immediately</span>
+    <span class="key">then</span>:
+      - <span class="key">switch.turn_off</span>: relay_light1
+      - <span class="key">switch.turn_off</span>: relay_fan1
+      - <span class="key">switch.turn_off</span>: relay_light2a
+      - <span class="key">switch.turn_off</span>: relay_light2b
+      - <span class="key">switch.turn_off</span>: relay_light3
+      - <span class="key">switch.turn_off</span>: relay_socket3
+      - <span class="key">switch.turn_off</span>: relay_fan4
+      - <span class="key">switch.turn_off</span>: relay_socket4
+
+<span class="key">esp8266</span>:
+  <span class="key">board</span>: nodemcuv2
+
+<span class="cm"># ── Connectivity ────────────────────────────────────────────────</span>
+<span class="key">wifi</span>:
+  <span class="key">ssid</span>: <span class="str">"YOUR_WIFI_SSID"</span>
+  <span class="key">password</span>: <span class="str">"YOUR_WIFI_PASSWORD"</span>
+  <span class="key">fast_connect</span>: <span class="kw">true</span>        <span class="cm"># Faster reconnect</span>
+  <span class="key">ap</span>:                        <span class="cm"># Fallback AP if WiFi fails</span>
+    <span class="key">ssid</span>: <span class="str">"Room-Fallback"</span>
+    <span class="key">password</span>: <span class="str">"roomsetup123"</span>
+
+<span class="key">captive_portal</span>:             <span class="cm"># Config portal via fallback AP</span>
+
+<span class="key">ota</span>:
+  <span class="key">password</span>: <span class="str">"your_ota_password"</span>
+
+<span class="key">api</span>:                        <span class="cm"># Native HA API — NO MQTT needed!</span>
+  <span class="key">encryption</span>:
+    <span class="key">key</span>: <span class="str">"generate_32byte_base64_key_here"</span>
+
+<span class="key">logger</span>:
+  <span class="key">level</span>: INFO
+
+<span class="cm"># ── I²C Bus (for PCF8574 GPIO expander) ─────────────────────────</span>
+<span class="key">i2c</span>:
+  <span class="key">sda</span>: GPIO4    <span class="cm"># D2</span>
+  <span class="key">scl</span>: GPIO5    <span class="cm"># D1</span>
+  <span class="key">scan</span>: <span class="kw">true</span>
+
+<span class="key">pcf8574</span>:
+  - <span class="key">id</span>: pcf_expander
+    <span class="key">address</span>: <span class="num">0x20</span>         <span class="cm"># Default I²C address (A0/A1/A2 = GND)</span>
+    <span class="key">pcf8575</span>: <span class="kw">false</span>
+
+<span class="cm"># ── Relay Outputs (Active LOW — inverted: true) ──────────────────</span>
+<span class="key">switch</span>:
+  <span class="cm"># Board 1</span>
+  - <span class="key">platform</span>: gpio
+    <span class="key">name</span>: <span class="str">"Board1 Light"</span>
+    <span class="key">id</span>: relay_light1
+    <span class="key">pin</span>:
+      <span class="key">number</span>: GPIO14   <span class="cm"># D5</span>
+      <span class="key">inverted</span>: <span class="kw">true</span>   <span class="cm"># Active LOW relay module</span>
+    <span class="key">restore_mode</span>: RESTORE_DEFAULT_OFF
+    <span class="key">icon</span>: <span class="str">"mdi:lightbulb"</span>
+
+  - <span class="key">platform</span>: gpio
+    <span class="key">name</span>: <span class="str">"Board1 Fan"</span>
+    <span class="key">id</span>: relay_fan1
+    <span class="key">pin</span>:
+      <span class="key">number</span>: GPIO12   <span class="cm"># D6</span>
+      <span class="key">inverted</span>: <span class="kw">true</span>
+    <span class="key">restore_mode</span>: RESTORE_DEFAULT_OFF
+    <span class="key">icon</span>: <span class="str">"mdi:fan"</span>
+
+  <span class="cm"># Board 2</span>
+  - <span class="key">platform</span>: gpio
+    <span class="key">name</span>: <span class="str">"Board2 Light A"</span>
+    <span class="key">id</span>: relay_light2a
+    <span class="key">pin</span>:
+      <span class="key">number</span>: GPIO13   <span class="cm"># D7</span>
+      <span class="key">inverted</span>: <span class="kw">true</span>
+    <span class="key">restore_mode</span>: RESTORE_DEFAULT_OFF
+    <span class="key">icon</span>: <span class="str">"mdi:lightbulb"</span>
+
+  - <span class="key">platform</span>: gpio
+    <span class="key">name</span>: <span class="str">"Board2 Light B"</span>
+    <span class="key">id</span>: relay_light2b
+    <span class="key">pin</span>:
+      <span class="key">number</span>: GPIO16   <span class="cm"># D0 — no pull-up available</span>
+      <span class="key">inverted</span>: <span class="kw">true</span>
+    <span class="key">restore_mode</span>: RESTORE_DEFAULT_OFF
+    <span class="key">icon</span>: <span class="str">"mdi:lightbulb"</span>
+
+  <span class="cm"># Board 3</span>
+  - <span class="key">platform</span>: gpio
+    <span class="key">name</span>: <span class="str">"Board3 Light"</span>
+    <span class="key">id</span>: relay_light3
+    <span class="key">pin</span>:
+      <span class="key">number</span>: GPIO0    <span class="cm"># D3 — boot sensitive, inverted handles init</span>
+      <span class="key">inverted</span>: <span class="kw">true</span>
+    <span class="key">restore_mode</span>: RESTORE_DEFAULT_OFF
+    <span class="key">icon</span>: <span class="str">"mdi:lightbulb"</span>
+
+  - <span class="key">platform</span>: gpio
+    <span class="key">name</span>: <span class="str">"Board3 Socket"</span>
+    <span class="key">id</span>: relay_socket3
+    <span class="key">pin</span>:
+      <span class="key">number</span>: GPIO2    <span class="cm"># D4 — boot sensitive</span>
+      <span class="key">inverted</span>: <span class="kw">true</span>
+    <span class="key">restore_mode</span>: ALWAYS_OFF  <span class="cm"># Sockets: always off on boot for safety</span>
+    <span class="key">icon</span>: <span class="str">"mdi:power-socket-in"</span>
+
+  <span class="cm"># Board 4 — via PCF8574 GPIO expander</span>
+  - <span class="key">platform</span>: gpio
+    <span class="key">name</span>: <span class="str">"Board4 Fan"</span>
+    <span class="key">id</span>: relay_fan4
+    <span class="key">pin</span>:
+      <span class="key">pcf8574</span>: pcf_expander
+      <span class="key">number</span>: <span class="num">0</span>
+      <span class="key">mode</span>: OUTPUT
+      <span class="key">inverted</span>: <span class="kw">true</span>
+    <span class="key">restore_mode</span>: RESTORE_DEFAULT_OFF
+    <span class="key">icon</span>: <span class="str">"mdi:fan"</span>
+
+  - <span class="key">platform</span>: gpio
+    <span class="key">name</span>: <span class="str">"Board4 Socket"</span>
+    <span class="key">id</span>: relay_socket4
+    <span class="key">pin</span>:
+      <span class="key">pcf8574</span>: pcf_expander
+      <span class="key">number</span>: <span class="num">1</span>
+      <span class="key">mode</span>: OUTPUT
+      <span class="key">inverted</span>: <span class="kw">true</span>
+    <span class="key">restore_mode</span>: ALWAYS_OFF
+    <span class="key">icon</span>: <span class="str">"mdi:power-socket-in"</span>
+
+<span class="cm"># ── Fan Speed (AC Dimmer — TRIAC) ───────────────────────────────</span>
+<span class="key">output</span>:
+  - <span class="key">platform</span>: ac_dimmer
+    <span class="key">id</span>: dimmer_fan1
+    <span class="key">gate_pin</span>: GPIO1    <span class="cm"># TX pin — TRIAC gate</span>
+    <span class="key">zero_cross_pin</span>:
+      <span class="key">number</span>: GPIO3    <span class="cm"># RX pin — zero cross detect</span>
+      <span class="key">mode</span>: INPUT
+      <span class="key">inverted</span>: <span class="kw">yes</span>
+    <span class="key">min_power</span>: <span class="num">0.4</span>       <span class="cm"># Fan won't spin below ~40%, adjust per fan</span>
+    <span class="key">method</span>: leading      <span class="cm"># Leading edge for inductive loads</span>
+
+<span class="key">fan</span>:
+  - <span class="key">platform</span>: speed
+    <span class="key">output</span>: dimmer_fan1
+    <span class="key">name</span>: <span class="str">"Board1 Fan Speed"</span>
+    <span class="key">speed_count</span>: <span class="num">5</span>        <span class="cm"># 5 speed steps like a traditional regulator</span>
+    <span class="key">restore_mode</span>: RESTORE_DEFAULT_OFF
+
+<span class="cm"># ── Push Button Inputs (via PCF8574) ───────────────────────────</span>
+<span class="key">binary_sensor</span>:
+  - <span class="key">platform</span>: gpio
+    <span class="key">name</span>: <span class="str">"Btn Board1 Light"</span>
+    <span class="key">pin</span>:
+      <span class="key">pcf8574</span>: pcf_expander
+      <span class="key">number</span>: <span class="num">4</span>
+      <span class="key">mode</span>: INPUT
+      <span class="key">inverted</span>: <span class="kw">true</span>
+    <span class="key">filters</span>:
+      - <span class="key">delayed_on</span>: 25ms    <span class="cm"># Debounce</span>
+    <span class="key">on_press</span>:
+      - <span class="key">switch.toggle</span>: relay_light1
+
+  - <span class="key">platform</span>: gpio
+    <span class="key">name</span>: <span class="str">"Btn Board1 Fan"</span>
+    <span class="key">pin</span>:
+      <span class="key">pcf8574</span>: pcf_expander
+      <span class="key">number</span>: <span class="num">5</span>
+      <span class="key">mode</span>: INPUT
+      <span class="key">inverted</span>: <span class="kw">true</span>
+    <span class="key">filters</span>:
+      - <span class="key">delayed_on</span>: 25ms
+    <span class="key">on_press</span>:
+      - <span class="key">switch.toggle</span>: relay_fan1
+
+  <span class="cm"># Add similar blocks for each button (Board2–4)</span>
+  <span class="cm"># Btn numbers 6,7 for Board2; direct GPIO for Board3–4 if pins available</span>
+
+<span class="cm"># ── Optional: Current Sensing (Know actual wattage) ──────────────</span>
+<span class="key">sensor</span>:
+  - <span class="key">platform</span>: adc
+    <span class="key">pin</span>: A0
+    <span class="key">name</span>: <span class="str">"Room Power (raw)"</span>
+    <span class="key">update_interval</span>: 5s
+    <span class="key">filters</span>:
+      - <span class="key">multiply</span>: <span class="num">3.3</span>      <span class="cm"># Scale to actual voltage</span>
+    <span class="cm"># Pair with SCT-013 current transformer for real power monitoring</span>
+
+  - <span class="key">platform</span>: wifi_signal
+    <span class="key">name</span>: <span class="str">"Room Controller WiFi"</span>
+    <span class="key">update_interval</span>: 60s
+
+  - <span class="key">platform</span>: uptime
+    <span class="key">name</span>: <span class="str">"Room Controller Uptime"</span>
+
+<span class="cm"># ── Status LED (onboard LED) ─────────────────────────────────────</span>
+<span class="key">status_led</span>:
+  <span class="key">pin</span>:
+    <span class="key">number</span>: GPIO2
+    <span class="key">inverted</span>: <span class="kw">true</span>  <span class="cm"># NodeMCU onboard LED is active LOW</span>
+</pre>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-head">ℹ How to Flash ESPHome</div>
+    <p>Install ESPHome via <code>pip install esphome</code>. Run <code>esphome run room_controller.yaml</code> — first flash via USB, all future updates are OTA. Or install the ESPHome add-on in Home Assistant and manage everything from the browser. No Arduino IDE needed.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section" id="s7">
+  <div class="section-eyebrow" data-num="07">Home Assistant</div>
+  <h2>Home Assistant Setup<br>& Automations</h2>
+  <p class="lead">ESPHome devices auto-discover in Home Assistant. Zero configuration needed — they just appear. Here's the useful automation layer on top.</p>
+
+  <h3>Installation Options</h3>
+  <div class="card-row">
+    <div class="card star">
+      <h4>Raspberry Pi 4 (2GB+)</h4>
+      <p>The standard. Run Home Assistant OS. ~₹4000–5000 with SD card. Local, fast, always on. Best long-term choice.</p>
+    </div>
+    <div class="card star">
+      <h4>Old Android Phone</h4>
+      <p>Run HA in Termux + Docker, or use the official HA app as a dashboard client while running HA on a PC. Free if you have a spare phone.</p>
+    </div>
+    <div class="card">
+      <h4>Old Laptop / PC</h4>
+      <p>Run HA OS in VirtualBox, or HA Container via Docker. Works well. More power consumption than RPi but zero extra cost.</p>
+    </div>
+    <div class="card">
+      <h4>Nabu Casa Cloud</h4>
+      <p>Remote access for HA from anywhere. ~₹500/month. Enables Google Home & Alexa without any port forwarding. Worth it.</p>
+    </div>
+  </div>
+
+  <h3>Useful HA Automations for Your Room</h3>
+  <div class="code-wrap">
+    <div class="code-bar">automations.yaml — Home Assistant</div>
+    <pre><span class="cm"># ── Auto Turn Off Lights at Midnight ───────────────────────────</span>
+- <span class="key">alias</span>: <span class="str">"Lights off at midnight"</span>
+  <span class="key">trigger</span>:
+    <span class="key">platform</span>: time
+    <span class="key">at</span>: <span class="str">"00:00:00"</span>
+  <span class="key">action</span>:
+    - <span class="key">service</span>: switch.turn_off
+      <span class="key">target</span>:
+        <span class="key">entity_id</span>:
+          - switch.board1_light
+          - switch.board2_light_a
+          - switch.board2_light_b
+          - switch.board3_light
+
+<span class="cm"># ── Turn Fan On When Room Gets Hot ──────────────────────────────</span>
+<span class="cm"># (requires a temperature sensor like DHT22 on the NodeMCU)</span>
+- <span class="key">alias</span>: <span class="str">"Auto fan on heat"</span>
+  <span class="key">trigger</span>:
+    <span class="key">platform</span>: numeric_state
+    <span class="key">entity_id</span>: sensor.room_temperature
+    <span class="key">above</span>: <span class="num">28</span>
+  <span class="key">condition</span>:
+    <span class="key">condition</span>: time
+    <span class="key">after</span>: <span class="str">"08:00:00"</span>
+    <span class="key">before</span>: <span class="str">"23:00:00"</span>
+  <span class="key">action</span>:
+    - <span class="key">service</span>: switch.turn_on
+      <span class="key">target</span>: { <span class="key">entity_id</span>: switch.board1_fan }
+
+<span class="cm"># ── Night Mode (dim everything) ─────────────────────────────────</span>
+- <span class="key">alias</span>: <span class="str">"Night mode at 10pm"</span>
+  <span class="key">trigger</span>:
+    <span class="key">platform</span>: time
+    <span class="key">at</span>: <span class="str">"22:00:00"</span>
+  <span class="key">action</span>:
+    - <span class="key">service</span>: fan.set_percentage
+      <span class="key">target</span>: { <span class="key">entity_id</span>: fan.board1_fan_speed }
+      <span class="key">data</span>: { <span class="key">percentage</span>: <span class="num">40</span> }   <span class="cm"># Low speed at night</span>
+
+<span class="cm"># ── Socket Safety: Auto-Off After 2 Hours ───────────────────────</span>
+- <span class="key">alias</span>: <span class="str">"Socket auto off"</span>
+  <span class="key">trigger</span>:
+    <span class="key">platform</span>: state
+    <span class="key">entity_id</span>: switch.board3_socket
+    <span class="key">to</span>: <span class="str">"on"</span>
+    <span class="key">for</span>: <span class="str">"02:00:00"</span>
+  <span class="key">action</span>:
+    - <span class="key">service</span>: switch.turn_off
+      <span class="key">target</span>: { <span class="key">entity_id</span>: switch.board3_socket }
+    - <span class="key">service</span>: notify.mobile_app_your_phone
+      <span class="key">data</span>: { <span class="key">message</span>: <span class="str">"Socket auto-turned off after 2 hours"</span> }
+</pre>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section" id="s8">
+  <div class="section-eyebrow" data-num="08">Voice Control</div>
+  <h2>Google Home &<br>Alexa Integration</h2>
+  <p class="lead">Both work via Home Assistant — no direct ESP8266 cloud connection needed. HA is the bridge.</p>
+
+  <h3>Architecture</h3>
+  <div class="diagram">
+<pre>
+  "Hey Google, turn on the fan"
+          │
+          ▼
+  Google Assistant / Alexa Cloud
+          │
+          ▼ (via Nabu Casa / custom skill)
+  Home Assistant (your RPi / PC)
+          │
+          ▼ (ESPHome Native API — local network)
+  NodeMCU ESP8266
+          │
+          ▼
+  Relay → Fan turns ON ✓
+
+  No cloud-to-device direct connection.
+  Everything is local except the voice command itself.
+  If internet goes down: manual buttons still work, app on local network works.
+</pre>
+  </div>
+
+  <h3>Setup Path — Google Home</h3>
+  <ol class="steps">
+    <li>Set up <strong>Home Assistant</strong> on RPi/PC with your ESPHome devices auto-discovered</li>
+    <li>Subscribe to <strong>Nabu Casa</strong> (~₹500/month) — this gives HA a public HTTPS endpoint without port forwarding</li>
+    <li>In HA Settings → Voice Assistants → enable <strong>Google Assistant</strong></li>
+    <li>Link in the <strong>Google Home app</strong> → Add Device → Works with Google → Home Assistant</li>
+    <li>All your HA entities (switches, fan) appear in Google Home automatically</li>
+    <li>Say <em>"Hey Google, turn on Board1 Light"</em> — or rename entities to natural names like "room light", "ceiling fan"</li>
+  </ol>
+
+  <h3>Setup Path — Amazon Alexa</h3>
+  <ol class="steps">
+    <li>Same steps 1–2 as above (HA + Nabu Casa)</li>
+    <li>In HA Settings → Voice Assistants → enable <strong>Amazon Alexa</strong></li>
+    <li>In the Alexa app → Skills → search <strong>Home Assistant</strong> → Enable → sign in with Nabu Casa</li>
+    <li>Discover devices in Alexa — all HA entities appear</li>
+    <li>Rename entities to friendly names in HA for natural voice commands</li>
+  </ol>
+
+  <div class="callout info">
+    <div class="callout-head">ℹ Free Alternative (No Nabu Casa)</div>
+    <p>Use <strong>Cloudflare Tunnel</strong> (free) to expose Home Assistant publicly. Then use the <strong>manual Alexa skill</strong> or <strong>Google Assistant manual setup</strong> in HA. More complex to configure but zero monthly cost. Or stay fully local — use the <strong>Home Assistant app</strong> which tunnels via Nabu Casa or Cloudflare, and use <strong>on-device Google Assistant</strong> via HA's local voice assistant feature (requires a mic-enabled device on the local network).</p>
+  </div>
+
+  <h3>Entity Naming — Critical for Voice Control</h3>
+  <div class="code-wrap">
+    <div class="code-bar">configuration.yaml — Friendly Names</div>
+    <pre><span class="cm"># Name your entities clearly for natural voice commands</span>
+<span class="cm"># In ESPHome YAML, use the "name" field:</span>
+
+<span class="key">switch</span>:
+  - <span class="key">name</span>: <span class="str">"Room Light"</span>          <span class="cm"># "Hey Google, turn on Room Light"</span>
+  - <span class="key">name</span>: <span class="str">"Study Light"</span>         <span class="cm"># "Alexa, turn off Study Light"</span>
+  - <span class="key">name</span>: <span class="str">"Desk Socket"</span>         <span class="cm"># "Hey Google, turn on Desk Socket"</span>
+
+<span class="key">fan</span>:
+  - <span class="key">name</span>: <span class="str">"Ceiling Fan"</span>         <span class="cm"># "Alexa, set Ceiling Fan to 60%"</span>
+  - <span class="key">name</span>: <span class="str">"Table Fan"</span>           <span class="cm"># "Hey Google, turn off Table Fan"</span>
+
+<span class="cm"># Group devices in Google Home / Alexa for room-level control:</span>
+<span class="cm"># "Hey Google, turn off everything in my room"</span>
+<span class="cm"># → Configure HA Area: assign all entities to "My Room" area</span>
+</pre>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section" id="s9">
+  <div class="section-eyebrow" data-num="09">Bill of Materials</div>
+  <h2>Complete Parts List</h2>
+  <p class="lead">Everything you need for a professional 4-board room system with lights, fans, and sockets.</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Component</th><th>Spec / Model</th><th>Qty</th><th>Est. Cost (₹)</th><th>Where</th></tr></thead>
+      <tbody>
+        <tr><td>NodeMCU ESP8266 v3</td><td>CH340G, 30-pin</td><td>1</td><td>250</td><td>Robu.in / Amazon</td></tr>
+        <tr><td>8-Ch Relay Module</td><td>Opto-isolated, SRD-05VDC, 10A contacts</td><td>1</td><td>450</td><td>Robu.in</td></tr>
+        <tr><td>16A Relay Module</td><td>HJQ-78F or similar, for each socket</td><td>2</td><td>200</td><td>Robu.in / local</td></tr>
+        <tr><td>AC Dimmer Module</td><td>RobotDyn 1-ch, 3.3V compatible</td><td>2</td><td>500</td><td>Robu.in / Amazon</td></tr>
+        <tr><td>PCF8574 I²C Expander</td><td>8-bit GPIO, I²C, 3.3V compatible</td><td>1</td><td>80</td><td>Robu.in</td></tr>
+        <tr><td>HLK-PM01 PSU</td><td>230V AC → 5V 600mA, in-wall rated</td><td>1</td><td>280</td><td>Robu.in / Amazon</td></tr>
+        <tr><td>AMS1117-3.3 LDO</td><td>5V→3.3V regulator (if needed separately)</td><td>1</td><td>20</td><td>Any electronics shop</td></tr>
+        <tr><td>Push Buttons (momentary)</td><td>Panel mount, 12mm, NO</td><td>8–12</td><td>200</td><td>Local electrical / Amazon</td></tr>
+        <tr><td>10kΩ Resistors</td><td>1/4W, for pull-ups</td><td>20</td><td>20</td><td>Any electronics shop</td></tr>
+        <tr><td>Snubber: 0.1µF + 100Ω</td><td>In series, across relay contacts (fans)</td><td>2 sets</td><td>40</td><td>Any electronics shop</td></tr>
+        <tr><td>6A Mini Fuse + holder</td><td>For each socket circuit</td><td>2</td><td>60</td><td>Electrical shop</td></tr>
+        <tr><td>IP65 Junction Box</td><td>150×100×70mm minimum</td><td>1</td><td>250</td><td>Electrical shop</td></tr>
+        <tr><td>1mm² Wire (red/black)</td><td>For light/fan connections, 10m each</td><td>—</td><td>200</td><td>Electrical shop</td></tr>
+        <tr><td>1.5mm² Wire</td><td>For socket connections, 5m</td><td>—</td><td>120</td><td>Electrical shop</td></tr>
+        <tr><td>Terminal blocks</td><td>DIN rail or PCB type, for clean connections</td><td>1 strip</td><td>100</td><td>Electrical shop</td></tr>
+        <tr><td>Heat shrink + ferrules</td><td>Assorted, for wire ends</td><td>1 pack</td><td>100</td><td>Amazon / Robu.in</td></tr>
+        <tr><td><strong>TOTAL</strong></td><td></td><td></td><td><strong>~₹2,800–3,200</strong></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="verdict">
+    <div class="verdict-label">Optional Upgrades</div>
+    <h4>Add These for a Truly Professional System</h4>
+    <p>DHT22 temperature/humidity sensor (₹150) — automations based on room temp. SCT-013 current transformer + burden resistor on A0 (₹200) — monitor actual wattage of your room. Raspberry Pi 4 2GB (₹5000) — runs Home Assistant OS, the permanent local hub. Nabu Casa subscription (₹500/month) — remote access + Google/Alexa without port forwarding.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section" id="s10">
+  <div class="section-eyebrow" data-num="10">Safety</div>
+  <h2>Non-Negotiable<br>Safety Rules</h2>
+  <p class="lead">You're working with 230V AC mains. Every rule below exists because someone was hurt ignoring it.</p>
+
+  <div class="callout danger">
+    <div class="callout-head">☠ ALWAYS isolate mains before working</div>
+    <p>Turn off the MCB for the circuit you're working on. Verify with a non-contact voltage tester before touching any wire. 230V AC at typical home impedance is fatal. Do not work on live circuits under any circumstances.</p>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Rule</th><th>Why It Matters</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Switch the LIVE wire only</td><td>Switching neutral leaves device energized — shock hazard even when "off"</td><td><span class="b b-red">CRITICAL</span></td></tr>
+        <tr><td>Use opto-isolated relay modules</td><td>AC voltage spikes cannot reach NodeMCU and destroy it</td><td><span class="b b-red">CRITICAL</span></td></tr>
+        <tr><td>Fuse every socket circuit</td><td>Unknown plugged device can short. Fuse blows, not your wiring</td><td><span class="b b-red">CRITICAL</span></td></tr>
+        <tr><td>Use correct wire gauge</td><td>Undersized wire overheats → fire. Lights: 1mm², Fans: 1.5mm², Sockets: 2.5mm²</td><td><span class="b b-red">CRITICAL</span></td></tr>
+        <tr><td>House everything in IP-rated enclosure</td><td>Exposed relay module + mains = shock risk to anyone near it</td><td><span class="b b-amber">REQUIRED</span></td></tr>
+        <tr><td>Add snubber across fan relay contacts</td><td>Back-EMF from motor causes arc, degrades contacts, eventually fails</td><td><span class="b b-amber">REQUIRED</span></td></tr>
+        <tr><td>Connect earth wire to socket</td><td>Safety ground on socket protects plugged devices and users</td><td><span class="b b-amber">REQUIRED</span></td></tr>
+        <tr><td>Label all wires</td><td>Future maintenance — yours or an electrician's. Prevents misconnection.</td><td><span class="b b-green">GOOD PRACTICE</span></td></tr>
+        <tr><td>Test with multimeter before load</td><td>Verify your wiring before switching anything on under load</td><td><span class="b b-green">GOOD PRACTICE</span></td></tr>
+        <tr><td>Check relay ratings match load</td><td>A 5A relay controlling a 10A socket will arc, heat, and fail dangerously</td><td><span class="b b-red">CRITICAL</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="verdict">
+    <div class="verdict-label">Final Build Recommendation</div>
+    <h4>Your Exact Stack: ESPHome + HA + Nabu Casa</h4>
+    <p>Push buttons replace toggle switches → relay in parallel with nothing (relay IS the switch now, button is just input) → 8-ch opto-isolated module for lights → 10A relays for fans with snubbers → 16A relays for sockets with fuses → TRIAC dimmer for fan speed → ESPHome firmware → Home Assistant on RPi → Nabu Casa for remote + Google/Alexa. Total cost ~₹8,000–10,000 including RPi. Pure controls hardware (no RPi): ~₹3,000.</p>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+<footer>
+  <span>Professional Room Automation · ESPHome + Home Assistant</span>
+  <span>Mixed Loads: Lights · Fans · Sockets · 4 Switchboards</span>
+</footer>
+
+</body>
+</html>

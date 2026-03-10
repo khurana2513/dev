@@ -336,10 +336,6 @@ export default function AdminDashboard() {
               <div className="pb-4 max-h-[26rem] overflow-y-auto scrollbar-premium">
                 {(leaderboardTab === "overall" ? overallLb : weeklyLb).map((entry, idx) => {
                   const pts = leaderboardTab === "overall" ? entry.total_points : entry.weekly_points;
-                  const maxPts = leaderboardTab === "overall"
-                    ? (overallLb[0]?.total_points  || 1)
-                    : (weeklyLb[0]?.weekly_points   || 1);
-                  const barPct = Math.round((pts / maxPts) * 100);
                   const initial = (entry.name || "?").charAt(0).toUpperCase();
                   // Deterministic avatar colour from name hash
                   const colours = ["bg-violet-500","bg-sky-500","bg-emerald-500","bg-amber-500","bg-rose-500","bg-pink-500","bg-indigo-500","bg-teal-500"];
@@ -348,68 +344,54 @@ export default function AdminDashboard() {
                   return (
                     <div
                       key={entry.user_id}
-                      className="mx-4 my-0.5 px-4 py-3 rounded-2xl grid grid-cols-[2.5rem_1fr_auto] sm:grid-cols-[2.5rem_1fr_auto_auto] gap-3 items-center hover:bg-primary/5 transition-all group"
+                      className="mx-4 my-0.5 px-4 py-2 rounded-2xl grid grid-cols-[2rem_1fr_auto] sm:grid-cols-[2rem_1fr_auto_auto] gap-2 items-center hover:bg-primary/5 transition-all group"
                     >
                       {/* Rank badge */}
                       <div className="flex justify-center">
                         {idx === 0 ? (
-                          <span className="text-xl leading-none">🥇</span>
+                          <span className="text-lg leading-none">🥇</span>
                         ) : idx === 1 ? (
-                          <span className="text-xl leading-none">🥈</span>
+                          <span className="text-lg leading-none">🥈</span>
                         ) : idx === 2 ? (
-                          <span className="text-xl leading-none">🥉</span>
+                          <span className="text-lg leading-none">🥉</span>
                         ) : (
-                          <span className="text-sm font-black text-muted-foreground w-6 text-center">{idx + 1}</span>
+                          <span className="text-xs font-black text-muted-foreground w-5 text-center">{idx + 1}</span>
                         )}
                       </div>
 
-                      {/* Avatar + info */}
-                      <div className="flex items-center gap-3 min-w-0">
+                      {/* Avatar + info — single compact row */}
+                      <div className="flex items-center gap-2 min-w-0">
                         {entry.avatar_url ? (
-                          <img src={entry.avatar_url} alt={entry.name} className="w-9 h-9 rounded-full flex-shrink-0 ring-2 ring-border" />
+                          <img src={entry.avatar_url} alt={entry.name} className="w-7 h-7 rounded-full flex-shrink-0 ring-2 ring-border" />
                         ) : (
-                          <div className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-sm ${colours[colIdx]}`}>
+                          <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-xs ${colours[colIdx]}`}>
                             {initial}
                           </div>
                         )}
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-card-foreground text-sm truncate group-hover:text-primary transition-colors">
-                              {entry.name}
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <span className="font-bold text-card-foreground text-sm truncate group-hover:text-primary transition-colors">
+                            {entry.name}
+                          </span>
+                          {entry.public_id && (
+                            <span className="text-[9px] font-mono font-bold px-1 py-px bg-primary/10 text-primary rounded flex-shrink-0">
+                              {entry.public_id}
                             </span>
-                            {entry.public_id && (
-                              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-primary/10 text-primary rounded-md flex-shrink-0">
-                                {entry.public_id}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                            {entry.level && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-violet-500/10  text-violet-400 rounded-md">
-                                {entry.level}
-                              </span>
-                            )}
-                            {entry.course && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-sky-500/10  text-sky-400 rounded-md">
-                                {entry.course}
-                              </span>
-                            )}
-                            {entry.branch && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-500/10  text-emerald-400 rounded-md">
-                                {entry.branch}
-                              </span>
-                            )}
-                          </div>
-                          {/* Mini points bar */}
-                          <div className="mt-1 h-1 w-full bg-border rounded-full overflow-hidden hidden sm:block">
-                            <div
-                              className="h-full rounded-full transition-all duration-700"
-                              style={{
-                                width: `${barPct}%`,
-                                background: idx === 0 ? "#F59E0B" : idx === 1 ? "#94A3B8" : idx === 2 ? "#CD7F32" : "hsl(var(--primary))"
-                              }}
-                            />
-                          </div>
+                          )}
+                          {entry.branch && (
+                            <span className="text-[9px] font-bold px-1 py-px bg-emerald-500/10 text-emerald-400 rounded flex-shrink-0">
+                              {entry.branch}
+                            </span>
+                          )}
+                          {entry.course && (
+                            <span className="text-[9px] font-bold px-1 py-px bg-sky-500/10 text-sky-400 rounded flex-shrink-0 hidden sm:inline">
+                              {entry.course}
+                            </span>
+                          )}
+                          {entry.level && (
+                            <span className="text-[9px] font-bold px-1 py-px bg-violet-500/10 text-violet-400 rounded flex-shrink-0 hidden sm:inline">
+                              {entry.level}
+                            </span>
+                          )}
                         </div>
                       </div>
 

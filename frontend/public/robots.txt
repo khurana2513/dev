@@ -1,0 +1,29 @@
+User-agent: *
+
+# Public pages — allow everything
+Allow: /$
+Allow: /courses/
+Allow: /about
+Allow: /pricing
+Allow: /tools/soroban
+Allow: /tools/gridmaster
+Allow: /privacy-policy
+Allow: /terms-of-service
+
+# Authenticated / private pages — do not index
+Disallow: /login
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /rewards
+Disallow: /attendance
+Disallow: /mental
+Disallow: /burst
+Disallow: /create
+Disallow: /paper/
+Disallow: /vedic-maths/
+Disallow: /leaderboard
+Disallow: /admin/
+Disallow: /admin
+
+# Sitemap
+Sitemap: https://talenthublive.com/sitemap.xml

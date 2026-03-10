@@ -14,15 +14,17 @@ interface StatCardProps {
   value: string | number;
   accent: string;
   delay: number;
+  onClick?: () => void;
 }
 
-function StatCard({ icon, label, value, accent, delay }: StatCardProps) {
+function StatCard({ icon, label, value, accent, delay, onClick }: StatCardProps) {
   return (
-    <motion.div
+    <motion.button
+      onClick={onClick}
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
-      className={`flex items-center gap-3 rounded-xl border bg-zinc-900/60 px-4 py-3 ${accent}`}
+      className={`flex items-center gap-3 rounded-xl border bg-zinc-900/60 px-4 py-3 w-full text-left transition-all hover:brightness-125 ${onClick ? 'cursor-pointer' : 'cursor-default'} ${accent}`}
     >
       <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-zinc-800/80">
         {icon}
@@ -33,11 +35,15 @@ function StatCard({ icon, label, value, accent, delay }: StatCardProps) {
         </p>
         <p className="text-[10px] text-zinc-500 mt-0.5">{label}</p>
       </div>
-    </motion.div>
+    </motion.button>
   );
 }
 
-export default function RewardsSummaryBar() {
+export default function RewardsSummaryBar({
+  onTabChange,
+}: {
+  onTabChange?: (tab: "history" | "streak" | "badges" | "leaderboard") => void;
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ["rewards-summary"],
     queryFn: fetchRewardsSummary,
@@ -67,6 +73,7 @@ export default function RewardsSummaryBar() {
         value={data.total_points}
         accent="border-yellow-500/20"
         delay={0}
+        onClick={() => onTabChange?.("history")}
       />
       <StatCard
         icon={<Flame className="w-5 h-5 text-orange-400" />}
@@ -74,6 +81,7 @@ export default function RewardsSummaryBar() {
         value={data.current_streak}
         accent="border-orange-500/20"
         delay={0.05}
+        onClick={() => onTabChange?.("streak")}
       />
       <StatCard
         icon={<Award className="w-5 h-5 text-violet-400" />}
@@ -81,6 +89,7 @@ export default function RewardsSummaryBar() {
         value={data.badges_earned}
         accent="border-violet-500/20"
         delay={0.1}
+        onClick={() => onTabChange?.("badges")}
       />
       <StatCard
         icon={<Trophy className="w-5 h-5 text-emerald-400" />}
@@ -88,6 +97,7 @@ export default function RewardsSummaryBar() {
         value={data.leaderboard_rank ? `#${data.leaderboard_rank}` : "—"}
         accent="border-emerald-500/20"
         delay={0.15}
+        onClick={() => onTabChange?.("leaderboard")}
       />
     </div>
   );

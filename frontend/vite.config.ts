@@ -11,11 +11,39 @@ export default defineConfig({
   },
 
   build: {
+    // Raise the warning threshold — charts/PDF chunks are intentionally large
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       // Cashfree JS SDK is loaded from their CDN at runtime — never bundle it.
-      // Pricing.tsx already has a .catch() fallback for when it's unavailable.
       external: ["@cashfreepayments/cashfree-js"],
+      output: {
+        // Split vendor code into separate cacheable chunks.
+        // Browsers cache these independently so a UI-only change doesn't
+        // invalidate the React or query-client bundles.
+        manualChunks(id) {
+          if (id.includes("node_modules/react-dom") || id.includes("node_modules/react/")) {
+            return "vendor-react";
+          }
+          if (id.includes("node_modules/@tanstack")) {
+            return "vendor-query";
+          }
+          if (id.includes("node_modules/framer-motion")) {
+            return "vendor-motion";
+          }
+          if (id.includes("node_modules/lucide-react")) {
+            return "vendor-icons";
+          }
+          if (id.includes("node_modules/wouter")) {
+            return "vendor-router";
+          }
+          if (id.includes("node_modules/")) {
+            return "vendor-misc";
+          }
+        },
+      },
     },
+    // Ensure source maps are NOT shipped to production
+    sourcemap: false,
   },
 
   server: {

@@ -24,7 +24,8 @@ import {
   CheckSquare,
   Square,
   X,
-  RotateCcw
+  RotateCcw,
+  Zap
 } from "lucide-react";
 
 export default function PaperAttempt() {
@@ -95,6 +96,11 @@ export default function PaperAttempt() {
       @media(max-width:640px){
         .pa-stats-grid{grid-template-columns:repeat(3,1fr)!important}
         .pa-action-grid{grid-template-columns:1fr 1fr!important}
+      }
+      @media(max-width:480px){
+        .pa-stats-grid{grid-template-columns:repeat(2,1fr)!important}
+        .pa-action-grid{grid-template-columns:1fr!important}
+        .pa-block-card{padding:16px!important;border-radius:12px!important}
       }
     `;
     document.head.appendChild(s);
@@ -730,243 +736,175 @@ export default function PaperAttempt() {
 
   if (isSubmitted && result) {
     const accuracy = result.accuracy || 0;
+    const totalAnswered = result.correct_answers + result.wrong_answers;
     return (
-      <div style={{minHeight:'100vh',background:'var(--pa-bg)',paddingTop:40,paddingBottom:60}}>
-        <div style={{maxWidth:760,margin:'0 auto',padding:'0 16px'}}>
-          <Link href="/dashboard">
-            <button style={{marginBottom:20,display:'flex',alignItems:'center',gap:8,padding:'10px 18px',background:'var(--pa-surf)',border:'1px solid var(--pa-bdr)',color:'var(--pa-whi2)',borderRadius:12,cursor:'pointer',fontFamily:'var(--pa-fb)',fontWeight:500,fontSize:14}}>
-              <ArrowLeft style={{width:16,height:16}} />
-              Back to Dashboard
-            </button>
-          </Link>
+      <div style={{minHeight:'100vh',background:'var(--pa-bg)',position:'relative'}}>
+        {/* Background glow */}
+        <div style={{position:'fixed',inset:0,pointerEvents:'none',background:'radial-gradient(ellipse 60% 50% at 50% 15%, rgba(123,92,229,.06) 0%, rgba(16,185,129,.04) 50%, transparent 70%)'}} />
 
-          <div className="pa-scale-in" style={{background:'var(--pa-surf)',borderRadius:20,padding:'40px 36px',marginBottom:20,border:'1px solid var(--pa-bdr)',boxShadow:'0 24px 60px rgba(0,0,0,0.5)',animation:'pa-scale-in 0.4s cubic-bezier(0.34,1.2,0.64,1)',overflow:'hidden',position:'relative'}}>
-            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:'linear-gradient(90deg,var(--pa-pur),var(--pa-grn))'}} />
-            <div style={{textAlign:'center',marginBottom:32}}>
-              <div style={{width:64,height:64,borderRadius:20,background:'linear-gradient(135deg,var(--pa-grn),var(--pa-grn2))',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px',boxShadow:'0 12px 40px rgba(16,185,129,0.35)',animation:'pa-trophy 0.6s cubic-bezier(0.34,1.56,0.64,1)'}}>
-                <Trophy style={{width:32,height:32,color:'white'}} />
-              </div>
-              <h1 style={{fontSize:'clamp(24px,4vw,36px)',fontWeight:800,color:'var(--pa-whi)',fontFamily:'var(--pa-fd)',margin:'0 0 8px',letterSpacing:'-.03em'}}>Paper Completed!</h1>
-              <p style={{color:'var(--pa-muted)',fontFamily:'var(--pa-fb)',fontSize:15,margin:0}}>{paperConfig?.title}</p>
+        <div style={{maxWidth:700,margin:'0 auto',padding:'clamp(24px,5vw,40px) clamp(14px,3vw,24px) 60px',position:'relative',zIndex:1}}>
+          {/* Completion header */}
+          <div style={{textAlign:'center',marginBottom:32}}>
+            <div className="pa-scale-in" style={{width:64,height:64,borderRadius:20,margin:'0 auto 20px',background:'linear-gradient(135deg, var(--pa-pur), #5535C0)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 12px 40px rgba(123,92,229,.35), 0 0 0 1px rgba(123,92,229,.2)'}}>
+              <Trophy style={{width:28,height:28,color:'white'}} />
             </div>
+            <h1 style={{fontFamily:'var(--pa-fd)',fontSize:'clamp(28px,4vw,44px)',fontWeight:800,letterSpacing:'-.03em',color:'var(--pa-whi)',margin:'0 0 6px'}}>Paper Completed!</h1>
+            <p style={{fontFamily:'var(--pa-fm)',fontSize:13,color:'var(--pa-muted)',letterSpacing:'.04em',margin:0}}>
+              <span style={{color:'var(--pa-pur2)'}}>{paperConfig?.title}</span>
+              {paperConfig?.level && <><span style={{color:'var(--pa-muted)'}}> · </span><span style={{color:'var(--pa-whi2)'}}>{paperConfig.level}</span></>}
+              <span style={{color:'var(--pa-muted)'}}> · </span>
+              <span style={{color:'var(--pa-whi2)'}}>You answered {totalAnswered} question{totalAnswered !== 1 ? 's' : ''}</span>
+            </p>
+          </div>
 
-            <div className="pa-stats-grid" style={{marginBottom:24}}>
-              {[{val:result.correct_answers,label:'Correct',color:'var(--pa-grn)',bg:'rgba(16,185,129,0.1)',border:'rgba(16,185,129,0.25)',delay:0},{val:result.wrong_answers,label:'Wrong',color:'var(--pa-red)',bg:'rgba(239,68,68,0.1)',border:'rgba(239,68,68,0.25)',delay:.07},{val:result.total_questions-result.correct_answers-result.wrong_answers,label:'Missed',color:'var(--pa-gld)',bg:'rgba(245,158,11,0.1)',border:'rgba(245,158,11,0.25)',delay:.14},{val:result.accuracy.toFixed(1)+'%',label:'Accuracy',color:'var(--pa-pur2)',bg:'rgba(123,92,229,0.1)',border:'rgba(123,92,229,0.25)',delay:.21},{val:result.points_earned,label:'Points',color:'var(--pa-grn)',bg:'rgba(16,185,129,0.08)',border:'rgba(16,185,129,0.2)',delay:.28}].map(({val,label,color,bg,border,delay})=>(
-                <div key={label} className="pa-stat-tile pa-count-up" style={{background:bg,border:`1px solid ${border}`,borderRadius:14,padding:'14px 8px',textAlign:'center',boxShadow:'0 4px 16px rgba(0,0,0,0.2)',animationDelay:`${delay}s`}}>
-                  <div style={{fontSize:'clamp(18px,2.5vw,26px)',fontWeight:700,color,fontFamily:'var(--pa-fm)',lineHeight:1}}>{val}</div>
-                  <div style={{fontSize:9,color:'var(--pa-muted)',fontFamily:'var(--pa-fm)',marginTop:6,fontWeight:600,letterSpacing:'.12em',textTransform:'uppercase'}}>{label}</div>
-                </div>
-              ))}
-            </div>
-            {/* Accuracy bar */}
-            <div style={{marginBottom:24}}>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
-                <span style={{fontSize:10,color:'var(--pa-muted)',fontFamily:'var(--pa-fm)',fontWeight:600,letterSpacing:'.12em',textTransform:'uppercase'}}>ACCURACY</span>
-                <span style={{fontSize:13,color:'var(--pa-whi2)',fontFamily:'var(--pa-fm)',fontWeight:700}}>{result.accuracy.toFixed(1)}%</span>
+          {/* Primary stats grid */}
+          <div className="pa-stats-grid" style={{marginBottom:14}}>
+            {[
+              {val:result.correct_answers,label:'Correct',color:'var(--pa-grn)',bg:'rgba(16,185,129,0.1)',border:'rgba(16,185,129,0.25)',delay:0},
+              {val:result.wrong_answers,label:'Wrong',color:'var(--pa-red)',bg:'rgba(239,68,68,0.1)',border:'rgba(239,68,68,0.25)',delay:.07},
+              {val:result.total_questions-result.correct_answers-result.wrong_answers,label:'Missed',color:'var(--pa-gld)',bg:'rgba(245,158,11,0.1)',border:'rgba(245,158,11,0.25)',delay:.14},
+              {val:result.accuracy.toFixed(1)+'%',label:'Accuracy',color:'var(--pa-pur2)',bg:'rgba(123,92,229,0.1)',border:'rgba(123,92,229,0.25)',delay:.21},
+              {val:`+${result.points_earned}`,label:'Points',color:'var(--pa-pur2)',bg:'rgba(123,92,229,0.08)',border:'rgba(123,92,229,0.2)',delay:.28}
+            ].map(({val,label,color,bg,border,delay})=>(
+              <div key={label} className="pa-stat-tile pa-count-up" style={{background:bg,border:`1px solid ${border}`,borderRadius:14,padding:'14px 8px',textAlign:'center',animationDelay:`${delay}s`}}>
+                <div style={{fontSize:'clamp(18px,2.5vw,26px)',fontWeight:700,color,fontFamily:'var(--pa-fm)',lineHeight:1}}>{val}</div>
+                <div style={{fontSize:9,color:'var(--pa-muted)',fontFamily:'var(--pa-fm)',marginTop:5,fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase'}}>{label}</div>
               </div>
-              <div style={{height:6,background:'var(--pa-surf2)',borderRadius:99,overflow:'hidden'}}>
-                <div style={{height:'100%',background:'linear-gradient(90deg,var(--pa-red) 0%,var(--pa-gld) 45%,var(--pa-grn) 100%)',borderRadius:99,width:`${result.accuracy}%`,transition:'width 1.4s cubic-bezier(.4,0,.2,1) .4s',boxShadow:accuracy > 70 ? '0 0 12px rgba(16,185,129,.2)' : undefined}} />
-              </div>
-            </div>
+            ))}
+          </div>
 
-            <div style={{background:'var(--pa-surf2)',border:'1px solid var(--pa-bdr)',borderRadius:16,padding:'20px 24px',marginBottom:24}}>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,textAlign:'center'}}>
-                <div>
-                  <div style={{fontSize:10,color:'var(--pa-muted)',fontFamily:'var(--pa-fm)',fontWeight:600,letterSpacing:'.12em',textTransform:'uppercase',marginBottom:4}}>TIME TAKEN</div>
-                  <div style={{fontSize:22,fontWeight:700,color:'var(--pa-whi)',fontFamily:'var(--pa-fm)'}}>
-                    {result.time_taken ? formatTime(Math.floor(result.time_taken)) : '—'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{fontSize:10,color:'var(--pa-muted)',fontFamily:'var(--pa-fm)',fontWeight:600,letterSpacing:'.12em',textTransform:'uppercase',marginBottom:4}}>SCORE</div>
-                  <div style={{fontSize:22,fontWeight:700,color:'var(--pa-whi)',fontFamily:'var(--pa-fm)'}}>
-                    {result.score} / {result.total_questions}
-                  </div>
-                </div>
+          {/* Secondary stats — two icon boxes like Burst Mode */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
+            <div style={{background:'var(--pa-surf)',border:'1px solid var(--pa-bdr)',borderRadius:16,padding:'clamp(12px,2.5vw,18px) clamp(14px,3vw,22px)',display:'flex',alignItems:'center',gap:'clamp(10px,2vw,14px)'}}>
+              <div style={{width:38,height:38,borderRadius:11,background:'rgba(123,92,229,.12)',border:'1px solid rgba(123,92,229,.2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <Clock style={{width:18,height:18,color:'var(--pa-pur2)'}} />
+              </div>
+              <div>
+                <div style={{fontFamily:'var(--pa-fm)',fontSize:'clamp(18px,3vw,22px)',fontWeight:800,color:'var(--pa-whi)'}}>{result.time_taken ? formatTime(Math.floor(result.time_taken)) : '—'}</div>
+                <div style={{fontFamily:'var(--pa-fb)',fontSize:12,color:'var(--pa-muted)',marginTop:2}}>Time Taken</div>
               </div>
             </div>
-
-            <div className="pa-action-grid">
-              <button
-                onClick={handleReAttempt}
-                disabled={reAttempting || !paperConfig || !generatedBlocks || seed === null}
-                className="pa-action-btn"
-                style={{padding:'14px 10px',background:'linear-gradient(135deg,var(--pa-pur),#5535C0)',color:'white',borderRadius:14,fontWeight:800,fontFamily:'var(--pa-fd)',fontSize:14,boxShadow:'0 6px 20px var(--pa-pglow)',display:'flex',alignItems:'center',justifyContent:'center',gap:8,opacity:reAttempting||!paperConfig||!generatedBlocks||seed===null?0.5:1}}
-              >
-                <RotateCcw style={{width:15,height:15,animation:reAttempting?'pa-spin 0.8s linear infinite':undefined}} />
-                {reAttempting ? 'Starting...' : 'Re-attempt'}
-              </button>
-              <Link href="/dashboard" style={{textDecoration:'none'}}>
-                <button className="pa-action-btn" style={{width:'100%',padding:'14px 10px',background:'linear-gradient(135deg,var(--pa-grn),var(--pa-grn2))',color:'white',borderRadius:14,fontWeight:800,fontFamily:'var(--pa-fd)',fontSize:14,boxShadow:'0 6px 20px rgba(16,185,129,0.2)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                  <Trophy style={{width:15,height:15}} />Dashboard
-                </button>
-              </Link>
-              <Link href="/create" style={{textDecoration:'none'}}>
-                <button className="pa-action-btn" style={{width:'100%',padding:'14px 10px',background:'var(--pa-surf2)',border:'1px solid var(--pa-bdr2)',color:'var(--pa-whi2)',borderRadius:14,fontWeight:800,fontFamily:'var(--pa-fd)',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                  Create New
-                </button>
-              </Link>
+            <div style={{background:'var(--pa-surf)',border:'1px solid var(--pa-bdr)',borderRadius:16,padding:'clamp(12px,2.5vw,18px) clamp(14px,3vw,22px)',display:'flex',alignItems:'center',gap:'clamp(10px,2vw,14px)'}}>
+              <div style={{width:38,height:38,borderRadius:11,background:'rgba(245,158,11,.12)',border:'1px solid rgba(245,158,11,.2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <Trophy style={{width:18,height:18,color:'var(--pa-gld)'}} />
+              </div>
+              <div>
+                <div style={{fontFamily:'var(--pa-fm)',fontSize:'clamp(18px,3vw,22px)',fontWeight:800,color:'var(--pa-whi)'}}>{result.correct_answers} / {result.total_questions}</div>
+                <div style={{fontFamily:'var(--pa-fb)',fontSize:12,color:'var(--pa-muted)',marginTop:2}}>Score</div>
+              </div>
             </div>
           </div>
 
-          {/* Results breakdown */}
-          <div style={{background:'var(--pa-surf)',borderRadius:20,padding:'32px 36px',border:'1px solid var(--pa-bdr)',boxShadow:'0 24px 60px rgba(0,0,0,0.4)',animation:'pa-fade-up 0.5s ease 0.2s both'}}>
-            <h2 style={{fontSize:22,fontWeight:700,color:'var(--pa-whi)',fontFamily:'var(--pa-fd)',marginBottom:24}}>Question Review</h2>
-            
-            {/* Separate questions into categories */}
+          {/* Accuracy bar */}
+          <div style={{marginBottom:20}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+              <span style={{fontFamily:'var(--pa-fm)',fontSize:10,textTransform:'uppercase',letterSpacing:'.12em',color:'var(--pa-muted)'}}>ACCURACY</span>
+              <span style={{fontFamily:'var(--pa-fm)',fontSize:13,fontWeight:700,color:'var(--pa-whi2)'}}>{result.accuracy.toFixed(1)}%</span>
+            </div>
+            <div style={{height:6,borderRadius:99,background:'var(--pa-bdr2)',overflow:'hidden'}}>
+              <div style={{borderRadius:99,height:'100%',background:'linear-gradient(90deg,var(--pa-red) 0%,var(--pa-gld) 45%,var(--pa-grn) 100%)',width:`${result.accuracy}%`,transition:'width 1.4s cubic-bezier(.4,0,.2,1) .4s',boxShadow:accuracy > 70 ? '0 0 12px rgba(16,185,129,.2)' : undefined}} />
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="pa-action-grid" style={{marginBottom:24}}>
+            <button
+              onClick={handleReAttempt}
+              disabled={reAttempting || !paperConfig || !generatedBlocks || seed === null}
+              className="pa-action-btn"
+              style={{padding:'14px 10px',background:'linear-gradient(135deg,var(--pa-pur),#5535C0)',border:'none',borderRadius:14,color:'white',fontFamily:'var(--pa-fd)',fontSize:14,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:8,boxShadow:'0 6px 20px var(--pa-pglow)',cursor:'pointer',transition:'all .25s ease',opacity:reAttempting||!paperConfig||!generatedBlocks||seed===null?0.5:1}}
+              onMouseEnter={(e)=>{const b=e.currentTarget as HTMLButtonElement;b.style.transform='translateY(-2px)';b.style.boxShadow='0 12px 36px rgba(123,92,229,.35)';}}
+              onMouseLeave={(e)=>{const b=e.currentTarget as HTMLButtonElement;b.style.transform='';b.style.boxShadow='0 6px 20px var(--pa-pglow)';}}
+            >
+              <RotateCcw style={{width:15,height:15,animation:reAttempting?'pa-spin 0.8s linear infinite':undefined}} />
+              {reAttempting ? 'Starting...' : 'Re-attempt'}
+            </button>
+            <Link href="/create" style={{textDecoration:'none'}}>
+              <button
+                className="pa-action-btn"
+                style={{width:'100%',padding:'14px 10px',background:'var(--pa-surf2)',border:'1px solid var(--pa-bdr2)',borderRadius:14,color:'var(--pa-whi2)',fontFamily:'var(--pa-fd)',fontSize:14,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:8,cursor:'pointer',transition:'all .2s'}}
+                onMouseEnter={(e)=>{const b=e.currentTarget as HTMLButtonElement;b.style.borderColor='rgba(123,92,229,.3)';b.style.color='var(--pa-whi)';}}
+                onMouseLeave={(e)=>{const b=e.currentTarget as HTMLButtonElement;b.style.borderColor='var(--pa-bdr2)';b.style.color='var(--pa-whi2)';}}
+              >
+                <Zap style={{width:15,height:15}} />Create New
+              </button>
+            </Link>
+            <Link href="/dashboard" style={{textDecoration:'none'}}>
+              <button
+                className="pa-action-btn"
+                style={{width:'100%',padding:'14px 10px',background:'linear-gradient(135deg,var(--pa-grn),var(--pa-grn2))',border:'none',borderRadius:14,color:'white',fontFamily:'var(--pa-fd)',fontSize:14,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:8,boxShadow:'0 6px 20px rgba(16,185,129,.2)',cursor:'pointer',transition:'all .25s ease'}}
+                onMouseEnter={(e)=>{const b=e.currentTarget as HTMLButtonElement;b.style.transform='translateY(-2px)';b.style.boxShadow='0 12px 32px rgba(16,185,129,.32)';}}
+                onMouseLeave={(e)=>{const b=e.currentTarget as HTMLButtonElement;b.style.transform='';b.style.boxShadow='0 6px 20px rgba(16,185,129,.2)';}}
+              >
+                <Trophy style={{width:15,height:15}} />Dashboard
+              </button>
+            </Link>
+          </div>
+
+          {/* Question Review — flat list like Burst Mode */}
+          <div style={{background:'var(--pa-surf)',borderRadius:20,border:'1px solid var(--pa-bdr)',boxShadow:'0 24px 60px rgba(0,0,0,0.4)',animation:'pa-fade-up 0.5s ease 0.2s both',overflow:'hidden'}}>
+            <div style={{padding:'20px 24px',borderBottom:'1px solid var(--pa-bdr)'}}>
+              <span style={{fontFamily:'var(--pa-fd)',fontSize:17,fontWeight:700,color:'var(--pa-whi)'}}>Question Review</span>
+            </div>
+            <div style={{maxHeight:400,overflowY:'auto'}}>
             {(() => {
-              const allQuestions: Array<{ question: Question; blockIdx: number; blockTitle?: string }> = [];
-              generatedBlocks.forEach((block, blockIdx) => {
+              const allQuestions: Array<{ question: Question; blockTitle?: string }> = [];
+              generatedBlocks.forEach((block) => {
                 block.questions.forEach((question) => {
-                  allQuestions.push({ question, blockIdx, blockTitle: block.config.title });
+                  allQuestions.push({ question, blockTitle: block.config.title });
                 });
               });
 
-              const correctQuestions = allQuestions.filter(({ question }) => {
+              return allQuestions.map(({ question }, i) => {
                 const userAnswerStr = answers[question.id];
-                if (userAnswerStr === undefined) return false;
-                // For large integers, compare as strings to avoid precision loss
-                const userAnswerTrimmed = userAnswerStr.trim();
-                const correctAnswerStr = String(question.answer);
-                const userHasDecimal = userAnswerTrimmed.includes('.');
-                const correctHasDecimal = correctAnswerStr.includes('.') || String(question.answer).includes('e') || String(question.answer).includes('E');
-                
-                if (!userHasDecimal && !correctHasDecimal) {
-                  // Both are integers - compare as strings
-                  return userAnswerTrimmed === correctAnswerStr;
-                } else {
-                  // At least one has decimals - use float comparison with tolerance
-                  const userAnswer = parseFloat(userAnswerTrimmed);
-                  return !isNaN(userAnswer) && Math.abs(userAnswer - question.answer) < 0.01;
+                const isUnattempted = userAnswerStr === undefined;
+                let isCorrect = false;
+                if (!isUnattempted) {
+                  const trimmed = userAnswerStr.trim();
+                  const correctStr = String(question.answer);
+                  if (!trimmed.includes('.') && !correctStr.includes('.')) {
+                    isCorrect = trimmed === correctStr;
+                  } else {
+                    const parsed = parseFloat(trimmed);
+                    isCorrect = !isNaN(parsed) && Math.abs(parsed - question.answer) < 0.01;
+                  }
                 }
-              });
+                const borderColor = isUnattempted ? 'rgba(245,158,11,.2)' : isCorrect ? 'rgba(16,185,129,.15)' : 'rgba(239,68,68,.2)';
 
-              const wrongQuestions = allQuestions.filter(({ question }) => {
-                const userAnswerStr = answers[question.id];
-                if (userAnswerStr === undefined) return false;
-                // For large integers, compare as strings to avoid precision loss
-                const userAnswerTrimmed = userAnswerStr.trim();
-                const correctAnswerStr = String(question.answer);
-                const userHasDecimal = userAnswerTrimmed.includes('.');
-                const correctHasDecimal = correctAnswerStr.includes('.') || String(question.answer).includes('e') || String(question.answer).includes('E');
-                
-                if (!userHasDecimal && !correctHasDecimal) {
-                  // Both are integers - compare as strings
-                  return userAnswerTrimmed !== correctAnswerStr;
-                } else {
-                  // At least one has decimals - use float comparison with tolerance
-                  const userAnswer = parseFloat(userAnswerTrimmed);
-                  return !isNaN(userAnswer) && Math.abs(userAnswer - question.answer) >= 0.01;
-                }
-              });
-
-              const unattemptedQuestions = allQuestions.filter(({ question }) => {
-                return answers[question.id] === undefined;
-              });
-
-              return (
-                <div className="space-y-8">
-                  {wrongQuestions.length > 0 && (
-                    <div>
-                      <h3 style={{fontSize:18,fontWeight:700,color:'var(--pa-red)',fontFamily:'var(--pa-fd)',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
-                        <XCircle style={{width:20,height:20}} />
-                        Wrong Answers ({wrongQuestions.length})
-                      </h3>
-                      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                        {wrongQuestions.map(({ question, blockTitle }) => {
-                          const userAnswerStr = answers[question.id] || "";
-                          return (
-                            <div key={question.id} className="pa-review-card" style={{padding:'14px 16px',borderRadius:12,border:'1px solid rgba(239,68,68,0.14)',background:'rgba(239,68,68,0.05)'}}>
-                              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
-                                <div style={{flex:1}}>
-                                  {blockTitle && (<p style={{fontSize:11,color:'rgba(239,68,68,0.7)',marginBottom:4,fontFamily:'var(--pa-fm)',letterSpacing:'0.06em',textTransform:'uppercase'}}>{blockTitle}</p>)}
-                                  <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
-                                    <span style={{fontWeight:600,color:'var(--pa-whi)',fontFamily:'var(--pa-fm)',fontSize:14}}>Q{question.id}:</span>
-                                    <MathQuestion question={question} showAnswer={false} largeFont={true} />
-                                  </div>
-                                  <div style={{display:'flex',alignItems:'center',gap:16,fontSize:13}}>
-                                    <span style={{color:'var(--pa-red)',fontFamily:'var(--pa-fm)'}}>Your answer: <span style={{fontWeight:600}}>{userAnswerStr}</span></span>
-                                    <span style={{color:'var(--pa-muted)',fontFamily:'var(--pa-fm)'}}>Correct: <span style={{fontWeight:600,color:'var(--pa-whi2)'}}>{question.answer}</span></span>
-                                  </div>
-                                </div>
-                                <XCircle style={{width:20,height:20,color:'var(--pa-red)',flexShrink:0,marginLeft:12}} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                return (
+                  <div
+                    key={question.id}
+                    className="pa-count-up"
+                    style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:12,alignItems:'center',padding:'14px 20px',borderBottom:i < allQuestions.length - 1 ? '1px solid var(--pa-bdr)' : undefined,borderLeft:`2px solid ${borderColor}`,paddingLeft:18,transition:'background .15s ease',animationDelay:`${i*.04}s`}}
+                    onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.background='rgba(255,255,255,.02)'}}
+                    onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.background=''}}
+                  >
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      {isUnattempted
+                        ? <Square style={{width:16,height:16,color:'var(--pa-gld)',flexShrink:0}} />
+                        : isCorrect
+                          ? <CheckCircle2 style={{width:16,height:16,color:'var(--pa-grn)',flexShrink:0}} />
+                          : <XCircle style={{width:16,height:16,color:'var(--pa-red)',flexShrink:0}} />
+                      }
+                      <span style={{fontFamily:'var(--pa-fm)',fontSize:14,fontWeight:600,color:'var(--pa-whi)'}}>
+                        <MathQuestion question={question} showAnswer={false} largeFont={false} />
+                      </span>
                     </div>
-                  )}
-
-                  {correctQuestions.length > 0 && (
-                    <div>
-                      <h3 style={{fontSize:18,fontWeight:700,color:'var(--pa-grn)',fontFamily:'var(--pa-fd)',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
-                        <CheckCircle2 style={{width:20,height:20}} />
-                        Correct Answers ({correctQuestions.length})
-                      </h3>
-                      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                        {correctQuestions.map(({ question, blockTitle }) => {
-                          const userAnswerStr = answers[question.id] || "";
-                          return (
-                            <div
-                              key={question.id}
-                              className="pa-review-card"
-                              style={{padding:'14px 16px',borderRadius:12,border:'1px solid rgba(16,185,129,0.14)',background:'rgba(16,185,129,0.05)'}}
-                            >
-                              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
-                                <div style={{flex:1}}>
-                                  {blockTitle && (
-                                    <p style={{fontSize:11,color:'rgba(16,185,129,0.7)',marginBottom:4,fontFamily:'var(--pa-fm)',letterSpacing:'0.06em',textTransform:'uppercase'}}>{blockTitle}</p>
-                                  )}
-                                  <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
-                                    <span style={{fontWeight:600,color:'var(--pa-whi)',fontFamily:'var(--pa-fm)',fontSize:14}}>Q{question.id}:</span>
-                                    <MathQuestion question={question} showAnswer={false} largeFont={true} />
-                                  </div>
-                                  <div style={{display:'flex',alignItems:'center',gap:16,fontSize:13}}>
-                                    <span style={{color:'var(--pa-grn)',fontFamily:'var(--pa-fm)'}}>Your answer: <span style={{fontWeight:600}}>{userAnswerStr}</span></span>
-                                    <span style={{color:'var(--pa-muted)',fontFamily:'var(--pa-fm)'}}>Correct: <span style={{fontWeight:600,color:'var(--pa-whi2)'}}>{question.answer}</span></span>
-                                  </div>
-                                </div>
-                                <CheckCircle2 style={{width:20,height:20,color:'var(--pa-grn)',flexShrink:0,marginLeft:12}} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {unattemptedQuestions.length > 0 && (
-                    <div>
-                      <h3 style={{fontSize:18,fontWeight:700,color:'var(--pa-gld)',fontFamily:'var(--pa-fd)',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
-                        <Square style={{width:20,height:20}} />
-                        Unattempted ({unattemptedQuestions.length})
-                      </h3>
-                      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                        {unattemptedQuestions.map(({ question, blockTitle }) => (
-                          <div key={question.id} className="pa-review-card" style={{padding:'14px 16px',borderRadius:12,border:'1px solid rgba(245,158,11,0.14)',background:'rgba(245,158,11,0.05)'}}>
-                            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
-                              <div style={{flex:1}}>
-                                {blockTitle && (<p style={{fontSize:11,color:'rgba(245,158,11,0.7)',marginBottom:4,fontFamily:'var(--pa-fm)',letterSpacing:'0.06em',textTransform:'uppercase'}}>{blockTitle}</p>)}
-                                <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
-                                  <span style={{fontWeight:600,color:'var(--pa-whi)',fontFamily:'var(--pa-fm)',fontSize:14}}>Q{question.id}:</span>
-                                  <MathQuestion question={question} showAnswer={false} largeFont={true} />
-                                </div>
-                                <div style={{display:'flex',alignItems:'center',gap:16,fontSize:13}}>
-                                  <span style={{color:'var(--pa-gld)',fontFamily:'var(--pa-fm)'}}>Your answer: <span style={{fontWeight:600}}>—</span></span>
-                                  <span style={{color:'var(--pa-muted)',fontFamily:'var(--pa-fm)'}}>Correct: <span style={{fontWeight:600,color:'var(--pa-whi2)'}}>{question.answer}</span></span>
-                                </div>
-                              </div>
-                              <Square style={{width:20,height:20,color:'var(--pa-gld)',flexShrink:0,marginLeft:12}} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
+                    {!isCorrect && !isUnattempted && (
+                      <span style={{fontFamily:'var(--pa-fm)',fontSize:13,fontWeight:600,color:'var(--pa-red)',textDecoration:'line-through'}}>{userAnswerStr}</span>
+                    )}
+                    {isUnattempted && (
+                      <span style={{fontFamily:'var(--pa-fm)',fontSize:13,fontWeight:600,color:'var(--pa-gld)'}}>—</span>
+                    )}
+                    <span style={{fontFamily:'var(--pa-fm)',fontSize:13,fontWeight:700,color:isCorrect ? 'var(--pa-grn)' : 'var(--pa-muted)'}}>{question.answer}</span>
+                  </div>
+                );
+              });
             })()}
+            {generatedBlocks.every(b => b.questions.length === 0) && (
+              <div style={{padding:40,textAlign:'center',fontFamily:'var(--pa-fb)',color:'var(--pa-muted)'}}>No questions</div>
+            )}
+            </div>
           </div>
         </div>
       </div>
@@ -1057,7 +995,7 @@ export default function PaperAttempt() {
 
       {/* Sticky Header */}
       <header style={{position:'sticky',top:0,zIndex:40,background:'rgba(6,7,15,0.9)',backdropFilter:'blur(20px)',borderBottom:'1px solid var(--pa-bdr)'}}>
-        <div style={{height:64,display:'flex',alignItems:'center',padding:'0 24px'}}>
+        <div style={{height:'clamp(52px,8vw,64px)',display:'flex',alignItems:'center',padding:'0 clamp(12px,3vw,24px)'}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center',width:'100%',maxWidth:1100,margin:'0 auto',gap:16}}>
             {/* Left: Exit */}
             <div>
@@ -1123,7 +1061,7 @@ export default function PaperAttempt() {
       )}
 
       {/* Questions */}
-      <div style={{maxWidth:1100,margin:'0 auto',padding:'28px 20px 0'}}>
+      <div style={{maxWidth:1100,margin:'0 auto',padding:'clamp(16px,3vw,28px) clamp(12px,3vw,20px) 0'}}>
         <div style={{display:'flex',flexDirection:'column',gap:20,marginBottom:24}}>
           {generatedBlocks.map((block, blockIdx) => {
             if (!block || !block.questions || block.questions.length === 0) {
@@ -1213,7 +1151,7 @@ export default function PaperAttempt() {
         </div>
 
         {/* Submit Bar */}
-        <div style={{position:'sticky',bottom:0,left:0,right:0,background:'rgba(6,7,15,0.9)',backdropFilter:'blur(20px)',borderTop:'1px solid var(--pa-bdr)',padding:'14px 24px',zIndex:30}}>
+        <div style={{position:'sticky',bottom:0,left:0,right:0,background:'rgba(6,7,15,0.9)',backdropFilter:'blur(20px)',borderTop:'1px solid var(--pa-bdr)',padding:'14px clamp(12px,3vw,24px)',zIndex:30}}>
           <div style={{maxWidth:1100,margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16}}>
             {/* Progress */}
             <div style={{flex:1,maxWidth:400}}>

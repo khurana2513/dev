@@ -36,6 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then((userData) => {
           console.log("✅ [AUTH] User restored from token:", userData.email);
           setUser(userData);
+          // Always persist the latest user data so the dropdown and other
+          // components see updated fields (branch, course, level, etc.)
+          localStorage.setItem("user_data", JSON.stringify(userData));
           setAuthReady(true);
           setApiAuthToken(token);
         })
@@ -152,10 +155,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("🟡 [AUTH] loginWithGoogle returned, setting user state...");
       setAuthToken(response.access_token);
       setApiAuthToken(response.access_token);
-      setUser(response.user);
-      // Store user data in localStorage as backup
+      // Store the initial user data from login response
       localStorage.setItem("user_data", JSON.stringify(response.user));
       setAuthReady(true);
+      // Immediately fetch full user data (includes branch/course/level from profile)
+      // so the profile dropdown shows them without requiring a page reload
+      try {
+        const freshUser = await getCurrentUser();
+        setUser(freshUser);
+        localStorage.setItem("user_data", JSON.stringify(freshUser));
+        console.log("✅ [AUTH] Fresh user data loaded after login");
+      } catch (_e) {
+        // Fallback: use the data from the login response
+        setUser(response.user);
+      }
       console.log("✅ [AUTH] User state updated, user:", response.user.email);
     } catch (error) {
       console.error("❌ [AUTH] Login error in context:", error);

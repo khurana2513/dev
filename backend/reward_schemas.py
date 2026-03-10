@@ -135,6 +135,8 @@ class LeaderboardEntryOut(BaseModel):
     student_id: int
     student_name: str
     branch: str = ""
+    course: str = ""
+    level: str = ""
     total_points: int = 0
     avatar_url: Optional[str] = None
     is_current_user: bool = False
@@ -272,3 +274,21 @@ class SimulationResponse(BaseModel):
     month: int
     year: int
     entries: List[SimulationResultEntry] = []
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STREAK CALENDAR SCHEMAS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class StreakCalendarDay(BaseModel):
+    date: str          # YYYY-MM-DD (IST)
+    qualified: bool    # threshold met that day
+    count: int         # qualifying questions that day
+
+
+class StreakCalendarResponse(BaseModel):
+    year: int
+    month: int
+    days: List[StreakCalendarDay]
+    qualified_count: int   # days this month with streak
+    total_days: int        # days elapsed this month (incl. today)
