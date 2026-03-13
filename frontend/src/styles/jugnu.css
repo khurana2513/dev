@@ -1,0 +1,470 @@
+/* ═══════════════════════════════════════════════════════════════
+   JUGNU 🐒 — Animated Monkey Mascot System  (v3 – Actually Alive)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Container ──────────────────────────────────────────────── */
+.jugnu-wrap {
+  position: fixed;
+  z-index: 9990;
+  pointer-events: none;
+  width: 130px;
+  height: 160px;
+  /* position driven by JS state (left/top), transition for smooth drift */
+  transition: left 0.6s cubic-bezier(.34,1.2,.64,1), top 0.6s cubic-bezier(.34,1.2,.64,1);
+  /* entrance animation */
+  animation: jugnu-entrance 1.2s cubic-bezier(.34,1.56,.64,1) .6s both;
+}
+
+/* Allow clicks only on the body SVG */
+.jugnu-body {
+  pointer-events: auto;
+  cursor: pointer;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: filter 0.3s ease, transform 0.3s cubic-bezier(.34,1.56,.64,1);
+}
+
+.jugnu-body:hover {
+  filter: drop-shadow(0 0 14px rgba(249,191,59,0.5));
+  transform: scale(1.05);
+}
+
+/* ── Entrance ───────────────────────────────────────────────── */
+@keyframes jugnu-entrance {
+  0%   { transform: translateX(180px) rotate(15deg); opacity: 0; }
+  60%  { transform: translateX(-8px) rotate(-3deg); opacity: 1; }
+  80%  { transform: translateX(4px) rotate(1deg); }
+  100% { transform: translateX(0) rotate(0deg); opacity: 1; }
+}
+
+/* ── Eye tracking ───────────────────────────────────────────── */
+.jugnu-eye-pupil {
+  transition: transform 0.08s cubic-bezier(.2,.8,.3,1);
+}
+
+/* ── Blink ──────────────────────────────────────────────────── */
+@keyframes jugnu-blink {
+  0%, 42%, 58%, 100% { transform: scaleY(1); }
+  50%                { transform: scaleY(0.05); }
+}
+
+.jugnu-eyelid {
+  animation: jugnu-blink 4s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.jugnu-eyelid--right {
+  animation-delay: 0.07s;
+}
+
+/* micro-blink on sharp direction change */
+.jugnu--micro-blink .jugnu-eyelid {
+  animation: none;
+  transform: scaleY(0.05);
+}
+
+/* ── Breathing ──────────────────────────────────────────────── */
+@keyframes jugnu-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-1.5px) scale(1.008); }
+}
+
+.jugnu-breathe {
+  animation: jugnu-breathe 3.5s ease-in-out infinite;
+}
+
+/* ── Tail swing ─────────────────────────────────────────────── */
+@keyframes jugnu-tail {
+  0%, 100% { transform: rotate(-15deg); }
+  50%      { transform: rotate(15deg); }
+}
+
+.jugnu-tail {
+  transform-origin: top center;
+  animation: jugnu-tail 2.8s ease-in-out infinite;
+}
+
+/* ── Ear twitch ─────────────────────────────────────────────── */
+@keyframes jugnu-ear-twitch {
+  0%, 92%, 100% { transform: rotate(0deg); }
+  94%           { transform: rotate(6deg); }
+  96%           { transform: rotate(-3deg); }
+  98%           { transform: rotate(4deg); }
+}
+
+.jugnu-ear--left {
+  transform-origin: right center;
+  animation: jugnu-ear-twitch 7s ease-in-out infinite;
+}
+
+.jugnu-ear--right {
+  transform-origin: left center;
+  animation: jugnu-ear-twitch 9.3s ease-in-out infinite 2.1s;
+}
+
+/* ── Head micro-tilt ────────────────────────────────────────── */
+@keyframes jugnu-head-micro {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(1.5deg); }
+}
+
+.jugnu-head {
+  animation: jugnu-head-micro 5s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+/* ── Scratch ────────────────────────────────────────────────── */
+@keyframes jugnu-scratch {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  15%      { transform: rotate(-12deg) translateY(-3px); }
+  30%      { transform: rotate(8deg)  translateY(0); }
+  45%      { transform: rotate(-10deg) translateY(-2px); }
+  60%      { transform: rotate(6deg)  translateY(0); }
+  75%      { transform: rotate(-4deg) translateY(-1px); }
+}
+
+.jugnu--scratching .jugnu-arm-right {
+  animation: jugnu-scratch 1.2s ease-in-out;
+}
+
+/* ── Look around ────────────────────────────────────────────── */
+@keyframes jugnu-look-around {
+  0%, 100% { transform: rotate(0deg); }
+  20%      { transform: rotate(-8deg); }
+  50%      { transform: rotate(10deg); }
+  80%      { transform: rotate(-4deg); }
+}
+
+.jugnu--looking .jugnu-head {
+  animation: jugnu-look-around 2.5s ease-in-out;
+}
+
+/* ── Excited: jump ──────────────────────────────────────────── */
+@keyframes jugnu-jump {
+  0%   { transform: translateY(0) scale(1); }
+  25%  { transform: translateY(-18px) scale(1.05); }
+  40%  { transform: translateY(-22px) rotate(10deg) scale(1.08); }
+  60%  { transform: translateY(-22px) rotate(-8deg) scale(1.06); }
+  80%  { transform: translateY(-4px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.jugnu--excited .jugnu-body {
+  animation: jugnu-jump 0.8s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ── Proud: chest puff ──────────────────────────────────────── */
+@keyframes jugnu-proud {
+  0%   { transform: scale(1) translateY(0); }
+  30%  { transform: scale(1.08) translateY(-5px); }
+  60%  { transform: scale(1.06) translateY(-3px); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+.jugnu--proud .jugnu-body {
+  animation: jugnu-proud 1.2s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ── Confused: head tilt ────────────────────────────────────── */
+@keyframes jugnu-confused {
+  0%, 100% { transform: rotate(0deg); }
+  30%      { transform: rotate(-15deg); }
+  60%      { transform: rotate(12deg); }
+  85%      { transform: rotate(-6deg); }
+}
+
+.jugnu--confused .jugnu-head {
+  animation: jugnu-confused 1.5s ease-in-out;
+}
+
+/* ── Playful: bounce ────────────────────────────────────────── */
+@keyframes jugnu-playful {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  20%      { transform: translateY(-10px) rotate(4deg); }
+  40%      { transform: translateY(0) rotate(-3deg); }
+  60%      { transform: translateY(-7px) rotate(2deg); }
+  80%      { transform: translateY(0) rotate(-1deg); }
+}
+
+.jugnu--playful .jugnu-body {
+  animation: jugnu-playful 1.5s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ── Angry: vibrate ─────────────────────────────────────────── */
+@keyframes jugnu-angry {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  10%      { transform: translateX(-4px) rotate(-3deg); }
+  20%      { transform: translateX(4px) rotate(3deg); }
+  30%      { transform: translateX(-3px) rotate(-2deg); }
+  40%      { transform: translateX(3px) rotate(2deg); }
+  50%      { transform: translateX(-4px) rotate(-3deg); }
+  60%      { transform: translateX(4px) rotate(3deg); }
+  70%      { transform: translateX(-2px) rotate(-1deg); }
+  80%      { transform: translateX(2px) rotate(1deg); }
+}
+
+.jugnu--angry .jugnu-body {
+  animation: jugnu-angry 1.8s ease-in-out;
+}
+
+.jugnu--angry .jugnu-tail {
+  animation: jugnu-tail 0.6s ease-in-out infinite; /* fast angry swish */
+}
+
+/* ── Scoff: head turn away ──────────────────────────────────── */
+@keyframes jugnu-scoff {
+  0%   { transform: rotate(0deg); }
+  20%  { transform: rotate(-18deg); }
+  50%  { transform: rotate(-20deg); }
+  75%  { transform: rotate(-10deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.jugnu--scoff .jugnu-head {
+  animation: jugnu-scoff 1.6s ease-in-out;
+}
+
+/* ── Sulk: slump down ───────────────────────────────────────── */
+@keyframes jugnu-sulk {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30%      { transform: translateY(6px) rotate(-4deg); }
+  60%      { transform: translateY(8px) rotate(-5deg); }
+}
+
+.jugnu--sulk .jugnu-body {
+  animation: jugnu-sulk 3s ease-in-out infinite;
+}
+
+.jugnu--sulk .jugnu-tail {
+  animation: jugnu-tail 5s ease-in-out infinite; /* slow sad tail */
+}
+
+/* ── Shrug: raise both arms ─────────────────────────────────── */
+@keyframes jugnu-shrug-left {
+  0%, 100% { transform: rotate(0deg); }
+  40%      { transform: rotate(-30deg) translateY(-6px); }
+  60%      { transform: rotate(-28deg) translateY(-5px); }
+}
+
+@keyframes jugnu-shrug-right {
+  0%, 100% { transform: rotate(0deg); }
+  40%      { transform: rotate(30deg) translateY(-6px); }
+  60%      { transform: rotate(28deg) translateY(-5px); }
+}
+
+.jugnu--shrug .jugnu-arm-left {
+  animation: jugnu-shrug-left 0.9s ease-in-out;
+  transform-origin: top right;
+}
+
+.jugnu--shrug .jugnu-arm-right {
+  animation: jugnu-shrug-right 0.9s ease-in-out;
+  transform-origin: top left;
+}
+
+/* ── Surprised: jump + scale ────────────────────────────────── */
+@keyframes jugnu-surprised {
+  0%   { transform: scale(1); }
+  20%  { transform: scale(1.15) translateY(-6px); }
+  40%  { transform: scale(0.95) translateY(0); }
+  60%  { transform: scale(1.05) translateY(-3px); }
+  100% { transform: scale(1); }
+}
+
+.jugnu--surprised .jugnu-body {
+  animation: jugnu-surprised 0.6s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ── Sleeping ───────────────────────────────────────────────── */
+@keyframes jugnu-sleep-bob {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50%      { transform: translateY(3px) rotate(-5deg); }
+}
+
+.jugnu--sleeping .jugnu-body {
+  animation: jugnu-sleep-bob 3s ease-in-out infinite;
+}
+
+.jugnu--sleeping .jugnu-eyelid {
+  animation: none;
+  transform: scaleY(0.05);
+}
+
+.jugnu--sleeping .jugnu-tail {
+  animation: jugnu-tail 6s ease-in-out infinite; /* very slow */
+}
+
+@keyframes jugnu-zzz {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.6); }
+  50%  { opacity: 1; transform: translate(8px, -16px) scale(1); }
+  100% { opacity: 0; transform: translate(16px, -32px) scale(0.4); }
+}
+
+.jugnu-zzz {
+  position: absolute;
+  top: 10px;
+  right: 0px;
+  font-size: 16px;
+  color: #a78bfa;
+  font-weight: 800;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.jugnu--sleeping .jugnu-zzz                { animation: jugnu-zzz 2.5s ease-in-out infinite; }
+.jugnu--sleeping .jugnu-zzz:nth-child(2)   { animation-delay: 0.8s;  font-size: 12px; right: -6px; }
+.jugnu--sleeping .jugnu-zzz:nth-child(3)   { animation-delay: 1.6s;  font-size: 9px;  right: -10px; }
+
+/* ── Yawn ───────────────────────────────────────────────────── */
+@keyframes jugnu-yawn-body {
+  0%, 100% { transform: none; }
+  30%      { transform: translateY(-2px) rotate(-2deg); }
+  60%      { transform: translateY(2px) rotate(2deg); }
+}
+
+.jugnu--yawning .jugnu-body {
+  animation: jugnu-yawn-body 2.2s ease-in-out;
+}
+
+/* ── Wave ───────────────────────────────────────────────────── */
+@keyframes jugnu-wave {
+  0%, 100% { transform: rotate(0deg); }
+  15%      { transform: rotate(20deg); }
+  30%      { transform: rotate(-10deg); }
+  45%      { transform: rotate(18deg); }
+  60%      { transform: rotate(-8deg); }
+  75%      { transform: rotate(10deg); }
+}
+
+.jugnu--waving .jugnu-arm-left {
+  animation: jugnu-wave 1.2s ease-in-out;
+  transform-origin: bottom center;
+}
+
+/* ── Banana dance ───────────────────────────────────────────── */
+@keyframes jugnu-banana {
+  0%   { transform: scale(1) rotate(0deg); }
+  20%  { transform: scale(1.1) rotate(-5deg); }
+  40%  { transform: scale(1.15) rotate(5deg); }
+  60%  { transform: scale(1.1) rotate(-3deg); }
+  80%  { transform: scale(1.05) rotate(2deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.jugnu--banana .jugnu-body {
+  animation: jugnu-banana 1.8s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ── Helicopter tail spin ───────────────────────────────────── */
+@keyframes jugnu-helicopter {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.jugnu--helicopter .jugnu-tail {
+  animation: jugnu-helicopter 0.3s linear infinite;
+  transform-origin: 22px 120px;
+}
+
+.jugnu--helicopter .jugnu-body {
+  animation: jugnu-jump 0.55s cubic-bezier(.34,1.56,.64,1) infinite;
+}
+
+/* ── Celebration particles ──────────────────────────────────── */
+@keyframes jugnu-particle {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--px), var(--py)) scale(0); }
+}
+
+.jugnu-particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: jugnu-particle 0.8s ease-out forwards;
+}
+
+.jugnu-particle--emoji {
+  width: auto;
+  height: auto;
+  background: none !important;
+  font-size: 18px;
+  line-height: 1;
+  border-radius: 0;
+}
+
+/* ── Thought bubble ─────────────────────────────────────────── */
+@keyframes jugnu-bubble-in {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.4) translateY(8px); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); }
+}
+
+@keyframes jugnu-bubble-out {
+  0%   { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) scale(0.4) translateY(8px); }
+}
+
+.jugnu-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  top: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  background: rgba(15, 14, 30, 0.92);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  border-radius: 12px;
+  padding: 5px 12px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2e8f0;
+  pointer-events: none;
+  animation: jugnu-bubble-in 0.3s cubic-bezier(.34,1.56,.64,1) both;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  max-width: 200px;
+  text-wrap: balance;
+}
+
+.jugnu-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 9px;
+  height: 9px;
+  background: rgba(15, 14, 30, 0.92);
+  border-right: 1px solid rgba(167, 139, 250, 0.3);
+  border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+.jugnu-bubble--out {
+  animation: jugnu-bubble-out 0.25s ease both;
+}
+
+/* ── Peeking entrance ───────────────────────────────────────── */
+@keyframes jugnu-peek {
+  0%   { transform: translateX(120px) rotate(8deg); }
+  40%  { transform: translateX(60px) rotate(-2deg); }
+  52%  { transform: translateX(65px) rotate(1deg); }
+  100% { transform: translateX(0) rotate(0deg); }
+}
+
+.jugnu--peeking .jugnu-body {
+  animation: jugnu-peek 2s cubic-bezier(.22,1,.36,1);
+}
+
+/* ── Mobile ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .jugnu-wrap { width: 100px; height: 125px; }
+  .jugnu-bubble { font-size: 10px; top: -38px; }
+}
+
+@media (max-width: 480px) {
+  .jugnu-wrap { width: 80px; height: 100px; }
+  .jugnu-bubble { font-size: 9px; top: -34px; }
+}

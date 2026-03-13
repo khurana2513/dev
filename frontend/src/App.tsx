@@ -11,6 +11,7 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import GraceBanner from "./components/GraceBanner";
 import ErrorBoundary from "./components/ErrorBoundary";
+import Jugnu from "./components/Jugnu";
 import Home from "./pages/Home";
 import PaperCreate from "./pages/PaperCreate";
 import PaperAttempt from "./pages/PaperAttempt";
@@ -46,7 +47,8 @@ import { ReactNode } from "react";
 import { useScrollRestoration } from "./hooks/useScrollRestoration";
 import { useInactivityDetection } from "./hooks/useInactivityDetection";
 import InactivityWarningModal from "./components/InactivityWarningModal";
-import { SpeedInsights } from "@vercel/speed-insights/react";
+import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
+import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
 
 
 const queryClient = new QueryClient();
@@ -110,8 +112,8 @@ function AppContent() {
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    const baseUrl = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8001";
-    fetch(`${baseUrl}/public/maintenance-status`)
+    const apiBase = import.meta.env.VITE_API_BASE || "/api";
+    fetch(`${apiBase}/public/maintenance-status`)
       .then((r) => r.json())
       .then((d) => setMaintenance(d))
       .catch(() => setMaintenance({ enabled: false, message: "" })); // fail open
@@ -231,6 +233,7 @@ function AppContent() {
       <BadgeUnlockCinematic />
       <StreakCelebrationOverlay />
       <SuperLetterCinematic />
+      <Jugnu />
     </ErrorBoundary>
   );
 }
@@ -271,7 +274,8 @@ function App() {
         <SubscriptionProvider>
           <NetworkGuard>
             <AppContent />
-            <SpeedInsights />
+            <PWAInstallPrompt />
+            <PWAUpdatePrompt />
           </NetworkGuard>
         </SubscriptionProvider>
       </AuthProvider>

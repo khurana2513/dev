@@ -14,9 +14,24 @@
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
     <link rel="canonical" href="https://talenthublive.com/" />
 
+    <!-- ── PWA: Theme & Viewport ─────────────────────────────────── -->
+    <meta name="theme-color" content="#7C3AED" />
+    <meta name="color-scheme" content="dark light" />
+
     <!-- ── Favicon & Icons ────────────────────────────────────────── -->
     <link rel="icon" type="image/svg+xml" href="/graduation-cap.svg" />
-    <link rel="apple-touch-icon" href="/graduation-cap.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icons/pwa-512x512.png" />
+
+    <!-- ── Apple / iOS PWA ───────────────────────────────────────── -->
+    <!-- iOS uses apple-touch-icon for the home-screen icon (must be PNG) -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- Tell Safari to run this as a standalone app (no browser chrome) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Talent Hub" />
+    <!-- iOS splash screens (one per device size) -->
+    <link rel="apple-touch-startup-image" href="/icons/pwa-512x512.png" />
 
     <!-- ── Open Graph (Facebook / WhatsApp / LinkedIn) ───────────── -->
     <meta property="og:type" content="website" />

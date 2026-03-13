@@ -1,9 +1,35 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { registerSW } from "virtual:pwa-register";
 
 // Permanently dark mode — apply before render to avoid any flash
 document.documentElement.classList.add("dark");
+
+// Register service worker. autoUpdate: the SW updates silently on reload.
+// We still expose an `updateSW` trigger so the app can prompt the user.
+const updateSW = registerSW({
+  onNeedRefresh() {
+    // Dispatch a custom event so any component can listen and show the prompt
+    window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: { updateSW } }));
+  },
+  onOfflineReady() {
+    console.log("✓ [PWA] App is ready to work offline");
+  },
+  onRegisteredSW(swUrl, r) {
+    // Check for SW updates every hour while the tab is open
+    if (r) {
+      setInterval(async () => {
+        if (!(!r.installing && navigator.onLine)) return;
+        const resp = await fetch(swUrl, {
+          cache: "no-store",
+          headers: { "cache": "no-store", "cache-control": "no-cache" },
+        });
+        if (resp?.status === 200) r.update();
+      }, 60 * 60 * 1000);
+    }
+  },
+});
 
 createRoot(document.getElementById("root")!).render(<App />);
 

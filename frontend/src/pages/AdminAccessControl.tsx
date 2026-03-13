@@ -417,7 +417,7 @@ export default function AdminAccessControl() {
 
   // Fetch maintenance status on mount
   useEffect(() => {
-    const base = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8001";
+    const base = import.meta.env.VITE_API_BASE || "/api";
     fetch(`${base}/public/maintenance-status`)
       .then((r) => r.json())
       .then((d: { enabled: boolean; message: string }) => {
@@ -431,7 +431,7 @@ export default function AdminAccessControl() {
   const toggleMaintenance = async () => {
     setMaintenanceLoading(true);
     try {
-      const base = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8001";
+      const base = import.meta.env.VITE_API_BASE || "/api";
       const token = localStorage.getItem("token") ?? "";
       const res = await fetch(`${base}/admin/maintenance/toggle`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
       const d = await res.json();
@@ -445,7 +445,7 @@ export default function AdminAccessControl() {
   const saveMaintenanceMessage = async () => {
     setMaintenanceLoading(true);
     try {
-      const base = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8001";
+      const base = import.meta.env.VITE_API_BASE || "/api";
       const token = localStorage.getItem("token") ?? "";
       const res = await fetch(`${base}/admin/maintenance/message`, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ message: maintenanceMsgDraft }) });
       const d = await res.json();
