@@ -1074,8 +1074,9 @@ export default function PaperAttempt() {
               )}
               
               {block.questions.some(q => q?.isVertical) ? (
-                // Vertical questions
-                <div className="grid grid-cols-10 gap-2">
+                // Vertical questions — scroll horizontally on small screens
+                <div className="overflow-x-auto">
+                <div className="grid grid-cols-10 gap-2 min-w-[480px]">
                   {block.questions.map((question) => (
                     <div key={question.id} className="pa-qcard" style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
                       <div style={{textAlign:'center',marginBottom:4}}>
@@ -1099,6 +1100,7 @@ export default function PaperAttempt() {
                       />
                     </div>
                   ))}
+                </div>
                 </div>
               ) : (
                 // Horizontal questions - fill columns vertically first (like PDF)

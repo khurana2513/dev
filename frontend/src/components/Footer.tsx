@@ -130,10 +130,8 @@ export default function Footer() {
               [PenTool,    "Handwriting",   "/courses/handwriting"],
               [Rocket,     "STEM",          "/courses/stem"],
             ] as [any, string, string][]).map(([Icon, label, href]) => (
-              <Link href={href} key={href}>
-                <a style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
-                  <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
-                </a>
+              <Link href={href} key={href} style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
+                <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
               </Link>
             ))}
           </div>
@@ -146,10 +144,8 @@ export default function Footer() {
               [Brain,    "Mental Math",    "/mental"],
               [Zap,      "Burst Mode",     "/burst"],
             ] as [any, string, string][]).map(([Icon, label, href]) => (
-              <Link href={href} key={label}>
-                <a style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
-                  <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
-                </a>
+              <Link href={href} key={label} style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
+                <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
               </Link>
             ))}
           </div>
@@ -162,10 +158,8 @@ export default function Footer() {
               [Grid3X3,    "Vedic Grid",       "/tools/gridmaster"],
               [Sparkles,   "Magic Square",    "/tools/gridmaster?tab=magic"],
             ] as [any, string, string][]).map(([Icon, label, href]) => (
-              <Link href={href} key={label}>
-                <a style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
-                  <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
-                </a>
+              <Link href={href} key={label} style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
+                <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
               </Link>
             ))}
           </div>

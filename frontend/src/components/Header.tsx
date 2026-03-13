@@ -147,12 +147,12 @@ export default function Header() {
   }
 `}</style>
     <header
-      className={`sticky top-0 z-[200] py-4 transition-all duration-500 ${
+      className={`sticky top-0 z-[200] py-4 transition-all duration-500 backdrop-blur-md ${
         scrolled
-          ? "backdrop-blur-xl border-b border-border/50 shadow-lg"
-          : "bg-transparent"
+          ? "border-b border-border/50 shadow-lg"
+          : ""
       }`}
-      style={scrolled ? { background: "rgba(7,8,15,0.88)" } : undefined}
+      style={{ background: scrolled ? "rgba(7,8,15,0.92)" : "rgba(7,8,15,0.72)" }}
     >
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 relative">
@@ -516,7 +516,7 @@ export default function Header() {
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Calculator className="w-4 h-4" />Abacus Soroban</div>
               </Link>
               <Link href="/tools/gridmaster" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Grid3X3 className="w-4 h-4" />⊞ Vedic Grid</div>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Grid3X3 className="w-4 h-4" />Vedic Grid</div>
               </Link>
               <Link href="/tools/gridmaster/magic" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Sparkles className="w-4 h-4" />Magic Square</div>

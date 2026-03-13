@@ -11,7 +11,7 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import GraceBanner from "./components/GraceBanner";
 import ErrorBoundary from "./components/ErrorBoundary";
-import Jugnu from "./components/Jugnu";
+// import Jugnu from "./components/Jugnu";
 import Home from "./pages/Home";
 import PaperCreate from "./pages/PaperCreate";
 import PaperAttempt from "./pages/PaperAttempt";
@@ -233,7 +233,7 @@ function AppContent() {
       <BadgeUnlockCinematic />
       <StreakCelebrationOverlay />
       <SuperLetterCinematic />
-      <Jugnu />
+      {/* <Jugnu /> */}
     </ErrorBoundary>
   );
 }
