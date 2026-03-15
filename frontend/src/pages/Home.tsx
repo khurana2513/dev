@@ -821,7 +821,7 @@ export default function Home() {
       <div className="th-noise" />
 
       {/* ── HERO SECTION ──────────────────────────────────────────── */}
-      <section style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "flex-start", overflow: "hidden", paddingTop: 30 }}>
+      <section style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "flex-start", overflow: "hidden", paddingTop: 70 }}>
         <div style={{ position: "absolute", top: "8%", left: "3%", width: 650, height: 650, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.10) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", bottom: "8%", right: "3%", width: 420, height: 420, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)", backgroundSize: "60px 60px", maskImage: "radial-gradient(ellipse at 50% 50%, black 30%, transparent 80%)" }} />
