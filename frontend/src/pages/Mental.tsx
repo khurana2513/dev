@@ -102,6 +102,11 @@ const MENTAL_PRESETS: Record<string, PresetOption[]> = {
     { label: "6–9 Rows", presetKey: "rows_6_9", points: 5, apply: s => { s.setA(6); } },
     { label: "10+ Rows", presetKey: "rows_10_up", points: 8, apply: s => { s.setA(10); } },
   ],
+  intl_add_sub: [
+    { label: "3–5 Rows", presetKey: "rows_3_5", points: 3, apply: s => { s.setA(3); } },
+    { label: "6–9 Rows", presetKey: "rows_6_9", points: 5, apply: s => { s.setA(6); } },
+    { label: "10+ Rows", presetKey: "rows_10_up", points: 8, apply: s => { s.setA(10); } },
+  ],
 };
 
 /** Map frontend operation name → backend engine operation name */
@@ -113,6 +118,9 @@ const _OP_MAP_FE: Record<string, string> = {
 };
 function toEngineOp(op: string) { return _OP_MAP_FE[op] || op; }
 
+/** Returns true for all add/sub family operations that use sequential row display */
+const isAddSubFamily = (t: string): boolean => t === "add_sub" || t === "integer_add_sub" || t === "intl_add_sub";
+
 type OperationType = 
   | "multiplication" 
   | "division" 
@@ -120,6 +128,7 @@ type OperationType =
   | "decimal_multiplication"
   | "decimal_division"
   | "integer_add_sub"
+  | "intl_add_sub"
   | "lcm"
   | "gcd"
   | "square_root"
@@ -178,6 +187,14 @@ interface IntegerAddSubQuestion {
   answer: number;
 }
 
+interface IntlAddSubQuestion {
+  id: number;
+  type: "intl_add_sub";
+  numbers: number[];
+  operators: string[];
+  answer: number;
+}
+
 interface LCMQuestion {
   id: number;
   type: "lcm";
@@ -223,6 +240,7 @@ type Question =
   | DecimalMultiplicationQuestion
   | DecimalDivisionQuestion
   | IntegerAddSubQuestion
+  | IntlAddSubQuestion
   | LCMQuestion
   | GCDQuestion
   | SquareRootQuestion
@@ -480,6 +498,10 @@ export default function Mental() {
   const [integerAddSubDigits, setIntegerAddSubDigits] = useState(2);
   const [integerAddSubRows, setIntegerAddSubRows] = useState(3);
   
+  // Intl Add/Sub inputs
+  const [intlAddSubPreset, setIntlAddSubPreset] = useState<"1_2" | "2_3">("1_2");
+  const [intlAddSubRows, setIntlAddSubRows] = useState(3);
+  
   // LCM/GCD inputs
   const [lcmGcdFirstDigits, setLcmGcdFirstDigits] = useState(2);
   const [lcmGcdSecondDigits, setLcmGcdSecondDigits] = useState(2);
@@ -541,6 +563,7 @@ export default function Mental() {
     if (op === "percentage") return { setA: setPercentageNumberDigits };
     if (op === "add_sub") return { setA: setAddSubRows };
     if (op === "integer_add_sub") return { setA: setIntegerAddSubRows };
+    if (op === "intl_add_sub") return { setA: setIntlAddSubRows };
     return {};
   };
 
@@ -565,9 +588,9 @@ export default function Mental() {
     if (op === "square_root" || op === "cube_root") return `${rootDigits}d`;
     if (op === "percentage") return `${percentageNumberDigits}d`;
     if (op === "tables") return "1x1";
-    // add_sub / integer_add_sub: derive tier from actual row count
-    if (op === "add_sub" || op === "integer_add_sub") {
-      const rows = op === "add_sub" ? addSubRows : integerAddSubRows;
+    // add_sub / integer_add_sub / intl_add_sub: derive tier from actual row count
+    if (isAddSubFamily(op)) {
+      const rows = op === "add_sub" ? addSubRows : op === "integer_add_sub" ? integerAddSubRows : intlAddSubRows;
       if (rows <= 5) return "rows_3_5";
       if (rows <= 9) return "rows_6_9";
       return "rows_10_up";
@@ -579,9 +602,9 @@ export default function Mental() {
   const currentPointsPreview = useMemo(() => {
     if (configMode === "custom") return 0;
     const engineOp = toEngineOp(operationType);
-    // For add_sub / integer_add_sub, points depend on row count
-    if (operationType === "add_sub" || operationType === "integer_add_sub") {
-      const rows = operationType === "add_sub" ? addSubRows : integerAddSubRows;
+    // For add_sub / integer_add_sub / intl_add_sub, points depend on row count
+    if (isAddSubFamily(operationType)) {
+      const rows = operationType === "add_sub" ? addSubRows : operationType === "integer_add_sub" ? integerAddSubRows : intlAddSubRows;
       if (rows <= 5) return getPresetPoints(engineOp, "rows_3_5");
       if (rows <= 9) return getPresetPoints(engineOp, "rows_6_9");
       return getPresetPoints(engineOp, "rows_10_up");
@@ -589,7 +612,7 @@ export default function Mental() {
     const pk = selectedPresetKey || derivePresetKey();
     return getPresetPoints(engineOp, pk);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configMode, operationType, selectedPresetKey, pointsLookup, addSubRows, integerAddSubRows, multiplicandDigits, multiplierDigits, dividendDigits, divisorDigits, decimalMultMultiplicandDigits, decimalMultMultiplierDigits, decimalDivDividendDigits, decimalDivDivisorDigits, lcmGcdFirstDigits, lcmGcdSecondDigits, rootDigits, percentageNumberDigits]);
+  }, [configMode, operationType, selectedPresetKey, pointsLookup, addSubRows, integerAddSubRows, intlAddSubRows, multiplicandDigits, multiplierDigits, dividendDigits, divisorDigits, decimalMultMultiplicandDigits, decimalMultMultiplierDigits, decimalDivDividendDigits, decimalDivDivisorDigits, lcmGcdFirstDigits, lcmGcdSecondDigits, rootDigits, percentageNumberDigits]);
   
   const [isStarted, setIsStarted] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -686,6 +709,8 @@ export default function Mental() {
         decimalDivDivisorDigits,
         integerAddSubDigits,
         integerAddSubRows,
+        intlAddSubPreset,
+        intlAddSubRows,
         lcmGcdFirstDigits,
         lcmGcdSecondDigits,
         rootDigits,
@@ -758,6 +783,8 @@ export default function Mental() {
       if (state.addSubRows !== undefined) setAddSubRows(state.addSubRows);
       if (state.integerAddSubDigits !== undefined) setIntegerAddSubDigits(state.integerAddSubDigits);
       if (state.integerAddSubRows !== undefined) setIntegerAddSubRows(state.integerAddSubRows);
+      if (state.intlAddSubPreset !== undefined) setIntlAddSubPreset(state.intlAddSubPreset);
+      if (state.intlAddSubRows !== undefined) setIntlAddSubRows(state.intlAddSubRows);
       if (state.timeLimit !== undefined) setTimeLimit(state.timeLimit);
       if (state.addSubRowTime !== undefined) setAddSubRowTime(state.addSubRowTime);
       
@@ -808,7 +835,7 @@ export default function Mental() {
         setIsStarted(true);
         setSessionState("recovered");
         // Resume timer if needed
-        if (operationType === "add_sub" || operationType === "integer_add_sub") {
+        if (isAddSubFamily(operationType)) {
           if (isShowingAnswerTime) {
             startTimer();
           } else {
@@ -1021,6 +1048,61 @@ export default function Mental() {
         questionsList.push({
           id: i + 1,
           type: "integer_add_sub",
+          numbers,
+          operators,
+          answer: result
+        });
+      }
+    } else if (operationType === "intl_add_sub") {
+      // International pattern: each number gets a random digit count from one of two ranges
+      const digitRanges: [number, number] = intlAddSubPreset === "1_2" ? [1, 2] : [2, 3];
+      
+      for (let i = 0; i < count; i++) {
+        const numbers: number[] = [];
+        const operators: string[] = [];
+        let result = 0;
+        
+        // Generate first number (always positive, random digit count from range)
+        const firstDigitCount = digitRanges[Math.floor(Math.random() * 2)];
+        const firstMin = firstDigitCount === 1 ? 1 : Math.pow(10, firstDigitCount - 1);
+        const firstMax = Math.pow(10, firstDigitCount) - 1;
+        const firstNum = Math.floor(Math.random() * (firstMax - firstMin + 1)) + firstMin;
+        numbers.push(firstNum);
+        result = firstNum;
+        
+        // Generate remaining numbers with random operators, ensuring result never goes negative
+        for (let j = 1; j < intlAddSubRows; j++) {
+          const digitCount = digitRanges[Math.floor(Math.random() * 2)];
+          const numMin = digitCount === 1 ? 1 : Math.pow(10, digitCount - 1);
+          const numMax = Math.pow(10, digitCount) - 1;
+          const num = Math.floor(Math.random() * (numMax - numMin + 1)) + numMin;
+          
+          // If current result is less than num, we must add (can't subtract or result would go negative)
+          const isAdd = result < num ? true : Math.random() > 0.5;
+          
+          operators.push(isAdd ? "+" : "-");
+          numbers.push(num);
+          result += isAdd ? num : -num;
+          
+          // Safety check: if result went negative, force add
+          if (result < 0) {
+            operators[operators.length - 1] = "+";
+            result = numbers.slice(0, -1).reduce((sum, n, idx) => {
+              if (idx === 0) return n;
+              return operators[idx - 1] === "+" ? sum + n : sum - n;
+            }, numbers[0]) + num;
+          }
+        }
+        
+        // Ensure final answer is positive (regenerate if negative)
+        if (result < 0) {
+          i--;
+          continue;
+        }
+        
+        questionsList.push({
+          id: i + 1,
+          type: "intl_add_sub",
           numbers,
           operators,
           answer: result
@@ -1261,7 +1343,7 @@ export default function Mental() {
     // Use setTimeout to ensure state is updated before accessing questions
     setTimeout(() => {
       console.log("🟢 [GAME] Starting question display, operationType:", operationType);
-      if (operationType === "add_sub" || operationType === "integer_add_sub") {
+      if (isAddSubFamily(operationType)) {
         startAddSubQuestion();
       } else {
         const effectiveTimeLimit = getTimeLimitForMode(difficultyMode, operationType);
@@ -1289,7 +1371,7 @@ export default function Mental() {
     let effectiveTimeLimit: number;
     if (customTimeLimit !== undefined) {
       effectiveTimeLimit = customTimeLimit;
-    } else if ((operationType === "add_sub" || operationType === "integer_add_sub") && isShowingAnswerTimeRef.current) {
+    } else if (isAddSubFamily(operationType) && isShowingAnswerTimeRef.current) {
       // For add/sub answer time, always use 15s
       effectiveTimeLimit = addSubAnswerTime;
     } else {
@@ -1342,11 +1424,11 @@ export default function Mental() {
     const q = questionsRef.current[currentQuestionIndexRef.current];
     
     // Validate question exists and is correct type
-    if (!q || (q.type !== "add_sub" && q.type !== "integer_add_sub")) {
+    if (!q || !isAddSubFamily(q.type)) {
       return;
     }
     
-    const currentQ = q as AddSubQuestion | IntegerAddSubQuestion;
+    const currentQ = q as AddSubQuestion | IntegerAddSubQuestion | IntlAddSubQuestion;
     
     // Validate question has numbers
     if (!currentQ.numbers || currentQ.numbers.length === 0) {
@@ -1444,7 +1526,7 @@ export default function Mental() {
     isProcessingSubmissionRef.current = true;
     
     // Check if we can submit (for add/sub operations)
-    if ((operationType === "add_sub" || operationType === "integer_add_sub") && !isShowingAnswerTimeRef.current) {
+    if (isAddSubFamily(operationType) && !isShowingAnswerTimeRef.current) {
       // Can't submit during row display phase
       isProcessingSubmissionRef.current = false;
       return;
@@ -1554,7 +1636,7 @@ export default function Mental() {
       // Use setTimeout to ensure state updates are processed before starting next question
       setTimeout(() => {
         isProcessingSubmissionRef.current = false;
-      if (operationType === "add_sub" || operationType === "integer_add_sub") {
+      if (isAddSubFamily(operationType)) {
           // For add/sub, start the next question
           startAddSubQuestion();
       } else {
@@ -1579,7 +1661,7 @@ export default function Mental() {
       return timeLimit;
     }
     
-    if (opType === "add_sub" || opType === "integer_add_sub") {
+    if (isAddSubFamily(opType)) {
       if (mode === "easy") return 1.8;
       if (mode === "medium") return 1.2;
       if (mode === "hard") return 0.6;
@@ -1597,7 +1679,7 @@ export default function Mental() {
       const newTimeLimit = getTimeLimitForMode(difficultyMode, operationType);
       setTimeLimit(newTimeLimit);
       // For add/sub operations, also update addSubRowTime (duration)
-      if (operationType === "add_sub" || operationType === "integer_add_sub") {
+      if (isAddSubFamily(operationType)) {
         setAddSubRowTime(newTimeLimit);
       }
     }
@@ -1726,14 +1808,15 @@ export default function Mental() {
         // Determine row_count for add_sub family
         const effectiveRowCount = (operationType === "add_sub") ? addSubRows
           : (operationType === "integer_add_sub") ? integerAddSubRows
+          : (operationType === "intl_add_sub") ? intlAddSubRows
           : undefined;
 
         // Determine the preset_key to send
-        // For add_sub/integer_add_sub, always derive from actual row count so
+        // For add_sub/integer_add_sub/intl_add_sub, always derive from actual row count so
         // the correct tier (rows_3_5 / rows_6_9 / rows_10_up) is sent even though
         // there are no longer any preset "tiles" to set selectedPresetKey.
         const effectivePresetKey = configMode === "standard"
-          ? ((operationType === "add_sub" || operationType === "integer_add_sub")
+          ? (isAddSubFamily(operationType)
               ? derivePresetKey()
               : (selectedPresetKey || derivePresetKey()))
           : undefined; // custom → backend resolves to 0 pts
@@ -2037,7 +2120,7 @@ export default function Mental() {
   // Auto-focus input when question changes (for multiplication and division, or when answer time starts for add/sub)
   useEffect(() => {
     if (isStarted && currentQuestion) {
-      if ((currentQuestion.type !== "add_sub" && currentQuestion.type !== "integer_add_sub") || isShowingAnswerTime) {
+      if (!isAddSubFamily(currentQuestion.type) || isShowingAnswerTime) {
         // Focus on input after a short delay to ensure it's rendered
         const timer = setTimeout(() => {
           if (answerInputRef.current) {
@@ -2052,7 +2135,7 @@ export default function Mental() {
   // Track start time for questions (for non-add/sub operations)
   useEffect(() => {
     if (isStarted && currentQuestionIndex >= 0 && 
-        operationType !== "add_sub" && operationType !== "integer_add_sub") {
+        !isAddSubFamily(operationType)) {
       // Only track for non-add/sub operations (add/sub tracks when answer time starts)
       if (!attemptTimesRef.current.has(currentQuestionIndex)) {
         attemptTimesRef.current.set(currentQuestionIndex, Date.now());
@@ -2195,7 +2278,7 @@ export default function Mental() {
     const actualCorrect = results.filter(r => r.isCorrect).length;
     const wrongCount_r = results.filter(r => !r.isCorrect).length;
     const percentage = (actualCorrect / numQuestions) * 100;
-    const opLabels: Record<string, string> = { multiplication:"Multiplication", division:"Division", add_sub:"Add/Subtract", integer_add_sub:"Integer Add/Sub", decimal_multiplication:"Decimal Multiplication", decimal_division:"Decimal Division", lcm:"LCM", gcd:"GCD", square_root:"Square Root", cube_root:"Cube Root", percentage:"Percentage" };
+    const opLabels: Record<string, string> = { multiplication:"Multiplication", division:"Division", add_sub:"Add/Subtract", integer_add_sub:"Integer Add/Sub", intl_add_sub:"Intl Add/Sub", decimal_multiplication:"Decimal Multiplication", decimal_division:"Decimal Division", lcm:"LCM", gcd:"GCD", square_root:"Square Root", cube_root:"Cube Root", percentage:"Percentage" };
 
     return (
       <div style={{minHeight:"100vh",background:"var(--mm-bg)",position:"relative",overflowX:"hidden"}}>
@@ -2304,8 +2387,8 @@ export default function Mental() {
             const formatQuestionText = (q: Question) => {
               if (q.type === "multiplication") return `${q.multiplicand} × ${q.multiplier} = ?`;
               if (q.type === "division") return `${q.dividend} ÷ ${q.divisor} = ?`;
-              if (q.type === "add_sub" || q.type === "integer_add_sub") {
-                const aq = q as AddSubQuestion | IntegerAddSubQuestion;
+              if (isAddSubFamily(q.type)) {
+                const aq = q as AddSubQuestion | IntegerAddSubQuestion | IntlAddSubQuestion;
                 return aq.numbers.map((n, i) => i === 0 ? String(n) : `${aq.operators[i-1]} ${n}`).join(" ") + " = ?";
               }
               if (q.type === "decimal_multiplication") return `${q.multiplicand.toFixed(1)} × ${q.multiplier.toFixed(q.multiplierDecimals)} = ?`;
@@ -2328,7 +2411,7 @@ export default function Mental() {
                 if (q.type !== r.question.type) return false;
                 if (q.type === "multiplication" && r.question.type === "multiplication") return q.multiplicand === r.question.multiplicand && q.multiplier === r.question.multiplier;
                 if (q.type === "division" && r.question.type === "division") return q.dividend === r.question.dividend && q.divisor === r.question.divisor;
-                if ((q.type === "add_sub" || q.type === "integer_add_sub") && (r.question.type === "add_sub" || r.question.type === "integer_add_sub")) return JSON.stringify(q.numbers) === JSON.stringify((r.question as any).numbers);
+                if (isAddSubFamily(q.type) && isAddSubFamily(r.question.type)) return JSON.stringify(q.numbers) === JSON.stringify((r.question as any).numbers);
                 if (q.type === "decimal_multiplication" && r.question.type === "decimal_multiplication") return Math.abs(q.multiplicand - r.question.multiplicand) < 0.01 && Math.abs(q.multiplier - r.question.multiplier) < 0.01;
                 if (q.type === "decimal_division" && r.question.type === "decimal_division") return Math.abs(q.dividend - r.question.dividend) < 0.01 && Math.abs(q.divisor - r.question.divisor) < 0.01;
                 if (q.type === "lcm" && r.question.type === "lcm") return q.first === r.question.first && q.second === r.question.second;
@@ -2487,7 +2570,7 @@ export default function Mental() {
     ) : null;
 
     // Handle Add/Sub question display (row by row)
-    if ((currentQuestion.type === "add_sub" || currentQuestion.type === "integer_add_sub") && !isShowingAnswerTime) {
+    if (isAddSubFamily(currentQuestion.type) && !isShowingAnswerTime) {
       return (
         <div style={{minHeight:"100vh",background:"var(--mm-bg)",position:"relative",display:"flex",flexDirection:"column"}}>
           <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse 50% 40% at 50% 20%, rgba(123,92,229,.05), transparent 70%)",pointerEvents:"none"}} />
@@ -2567,8 +2650,8 @@ export default function Mental() {
                   {/* Row counter */}
                   <p style={{fontFamily:"var(--mm-fm)",fontSize:13,color:"var(--mm-muted)",marginTop:48,textAlign:"center"}}>
                     {(() => {
-                      if (currentQuestion.type === "add_sub" || currentQuestion.type === "integer_add_sub") {
-                        const addSubQ = currentQuestion as AddSubQuestion | IntegerAddSubQuestion;
+                      if (isAddSubFamily(currentQuestion.type)) {
+                        const addSubQ = currentQuestion as AddSubQuestion | IntegerAddSubQuestion | IntlAddSubQuestion;
                         return `${addSubDisplayIndex + 1} / ${addSubQ.numbers.length}`;
                       }
                       return `${addSubDisplayIndex + 1}`;
@@ -2588,9 +2671,9 @@ export default function Mental() {
       questionDisplay = `${currentQuestion.multiplicand} × ${currentQuestion.multiplier}`;
     } else if (currentQuestion.type === "division") {
       questionDisplay = `${currentQuestion.dividend} ÷ ${currentQuestion.divisor}`;
-    } else if (currentQuestion.type === "add_sub" || currentQuestion.type === "integer_add_sub") {
+    } else if (isAddSubFamily(currentQuestion.type)) {
       // Show full question during answer time
-      const addSubQ = currentQuestion as AddSubQuestion | IntegerAddSubQuestion;
+      const addSubQ = currentQuestion as AddSubQuestion | IntegerAddSubQuestion | IntlAddSubQuestion;
       questionDisplay = addSubQ.numbers.map((num, idx) => {
         if (idx === 0) return String(num);
         return `${addSubQ.operators[idx - 1]} ${num}`;
@@ -2611,7 +2694,7 @@ export default function Mental() {
       questionDisplay = `${currentQuestion.percentage}% of ${currentQuestion.number}`;
     }
 
-    const effectiveLimit = (isShowingAnswerTime || (currentQuestion.type !== "add_sub" && currentQuestion.type !== "integer_add_sub")) ? timeLimit : addSubAnswerTime;
+    const effectiveLimit = (isShowingAnswerTime || !isAddSubFamily(currentQuestion.type)) ? timeLimit : addSubAnswerTime;
     const timerRatio = timeRemaining / effectiveLimit;
     const timerColor = timerRatio > 0.5 ? "var(--mm-grn)" : timerRatio > 0.25 ? "var(--mm-gld)" : "var(--mm-red)";
     const timerBg = timerRatio > 0.5 ? "rgba(16,185,129,.15)" : timerRatio > 0.25 ? "rgba(245,158,11,.15)" : "rgba(239,68,68,.15)";
@@ -2633,7 +2716,7 @@ export default function Mental() {
             </div>
 
             {/* Timer pill */}
-            {(isShowingAnswerTime || (currentQuestion.type !== "add_sub" && currentQuestion.type !== "integer_add_sub")) && (
+            {(isShowingAnswerTime || !isAddSubFamily(currentQuestion.type)) && (
               <div style={{display:"flex",justifyContent:"center",marginBottom:24}}>
                 <div
                   className={timerRatio < 0.25 ? "mm-timer-urgent" : ""}
@@ -2689,17 +2772,17 @@ export default function Mental() {
                   autoComplete="off"
                   className={`mm-input${flashColor === "green" ? " correct" : flashColor === "red" ? " wrong" : ""}`}
                   style={{flex:1,paddingRight:56}}
-                  autoFocus={!((currentQuestion.type === "add_sub" || currentQuestion.type === "integer_add_sub") && !isShowingAnswerTime)}
-                  disabled={(currentQuestion.type === "add_sub" || currentQuestion.type === "integer_add_sub") && !isShowingAnswerTime}
+                  autoFocus={!(isAddSubFamily(currentQuestion.type) && !isShowingAnswerTime)}
+                  disabled={isAddSubFamily(currentQuestion.type) && !isShowingAnswerTime}
                   ref={(input) => {
                     answerInputRef.current = input;
                   }}
                 />
                 <button
                   onClick={handleSubmitAnswer}
-                  disabled={currentAnswer === "" || ((currentQuestion.type === "add_sub" || currentQuestion.type === "integer_add_sub") && !isShowingAnswerTime)}
-                  style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",width:42,height:42,borderRadius:12,background:"linear-gradient(135deg, var(--mm-grn), #059669)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",transition:"all .2s ease",boxShadow:"0 4px 16px rgba(16,185,129,.2)",opacity:currentAnswer===""||((currentQuestion.type==="add_sub"||currentQuestion.type==="integer_add_sub")&&!isShowingAnswerTime)?0.45:1} as React.CSSProperties}
-                  onMouseEnter={e=>{if(!(currentAnswer===""||((currentQuestion.type==="add_sub"||currentQuestion.type==="integer_add_sub")&&!isShowingAnswerTime))){(e.currentTarget as HTMLButtonElement).style.transform="translateY(-50%) scale(1.05)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 6px 20px rgba(16,185,129,.35)"}}}
+                  disabled={currentAnswer === "" || (isAddSubFamily(currentQuestion.type) && !isShowingAnswerTime)}
+                  style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",width:42,height:42,borderRadius:12,background:"linear-gradient(135deg, var(--mm-grn), #059669)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",transition:"all .2s ease",boxShadow:"0 4px 16px rgba(16,185,129,.2)",opacity:currentAnswer===""||( isAddSubFamily(currentQuestion.type)&&!isShowingAnswerTime)?0.45:1} as React.CSSProperties}
+                  onMouseEnter={e=>{if(!(currentAnswer===""||( isAddSubFamily(currentQuestion.type)&&!isShowingAnswerTime))){(e.currentTarget as HTMLButtonElement).style.transform="translateY(-50%) scale(1.05)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 6px 20px rgba(16,185,129,.35)"}}}
                   onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform="translateY(-50%)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 4px 16px rgba(16,185,129,.2)"}}
                 >
                   <ChevronRight style={{width:20,height:20}} />
@@ -2847,6 +2930,7 @@ export default function Mental() {
                 </optgroup>
                 <optgroup label="Advanced Operations">
                   <option value="integer_add_sub">Integer Add/Subtract</option>
+                  <option value="intl_add_sub">Intl Add/Sub - Beta</option>
                   <option value="decimal_multiplication">Decimal Multiplication</option>
                   <option value="decimal_division">Decimal Division</option>
                   <option value="lcm">LCM</option>
@@ -2915,14 +2999,56 @@ export default function Mental() {
             {configMode === "standard" && (() => {
               const presets = MENTAL_PRESETS[operationType] || [];
               const engineOp = toEngineOp(operationType);
-              const isAddSub = operationType === "add_sub" || operationType === "integer_add_sub";
+              const isAddSub = isAddSubFamily(operationType);
+              const isIntl = operationType === "intl_add_sub";
               const curDigits = operationType === "add_sub" ? addSubDigits : integerAddSubDigits;
               const setDigits = operationType === "add_sub" ? setAddSubDigits : setIntegerAddSubDigits;
-              const curRows = operationType === "add_sub" ? addSubRows : integerAddSubRows;
-              const setRows = operationType === "add_sub" ? setAddSubRows : setIntegerAddSubRows;
+              const curRows = operationType === "add_sub" ? addSubRows : operationType === "integer_add_sub" ? integerAddSubRows : intlAddSubRows;
+              const setRows = operationType === "add_sub" ? setAddSubRows : operationType === "integer_add_sub" ? setIntegerAddSubRows : setIntlAddSubRows;
               return (
                 <>
-                  {isAddSub ? (
+                  {isIntl ? (
+                    /* Intl Add/Sub: digit-range preset buttons + row input */
+                    <>
+                      <div>
+                        <label style={{display:"block",fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"#c8cce0",marginBottom:8}}>Digit Range</label>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                          {(["1_2","2_3"] as const).map(p => {
+                            const active = intlAddSubPreset === p;
+                            return (
+                              <button
+                                key={p}
+                                onClick={() => setIntlAddSubPreset(p)}
+                                style={{
+                                  padding:"14px 10px",
+                                  borderRadius:14,
+                                  border: active ? "2px solid var(--mm-pur2)" : "1.5px solid var(--mm-bdr2)",
+                                  background: active ? "rgba(123,92,229,.15)" : "var(--mm-surf2)",
+                                  cursor:"pointer",
+                                  transition:"all .2s",
+                                  textAlign:"center" as const,
+                                  boxShadow: active ? "0 0 16px rgba(123,92,229,.25)" : "none",
+                                }}
+                              >
+                                <div style={{fontFamily:"var(--mm-fd)",fontSize:15,fontWeight:800,color: active ? "var(--mm-pur2)" : "var(--mm-whi)",letterSpacing:"-.01em"}}>{p === "1_2" ? "1 & 2 Digits" : "2 & 3 Digits"}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{display:"block",fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"#c8cce0",marginBottom:8}}>Number of Rows <span style={{fontWeight:400,opacity:.6}}>(3–20)</span></label>
+                        <NumericInput
+                          value={curRows}
+                          onChange={setRows}
+                          min={3}
+                          max={20}
+                          className="mm-form-input"
+                          style={{width:"100%",padding:"12px 16px",background:"var(--mm-surf2)",border:"1.5px solid var(--mm-bdr2)",borderRadius:12,fontFamily:"var(--mm-fm)",fontSize:14,fontWeight:600,color:"var(--mm-whi)",outline:"none",boxSizing:"border-box" as const}}
+                        />
+                      </div>
+                    </>
+                  ) : isAddSub ? (
                     /* Add/Sub & Integer Add/Sub: free-form digit + row inputs */
                     <>
                       <div>
@@ -3017,8 +3143,8 @@ export default function Mental() {
                   {/* Time Limit Slider (always shown in standard mode) */}
                   <div style={{background:"var(--mm-surf2)",border:"1px solid var(--mm-bdr)",borderRadius:16,padding:20}}>
                     <TimeLimitSlider
-                      value={operationType === "add_sub" || operationType === "integer_add_sub" ? addSubRowTime : timeLimit}
-                      onChange={operationType === "add_sub" || operationType === "integer_add_sub" ? setAddSubRowTime : setTimeLimit}
+                      value={isAddSubFamily(operationType) ? addSubRowTime : timeLimit}
+                      onChange={isAddSubFamily(operationType) ? setAddSubRowTime : setTimeLimit}
                       operationType={operationType}
                       difficultyMode={difficultyMode}
                       onDifficultyChange={setDifficultyMode}
@@ -3359,6 +3485,59 @@ export default function Mental() {
                     </div>
               </>
             )}
+
+            {/* Intl Add/Sub specific inputs */}
+            {operationType === "intl_add_sub" && (
+              <>
+                <div>
+                  <label style={{display:"block",fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"#c8cce0",marginBottom:8}}>Digit Range</label>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    {(["1_2","2_3"] as const).map(p => {
+                      const active = intlAddSubPreset === p;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setIntlAddSubPreset(p)}
+                          style={{
+                            padding:"14px 10px",
+                            borderRadius:14,
+                            border: active ? "2px solid var(--mm-pur2)" : "1.5px solid var(--mm-bdr2)",
+                            background: active ? "rgba(123,92,229,.15)" : "var(--mm-surf2)",
+                            cursor:"pointer",
+                            transition:"all .2s",
+                            textAlign:"center" as const,
+                            boxShadow: active ? "0 0 16px rgba(123,92,229,.25)" : "none",
+                          }}
+                        >
+                          <div style={{fontFamily:"var(--mm-fd)",fontSize:15,fontWeight:800,color: active ? "var(--mm-pur2)" : "var(--mm-whi)",letterSpacing:"-.01em"}}>{p === "1_2" ? "1 & 2 Digits" : "2 & 3 Digits"}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <label style={{display:"block",fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"#c8cce0",marginBottom:8}}>Number of Rows <span style={{fontWeight:400,opacity:.6}}>(3–20)</span></label>
+                  <NumericInput
+                    value={intlAddSubRows}
+                    onChange={setIntlAddSubRows}
+                    min={3}
+                    max={20}
+                    className="mm-form-input"
+                    style={{width:"100%",padding:"12px 16px",background:"var(--mm-surf2)",border:"1.5px solid var(--mm-bdr2)",borderRadius:12,fontFamily:"var(--mm-fm)",fontSize:14,fontWeight:600,color:"var(--mm-whi)",outline:"none",boxSizing:"border-box" as const}}
+                  />
+                </div>
+                {/* Time Limit Slider for Intl Add/Sub - controls addSubRowTime */}
+                <div style={{background:"var(--mm-surf2)",border:"1px solid var(--mm-bdr)",borderRadius:16,padding:20}}>
+                  <TimeLimitSlider
+                    value={addSubRowTime}
+                    onChange={setAddSubRowTime}
+                    operationType={operationType}
+                    difficultyMode={difficultyMode}
+                    onDifficultyChange={setDifficultyMode}
+                  />
+                </div>
+              </>
+            )}
             </>
             )}
           </div>
@@ -3374,7 +3553,7 @@ export default function Mental() {
           >
             <Play style={{width:20,height:20}} />
             Start Practice
-            <span style={{fontFamily:"var(--mm-fm)",fontSize:12,fontWeight:400,opacity:.55,marginLeft:4}}>{numQuestions} questions · {operationType==="add_sub"||operationType==="integer_add_sub" ? `${addSubRowTime.toFixed(1)}s/row` : `${timeLimit}s each`}</span>
+            <span style={{fontFamily:"var(--mm-fm)",fontSize:12,fontWeight:400,opacity:.55,marginLeft:4}}>{numQuestions} questions · {isAddSubFamily(operationType) ? `${addSubRowTime.toFixed(1)}s/row` : `${timeLimit}s each`}</span>
             {currentPointsPreview > 0 && (
               <span style={{marginLeft:6,padding:"2px 8px",borderRadius:8,fontSize:11,fontWeight:700,fontFamily:"var(--mm-fm)",background:"rgba(245,158,11,.2)",color:"#F59E0B"}}>+{currentPointsPreview}/correct</span>
             )}
@@ -3451,7 +3630,7 @@ export default function Mental() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {[
                       "multiplication", "division", "add_sub", "decimal_multiplication",
-                      "decimal_division", "integer_add_sub", "lcm", "gcd", 
+                      "decimal_division", "integer_add_sub", "intl_add_sub", "lcm", "gcd", 
                       "square_root", "cube_root", "percentage"
                     ].map((type) => (
                       <button
@@ -3524,7 +3703,7 @@ export default function Mental() {
                   )}
 
                   {/* Add/Sub and Integer Add/Sub */}
-                  {(operationType === "add_sub" || operationType === "integer_add_sub") && (
+                  {isAddSubFamily(operationType) && (
                     <>
                       <div className="grid grid-cols-2 gap-4">
                         <div>

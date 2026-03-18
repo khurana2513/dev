@@ -15,7 +15,7 @@ export default function TimeLimitSlider({
   difficultyMode,
   onDifficultyChange,
 }: TimeLimitSliderProps) {
-  const isAddSubType = operationType === "add_sub" || operationType === "integer_add_sub";
+  const isAddSubType = operationType === "add_sub" || operationType === "integer_add_sub" || operationType === "intl_add_sub";
   
   // For Add/Sub: 0.1s to 5.0s with steps: 0.1s (0.1-1.0), then 0.5s (1.5-5.0)
   // For Others: 1s to 40s with 1s steps
