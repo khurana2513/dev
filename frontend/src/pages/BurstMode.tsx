@@ -477,6 +477,7 @@ export default function BurstMode() {
 
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
+  const pageTopRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const questionStartRef = useRef<number>(Date.now());
   const sessionStartRef = useRef<number>(Date.now());
@@ -605,6 +606,7 @@ export default function BurstMode() {
     setExitConfirm(false);
     recentTextsRef.current = [];
     window.scrollTo({ top: 0, behavior: "smooth" });
+    pageTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   // Countdown effect
@@ -820,21 +822,25 @@ export default function BurstMode() {
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
-  // Fullscreen toggle
-  const toggleFullScreen = useCallback(() => {
-    if (!document.fullscreenElement) {
+  // Fullscreen toggle (cross-platform: web Fullscreen API + Capacitor CSS fallback)
+  const toggleFullScreen = useCallback(async () => {
+    const { isFullscreen, enterFullscreen, exitFullscreen } = await import("@/lib/fullscreen");
+    if (!isFullscreen()) {
       window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-      document.documentElement.requestFullscreen().catch(() => {});
+      await enterFullscreen();
       setIsFullScreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
+      await exitFullscreen();
       setIsFullScreen(false);
     }
   }, []);
 
   // Listen for fullscreen changes & F key
   useEffect(() => {
-    const onFSChange = () => setIsFullScreen(!!document.fullscreenElement);
+    const onFSChange = async () => {
+      const { isFullscreen } = await import("@/lib/fullscreen");
+      setIsFullScreen(isFullscreen());
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "f" || e.key === "F") {
         if (phase !== "playing") return;
@@ -863,8 +869,10 @@ export default function BurstMode() {
   }, [isFullScreen]);
 
   useEffect(() => {
-    if (phase !== "playing" && phase !== "countdown" && document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
+    if (phase !== "playing" && phase !== "countdown") {
+      import("@/lib/fullscreen").then(({ isFullscreen, exitFullscreen }) => {
+        if (isFullscreen()) exitFullscreen();
+      });
     }
   }, [phase]);
 
@@ -880,7 +888,7 @@ export default function BurstMode() {
   // Selection phase
   if (phase === "select") {
     return (
-      <div style={{ minHeight: "100vh", background: "var(--bm-bg)", position: "relative", overflowX: "hidden" }}>
+      <div ref={pageTopRef} style={{ minHeight: "100vh", background: "var(--bm-bg)", position: "relative", overflowX: "hidden" }}>
 
         {/* Tutorial Guide Modal */}
         {showGuide && (

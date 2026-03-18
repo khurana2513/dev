@@ -64,7 +64,9 @@ export default function Header() {
   }, [mobileMenuOpen]);
 
   useEffect(() => {
-    const onFSChange = () => setIsFullscreenActive(!!document.fullscreenElement);
+    const onFSChange = () => setIsFullscreenActive(
+      !!document.fullscreenElement || document.documentElement.classList.contains("app-fullscreen")
+    );
     document.addEventListener("fullscreenchange", onFSChange);
     return () => document.removeEventListener("fullscreenchange", onFSChange);
   }, []);
@@ -102,6 +104,23 @@ export default function Header() {
   const handleUserMenuLeave = () => {
     userMenuTimeoutRef.current = setTimeout(() => setUserMenuOpen(false), 200);
   };
+  const toggleUserMenu = () => setUserMenuOpen(prev => !prev);
+
+  // Click outside to close user menu (supports both mobile tap and desktop click)
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("touchstart", onClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("touchstart", onClickOutside);
+    };
+  }, [userMenuOpen]);
 
   useEffect(() => {
     return () => {
@@ -168,7 +187,7 @@ export default function Header() {
       }}
     >
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 relative">
+        <div className="flex items-center justify-between h-16 relative z-[195]">
 
           {/* ── Logo ─────────────────────────────────────────────────── */}
           <Link href="/" onClick={handleLogoClick} className="flex items-center gap-3 group cursor-pointer z-10">
@@ -392,7 +411,7 @@ export default function Header() {
                   const displayName = (user as any).display_name || user.name;
                   return (
                     <div ref={userMenuRef} className="relative" onMouseEnter={handleUserMenuEnter} onMouseLeave={handleUserMenuLeave}>
-                      <button className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-secondary/80 transition-colors">
+                      <button onClick={toggleUserMenu} className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-secondary/80 transition-colors">
                         {user.avatar_url ? (
                           <img src={user.avatar_url} alt={displayName} className="w-9 h-9 rounded-full ring-2 ring-border" />
                         ) : (
@@ -415,34 +434,34 @@ export default function Header() {
                             </div>
                           </div>
                           <div className="p-1.5">
-                            <Link href="/dashboard">
+                            <Link href="/dashboard" onClick={() => setUserMenuOpen(false)}>
                               <div className={navItem(isActive("/dashboard"))}><BarChart3 className="w-4 h-4" />Dashboard</div>
                             </Link>
-                            <Link href="/profile">
+                            <Link href="/profile" onClick={() => setUserMenuOpen(false)}>
                               <div className={navItem(isActive("/profile"))}><User className="w-4 h-4" />Student Profile</div>
                             </Link>
-                            <Link href="/rewards">
+                            <Link href="/rewards" onClick={() => setUserMenuOpen(false)}>
                               <div className={navItem(isActive("/rewards"))}><Award className="w-4 h-4" />Rewards</div>
                             </Link>
                             {isAdmin && (
                               <>
                                 <div className="mx-4 my-1 border-t border-border/50" />
-                                <Link href="/admin">
+                                <Link href="/admin" onClick={() => setUserMenuOpen(false)}>
                                   <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
                                     <Shield className="w-4 h-4" />Admin Dashboard
                                   </div>
                                 </Link>
-                                <Link href="/admin/attendance">
+                                <Link href="/admin/attendance" onClick={() => setUserMenuOpen(false)}>
                                   <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
                                     <Calendar className="w-4 h-4" />Attendance
                                   </div>
                                 </Link>
-                                <Link href="/admin/access-control">
+                                <Link href="/admin/access-control" onClick={() => setUserMenuOpen(false)}>
                                   <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
                                     <Lock className="w-4 h-4" />Access Control
                                   </div>
                                 </Link>
-                                <Link href="/admin/rewards">
+                                <Link href="/admin/rewards" onClick={() => setUserMenuOpen(false)}>
                                   <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
                                     <Award className="w-4 h-4" />Rewards Admin
                                   </div>
@@ -451,7 +470,7 @@ export default function Header() {
                             )}
                           </div>
                           <div className="p-1.5 border-t-2 border-border/50">
-                            <button onClick={logout}
+                            <button onClick={() => { setUserMenuOpen(false); logout(); }}
                               className="w-full px-4 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 flex items-center gap-2 text-left transition-all rounded-xl">
                               <LogOut className="w-4 h-4" />Logout
                             </button>
@@ -482,16 +501,15 @@ export default function Header() {
           <div
             className="lg:hidden fixed inset-0 z-[190]"
             style={{ top: 0 }}
-            onClick={(e) => { if (e.target === e.currentTarget) setMobileMenuOpen(false); }}
           >
-            {/* Dark backdrop */}
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            {/* Dark backdrop — click to close */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
             {/* Scrollable drawer from top, positioned below header */}
             <div
               className="absolute left-0 right-0 overflow-y-auto"
               style={{
-                top: `calc(env(safe-area-inset-top, 0px) + 80px)`,
-                maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px) - 80px - env(safe-area-inset-bottom, 0px))",
+                top: `calc(env(safe-area-inset-top, 0px) + 64px)`,
+                maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px) - 64px - env(safe-area-inset-bottom, 0px))",
                 background: "rgba(7,8,15,0.97)",
                 borderTop: "1px solid rgba(255,255,255,0.08)",
                 borderBottom: "1px solid rgba(255,255,255,0.06)",

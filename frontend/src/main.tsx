@@ -2,9 +2,20 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { registerSW } from "virtual:pwa-register";
+import { Capacitor } from "@capacitor/core";
+import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
 
 // Permanently dark mode — apply before render to avoid any flash
 document.documentElement.classList.add("dark");
+
+// Initialize Google Auth as early as possible.
+// On native (Android/iOS) the plugin reads serverClientId from capacitor.config.json.
+// On web it needs the explicit clientId to render the GSI button.
+GoogleAuth.initialize({
+  clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || "",
+  scopes: ["profile", "email"],
+  grantOfflineAccess: true,
+});
 
 // Register service worker. autoUpdate: the SW updates silently on reload.
 // We still expose an `updateSW` trigger so the app can prompt the user.

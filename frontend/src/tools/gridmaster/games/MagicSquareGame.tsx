@@ -53,15 +53,13 @@ export function MagicSquareGame({ onToast }: Props) {
       if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const tag = (e.target as HTMLElement)?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-        if (!document.fullscreenElement) {
-          if (containerRef.current) containerRef.current.scrollTop = 0;
-          containerRef.current?.requestFullscreen().catch(() => {});
-        } else {
-          document.exitFullscreen().catch(() => {});
-        }
+        import("@/lib/fullscreen").then(fs => fs.toggleFullscreen());
       }
     };
-    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const handleFsChange = async () => {
+      const fs = await import("@/lib/fullscreen");
+      setIsFullscreen(fs.isFullscreen());
+    };
     document.addEventListener('keydown', handleKey);
     document.addEventListener('fullscreenchange', handleFsChange);
     return () => {
@@ -285,12 +283,7 @@ export function MagicSquareGame({ onToast }: Props) {
           </button>
           <button
             className={`${styles.btn} ${styles.btnGhost}`}
-            onClick={() => {
-              if (!document.fullscreenElement) {
-                if (containerRef.current) containerRef.current.scrollTop = 0;
-                containerRef.current?.requestFullscreen().catch(() => {});
-              } else document.exitFullscreen().catch(() => {});
-            }}
+            onClick={() => { import("@/lib/fullscreen").then(fs => fs.toggleFullscreen()); }}
             title="Fullscreen (press F)"
           >
             {isFullscreen ? '⛶ Exit' : '⛶ Full'}
@@ -468,7 +461,7 @@ export function MagicSquareGame({ onToast }: Props) {
             <span className={styles.fsHint}>ESC to exit</span>
             <button
               className={`${styles.fsBtn} ${styles.fsBtnExit}`}
-              onClick={() => document.exitFullscreen()}
+              onClick={() => { import("@/lib/fullscreen").then(m => m.exitFullscreen()); }}
             >
               ⛶ Exit
             </button>

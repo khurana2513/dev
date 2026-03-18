@@ -838,12 +838,13 @@ export default function Soroban() {
 
   const closeAll = useCallback(() => { setCfgOpen(false); setGuideOpen(false); setTutOpen(false); setPracticeOpen(false); }, []);
 
-  const toggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
+  const toggleFullscreen = useCallback(async () => {
+    const fs = await import("@/lib/fullscreen");
+    if (!fs.isFullscreen()) {
       window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-      document.documentElement.requestFullscreen().catch(() => {});
+      await fs.enterFullscreen();
     } else {
-      document.exitFullscreen().catch(() => {});
+      await fs.exitFullscreen();
     }
   }, []);
 
@@ -855,8 +856,9 @@ export default function Soroban() {
         toggleFullscreen();
       }
     };
-    const handleFsChange = () => {
-      const entering = !!document.fullscreenElement;
+    const handleFsChange = async () => {
+      const fs = await import("@/lib/fullscreen");
+      const entering = fs.isFullscreen();
       setIsFullscreen(entering);
       document.body.style.overflow = entering ? 'hidden' : '';
       if (entering) { setCfgOpen(false); setGuideOpen(false); setTutOpen(false); setPracticeOpen(false); }
@@ -941,7 +943,7 @@ export default function Soroban() {
               RESET
             </button>
             <span className="fs-hint">Press ESC to exit</span>
-            <button className="fs-btn fs-exit" onClick={()=>document.exitFullscreen()}>
+            <button className="fs-btn fs-exit" onClick={() => { import("@/lib/fullscreen").then(m => m.exitFullscreen()); }}>
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M5 2H2v3M9 2h3v3M5 12H2V9M9 12h3V9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
               EXIT
             </button>

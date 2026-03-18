@@ -222,7 +222,8 @@ export default function LeaderboardTable({
     staleTime: 60_000,
   });
 
-  const top3 = data?.entries.slice(0, 3) ?? [];
+  const entries = Array.isArray(data?.entries) ? data.entries : [];
+  const top3 = entries.slice(0, 3);
   // Sort podium: rank2 left, rank1 center, rank3 right
   const podiumOrder = [
     top3.find((e) => e.rank === 2),
@@ -230,7 +231,7 @@ export default function LeaderboardTable({
     top3.find((e) => e.rank === 3),
   ].filter(Boolean) as LeaderboardEntry[];
 
-  const rest = data?.entries.slice(3) ?? [];
+  const rest = entries.slice(3);
 
   return (
     <div

@@ -3,6 +3,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLocation } from "wouter";
 import { Loader2, Sparkles, Shield, TrendingUp, Zap, ChevronDown, Activity } from "lucide-react";
 import BackendTest from "./BackendTest";
+import { Capacitor } from "@capacitor/core";
+import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
 
 declare global {
   interface Window {
@@ -42,41 +44,58 @@ export default function Login() {
   const [showBackendTest, setShowBackendTest] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
-  
+
+  // true when running inside the Capacitor Android/iOS shell
+  const isNative = Capacitor.isNativePlatform();
+
   // Redirect after successful login
   useEffect(() => {
     if (isAuthenticated) {
-      // Small delay to ensure state is updated
       setTimeout(() => {
-        // Get the current location to see if we need to redirect
         const currentPath = window.location.pathname;
         console.log("🟢 [LOGIN] User authenticated, current path:", currentPath);
-        
-        // Only redirect if we're on /login or an invalid route
         if (currentPath === "/login" || currentPath === "/" || !currentPath) {
           setLocation("/");
         } else {
-          // Stay on the current route if it's valid
           console.log("🟢 [LOGIN] Staying on current route:", currentPath);
         }
       }, 200);
     }
   }, [isAuthenticated, setLocation]);
 
+  // ── Native (Android/iOS) sign-in via Capacitor Google Auth plugin ──
+  const handleNativeSignIn = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const user = await GoogleAuth.signIn();
+      const idToken = user?.authentication?.idToken;
+      if (!idToken) throw new Error("No ID token received from Google");
+      await login(idToken);
+      setLoading(false);
+    } catch (err: any) {
+      console.error("❌ [NATIVE GOOGLE] Sign-in error:", err);
+      const msg = err?.message || err?.toString() || "Sign-in failed. Please try again.";
+      setError(msg);
+      setLoading(false);
+    }
+  };
+
+  // ── Web sign-in via Google Identity Services (GSI) script ──
   useEffect(() => {
-    // Load Google OAuth script
+    if (isNative) return; // native path handled by handleNativeSignIn button
+
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
     script.defer = true;
-    
+
     script.onload = () => {
       console.log("Google OAuth script loaded");
-      
-      // Initialize Google Sign-In
+
       if (window.google && buttonRef.current && !initializedRef.current) {
         const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-        
+
         if (!clientId) {
           setError("Google Client ID not configured. Please check your environment variables.");
           return;
@@ -89,46 +108,40 @@ export default function Login() {
               console.log("🟢 [GOOGLE] Callback received, has credential:", !!response?.credential);
               setLoading(true);
               setError(null);
-              
+
               try {
-                // response.credential is the ID token
                 if (!response?.credential) {
                   console.error("❌ [GOOGLE] No credential in response:", response);
                   throw new Error("No credential received from Google");
                 }
-                
+
                 console.log("🟢 [GOOGLE] Calling login function with credential...");
                 await login(response.credential);
                 console.log("✅ [GOOGLE] Login completed successfully");
-                // Login successful - ProtectedRoute will automatically show the protected content
-                // No need to set loading to false, component will unmount when authenticated
                 setLoading(false);
               } catch (err: any) {
                 console.error("❌ [GOOGLE] Login error:", err);
                 let errorMessage = err?.message || err?.toString() || "Login failed. Please try again.";
-                
-                // Format multi-line error messages for display
+
                 if (errorMessage.includes('\n')) {
-                  // Keep the first line as main message, show rest as details
                   const lines = errorMessage.split('\n');
                   errorMessage = lines[0];
                   if (lines.length > 1) {
                     errorMessage += '\n\n' + lines.slice(1).join('\n');
                   }
                 }
-                
+
                 setError(errorMessage);
                 setLoading(false);
               }
             },
           });
 
-          // Render the button
           if (buttonRef.current) {
             window.google.accounts.id.renderButton(buttonRef.current, {
               theme: "outline",
               size: "large",
-              width: 300, // Use pixel value instead of percentage to avoid warning
+              width: 300,
               text: "signin_with",
               shape: "rectangular",
             });
@@ -146,12 +159,10 @@ export default function Login() {
       setError("Failed to load Google Sign-In script. Please check your internet connection.");
     };
 
-    // Check if script already exists
     const existingScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
     if (!existingScript) {
       document.head.appendChild(script);
     } else {
-      // Script already loaded, trigger onload manually
       if (window.google) {
         script.onload?.(new Event('load'));
       }
@@ -160,7 +171,7 @@ export default function Login() {
     return () => {
       // Don't remove script on cleanup to avoid reloading
     };
-  }, [login]);
+  }, [login, isNative]);
 
   const stars = STAR_DATA;
 
@@ -524,13 +535,46 @@ export default function Login() {
 
           {/* Google Sign-In Button */}
           <div style={{ marginBottom: 20, animation: "lg-fade-up .5s ease .45s both" }}>
-            <div className="lg-google-wrap">
-              <div
-                ref={buttonRef}
-                id="google-signin-button"
-                style={{ width: "100%", display: "flex", justifyContent: "center" }}
-              />
-            </div>
+            {isNative ? (
+              /* Native Android/iOS — uses device Google account picker */
+              <button
+                onClick={handleNativeSignIn}
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+                  padding: "12px 24px",
+                  background: "#fff",
+                  border: "1px solid #dadce0",
+                  borderRadius: 4,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: 14, fontWeight: 500,
+                  color: "#3c4043",
+                  boxShadow: "0 1px 3px rgba(60,64,67,.3), 0 4px 8px rgba(60,64,67,.15)",
+                  opacity: loading ? 0.7 : 1,
+                  transition: "box-shadow .2s ease",
+                }}
+              >
+                {/* Google "G" logo */}
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                  <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+                </svg>
+                Sign in with Google
+              </button>
+            ) : (
+              /* Web — rendered by Google's GSI library */
+              <div className="lg-google-wrap">
+                <div
+                  ref={buttonRef}
+                  id="google-signin-button"
+                  style={{ width: "100%", display: "flex", justifyContent: "center" }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Loading State */}

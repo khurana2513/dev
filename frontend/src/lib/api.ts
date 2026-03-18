@@ -107,81 +107,62 @@ export interface PreviewResponse {
 }
 
 // Use same API base as userApi for consistency
-const API_BASE = import.meta.env.VITE_API_BASE || "/api";
+import { Capacitor } from "@capacitor/core";
+const API_BASE = Capacitor.isNativePlatform()
+  ? (import.meta.env.VITE_API_BASE_NATIVE || "https://talenthub.blackmonkey.in/api")
+  : (import.meta.env.VITE_API_BASE || "/api");
 
 export async function previewPaper(config: PaperConfig): Promise<PreviewResponse> {
-  console.log("=".repeat(60));
-  console.log("PREVIEW REQUEST");
-  console.log("=".repeat(60));
-  console.log("Config:", JSON.stringify(config, null, 2));
-  
   const url = `${API_BASE}/papers/preview`;
-  console.log("URL:", url);
-  console.log("Full URL would be:", window.location.origin + url);
-  
+  console.log("[PREVIEW] POST", url);
+
   try {
     const requestBody = JSON.stringify(config);
-    console.log("Request body length:", requestBody.length);
-    
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
+    const token = localStorage.getItem("auth_token");
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
     const res = await fetch(url, {
       method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      },
+      headers,
       body: requestBody,
     });
-    
-    console.log("Response received!");
-    console.log("Status:", res.status, res.statusText);
-    console.log("Status Text:", res.statusText);
-    console.log("OK:", res.ok);
-    console.log("Headers:", Object.fromEntries(res.headers.entries()));
-    
+
     const responseText = await res.text();
-    console.log("Response text length:", responseText.length);
-    console.log("Response text (first 500 chars):", responseText.substring(0, 500));
-    
+    console.log("[PREVIEW] status:", res.status, "body length:", responseText.length);
+
     if (!res.ok) {
-      console.error("Response not OK!");
       let errorMessage = "Failed to preview paper";
       try {
         if (responseText) {
           const errorJson = JSON.parse(responseText);
-          console.log("Error JSON:", errorJson);
           if (Array.isArray(errorJson.detail)) {
-            errorMessage = errorJson.detail.map((e: any) => 
+            errorMessage = errorJson.detail.map((e: any) =>
               `${e.loc?.join('.')}: ${e.msg}`
             ).join(', ');
           } else {
             errorMessage = errorJson.detail || errorJson.message || errorMessage;
           }
         }
-      } catch (parseError) {
-        console.error("Failed to parse error response:", parseError);
+      } catch {
         errorMessage = responseText || errorMessage;
       }
       throw new Error(errorMessage);
     }
-    
+
     if (!responseText) {
       throw new Error("Empty response from server");
     }
-    
+
     const data = JSON.parse(responseText);
-    console.log("✅ Preview success!");
-    console.log("Blocks:", data.blocks?.length || 0);
-    console.log("Seed:", data.seed);
+    console.log("✅ [PREVIEW] blocks:", data.blocks?.length, "seed:", data.seed);
     return data;
   } catch (error) {
-    console.error("=".repeat(60));
-    console.error("PREVIEW ERROR");
-    console.error("=".repeat(60));
-    console.error("Error type:", error?.constructor?.name);
-    console.error("Error message:", error instanceof Error ? error.message : String(error));
-    if (error instanceof Error && error.stack) {
-      console.error("Stack:", error.stack);
-    }
+    console.error("[PREVIEW] error:", error instanceof Error ? error.message : String(error));
     throw error;
   }
 }

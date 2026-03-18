@@ -8,7 +8,13 @@
  * - Proper error parsing
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE || "/api";
+import { Capacitor } from "@capacitor/core";
+
+// On Android/iOS, the WebView has no nginx proxy, so use the full backend URL.
+// VITE_API_BASE_NATIVE must be set to e.g. https://talenthub.blackmonkey.in/api
+const API_BASE = Capacitor.isNativePlatform()
+  ? (import.meta.env.VITE_API_BASE_NATIVE || "https://talenthub.blackmonkey.in/api")
+  : (import.meta.env.VITE_API_BASE || "/api");
 const DEFAULT_TIMEOUT = 30000; // 30 seconds (was 15s — too short, caused cascading retries)
 const MUTATION_TIMEOUT = 45000; // 45 seconds for POST/PUT/DELETE (heavier ops)
 const MAX_RETRIES = 2; // Reduced from 3 — fewer retries = fewer duplicate requests on slow backend

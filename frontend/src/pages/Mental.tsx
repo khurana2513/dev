@@ -614,6 +614,7 @@ export default function Mental() {
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const addSubRowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const answerInputRef = useRef<HTMLInputElement | null>(null);
+  const pageTopRef = useRef<HTMLDivElement | null>(null);
   const currentAnswerRef = useRef<string>("");
   const currentQuestionIndexRef = useRef<number>(0);
   const questionsRef = useRef<Question[]>([]);
@@ -1162,8 +1163,9 @@ export default function Mental() {
     }
     setStudentNameError("");
     
-    // Scroll to top when starting practice
+    // Scroll to top when starting practice (robust for Capacitor + web)
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    pageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     
     setCountdown(3);
     playCountdownTone(3);
@@ -1247,8 +1249,9 @@ export default function Mental() {
     console.log("🟢 [GAME] Setting isStarted to true");
     setIsStarted(true);
     
-    // Auto scroll to top on start
+    // Auto scroll to top on start (robust for Capacitor + web)
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    pageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     
     // Save initial state
     setTimeout(() => {
@@ -1895,21 +1898,25 @@ export default function Mental() {
     }
   };
 
-  // Fullscreen toggle
-  const toggleFullScreen = useCallback(() => {
-    if (!document.fullscreenElement) {
+  // Fullscreen toggle (cross-platform: web Fullscreen API + Capacitor CSS fallback)
+  const toggleFullScreen = useCallback(async () => {
+    const { isFullscreen, enterFullscreen, exitFullscreen } = await import("@/lib/fullscreen");
+    if (!isFullscreen()) {
       window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-      document.documentElement.requestFullscreen().catch(() => {});
+      await enterFullscreen();
       setIsFullScreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
+      await exitFullscreen();
       setIsFullScreen(false);
     }
   }, []);
 
   // Listen for fullscreen changes & F key
   useEffect(() => {
-    const onFSChange = () => setIsFullScreen(!!document.fullscreenElement);
+    const onFSChange = async () => {
+      const { isFullscreen } = await import("@/lib/fullscreen");
+      setIsFullScreen(isFullscreen());
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "f" || e.key === "F") {
         if (!isStarted) return;
@@ -1939,8 +1946,10 @@ export default function Mental() {
 
   // Exit fullscreen automatically when session ends
   useEffect(() => {
-    if (!isStarted && document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
+    if (!isStarted) {
+      import("@/lib/fullscreen").then(({ isFullscreen, exitFullscreen }) => {
+        if (isFullscreen()) exitFullscreen();
+      });
     }
   }, [isStarted]);
 
@@ -2704,7 +2713,7 @@ export default function Mental() {
   }
 
   return (
-    <div style={{minHeight:"100vh",background:"var(--mm-bg)"}}>
+    <div ref={pageTopRef} style={{minHeight:"100vh",background:"var(--mm-bg)"}}>
 
       {/* Guide Modal */}
       {showGuide && (

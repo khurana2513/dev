@@ -1,5 +1,19 @@
 {
   "appId": "com.blackmonkey.talenthub",
   "appName": "Talent Hub",
-  "webDir": "frontend/dist"
+  "webDir": "frontend/dist",
+  "android": {
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "GoogleAuth": {
+      "scopes": ["profile", "email"],
+      "serverClientId": "193498438302-apr7tr3mskq4cmhm564mloa2hi0p2hoq.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    }
+  }
 }

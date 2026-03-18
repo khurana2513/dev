@@ -18,7 +18,10 @@ export default function BackendTest() {
     setTesting(true);
     setResults([]);
     
-    const apiBase = import.meta.env.VITE_API_BASE || "/api";
+    const { Capacitor } = await import('@capacitor/core');
+    const apiBase = Capacitor.isNativePlatform()
+      ? (import.meta.env.VITE_API_BASE_NATIVE || "https://talenthub.blackmonkey.in/api")
+      : (import.meta.env.VITE_API_BASE || "/api");
     addResult(`Testing with API_BASE: ${apiBase}`, 'info');
     
     // Test 1: Health endpoint

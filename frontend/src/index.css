@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* CSS-based fullscreen fallback (Capacitor / native apps) */
+html.app-fullscreen {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 9999;
+}
+html.app-fullscreen body {
+  overflow: hidden !important;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

@@ -112,8 +112,12 @@ function AppContent() {
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_BASE || "/api";
-    fetch(`${apiBase}/public/maintenance-status`)
+    import('@capacitor/core').then(({ Capacitor }) => {
+      const apiBase = Capacitor.isNativePlatform()
+        ? (import.meta.env.VITE_API_BASE_NATIVE || "https://talenthub.blackmonkey.in/api")
+        : (import.meta.env.VITE_API_BASE || "/api");
+      return fetch(`${apiBase}/public/maintenance-status`);
+    })
       .then((r) => r.json())
       .then((d) => setMaintenance(d))
       .catch(() => setMaintenance({ enabled: false, message: "" })); // fail open

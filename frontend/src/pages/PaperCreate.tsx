@@ -392,18 +392,25 @@ export default function PaperCreate() {
       console.log(`🟦 [PRESETS] Loading preset blocks for level: ${level}`);
       setLoadingPresets(true);
       setBlocks([]); // Clear blocks while loading
-      // Load preset blocks from backend
-      const apiBase = import.meta.env.VITE_API_BASE || "/api";
-      const url = `${apiBase}/presets/${level}`;
-      console.log(`🟦 [PRESETS] Fetching from: ${url}`);
-      
-      // Add timeout
-      timeoutId = setTimeout(() => {
-        console.log(`⏱️ [PRESETS] Request timeout after 10s, aborting...`);
-        abortController.abort();
-      }, 10000); // 10 second timeout
-      
-      fetch(url, { signal: abortController.signal })
+
+      // On native Android/iOS use the public backend URL; on web nginx proxies /api
+      const loadPresets = async () => {
+        const { Capacitor } = await import('@capacitor/core');
+        const apiBase = Capacitor.isNativePlatform()
+          ? (import.meta.env.VITE_API_BASE_NATIVE || "https://talenthub.blackmonkey.in/api")
+          : (import.meta.env.VITE_API_BASE || "/api");
+        const url = `${apiBase}/presets/${level}`;
+        console.log(`🟦 [PRESETS] Fetching from: ${url}`);
+
+        timeoutId = setTimeout(() => {
+          console.log(`⏱️ [PRESETS] Request timeout after 10s, aborting...`);
+          abortController.abort();
+        }, 10000);
+
+        return fetch(url, { signal: abortController.signal });
+      };
+
+      loadPresets()
         .then(async res => {
           if (timeoutId) clearTimeout(timeoutId);
           console.log(`🟦 [PRESETS] Response status: ${res.status} ${res.statusText}`);

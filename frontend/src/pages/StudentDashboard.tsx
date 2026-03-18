@@ -1219,7 +1219,7 @@ export default function StudentDashboard() {
             </div>
             <div className="db-scrollbar" style={{padding:"1.5rem",overflowY:"auto",flex:1}}>
               {/* Session Summary */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1rem",marginBottom:"1.5rem"}}>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                 {[
                   {label:"Score",val:`${selectedSession.score}/${selectedSession.total_questions}`,color:DB.purple},
                   {label:"Accuracy",val:`${selectedSession.accuracy.toFixed(1)}%`,color:DB.green},
@@ -1294,7 +1294,7 @@ export default function StudentDashboard() {
             
             <div className="db-scrollbar" style={{padding:"1.5rem",overflowY:"auto",flex:1}}>
               {/* Paper Summary */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"1rem",marginBottom:"1.5rem"}}>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                 <div style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"0.875rem",padding:"1rem",borderTop:`2px solid ${DB.purple}`}}>
                   <div style={{fontSize:"0.7rem",fontWeight:700,color:DB.muted,marginBottom:"0.375rem"}}>Score</div>
                   <div style={{fontSize:"1.375rem",fontWeight:900,color:DB.purple}}>{selectedPaperAttempt.score}/{selectedPaperAttempt.total_questions}</div>

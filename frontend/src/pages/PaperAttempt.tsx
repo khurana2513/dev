@@ -996,29 +996,29 @@ export default function PaperAttempt() {
       {/* Sticky Header */}
       <header style={{position:'sticky',top:0,zIndex:40,background:'rgba(6,7,15,0.9)',backdropFilter:'blur(20px)',borderBottom:'1px solid var(--pa-bdr)'}}>
         <div style={{height:'clamp(52px,8vw,64px)',display:'flex',alignItems:'center',padding:'0 clamp(12px,3vw,24px)'}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center',width:'100%',maxWidth:1100,margin:'0 auto',gap:16}}>
+          <div style={{display:'flex',alignItems:'center',width:'100%',maxWidth:1100,margin:'0 auto',gap:8,minWidth:0}}>
             {/* Left: Exit */}
-            <div>
+            <div style={{flexShrink:0}}>
               <button
                 onClick={() => setShowExitConfirm(true)}
-                style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',background:'rgba(255,255,255,0.05)',border:'1px solid var(--pa-bdr2)',borderRadius:10,color:'var(--pa-whi2)',cursor:'pointer',fontFamily:'var(--pa-fb)',fontWeight:500,fontSize:13}}
+                style={{display:'flex',alignItems:'center',gap:6,padding:'8px 10px',background:'rgba(255,255,255,0.05)',border:'1px solid var(--pa-bdr2)',borderRadius:10,color:'var(--pa-whi2)',cursor:'pointer',fontFamily:'var(--pa-fb)',fontWeight:500,fontSize:13}}
               >
                 <ArrowLeft style={{width:15,height:15}} />
-                Exit Paper
+                <span className="hidden sm:inline">Exit Paper</span>
               </button>
             </div>
-            {/* Center: Title */}
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <Target style={{width:18,height:18,color:'var(--pa-pur)',flexShrink:0}} />
-              <h1 style={{fontSize:17,fontWeight:800,color:'var(--pa-whi)',fontFamily:'var(--pa-fd)',margin:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:360}}>{paperConfig.title}</h1>
+            {/* Center: Title — hidden on very small screens */}
+            <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0,justifyContent:'center'}} className="hidden sm:flex">
+              <Target style={{width:16,height:16,color:'var(--pa-pur)',flexShrink:0}} />
+              <h1 style={{fontSize:15,fontWeight:800,color:'var(--pa-whi)',fontFamily:'var(--pa-fd)',margin:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{paperConfig.title}</h1>
             </div>
             {/* Right: Timer + Progress */}
-            <div style={{display:'flex',alignItems:'center',gap:16,justifyContent:'flex-end'}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 14px',background:'rgba(255,255,255,0.05)',border:'1px solid var(--pa-bdr2)',borderRadius:10}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,justifyContent:'flex-end',flexShrink:0,marginLeft:'auto'}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',background:'rgba(255,255,255,0.05)',border:'1px solid var(--pa-bdr2)',borderRadius:10}}>
                 <Clock style={{width:14,height:14,color:'var(--pa-pur)'}} />
-                <span style={{fontSize:16,fontWeight:700,color:'var(--pa-whi)',fontFamily:'var(--pa-fm)',animation:'pa-timer-tick 1s ease-in-out infinite'}}>{formatTime(currentTime)}</span>
+                <span style={{fontSize:14,fontWeight:700,color:'var(--pa-whi)',fontFamily:'var(--pa-fm)',animation:'pa-timer-tick 1s ease-in-out infinite'}}>{formatTime(currentTime)}</span>
               </div>
-              <div style={{fontSize:12,fontWeight:700,color:'var(--pa-muted)',fontFamily:'var(--pa-fm)',letterSpacing:'0.06em'}}>{answeredCount}/{totalQuestions}</div>
+              <div style={{fontSize:12,fontWeight:700,color:'var(--pa-muted)',fontFamily:'var(--pa-fm)',letterSpacing:'0.06em',whiteSpace:'nowrap'}}>{answeredCount}/{totalQuestions}</div>
             </div>
           </div>
         </div>
@@ -1074,9 +1074,9 @@ export default function PaperAttempt() {
               )}
               
               {block.questions.some(q => q?.isVertical) ? (
-                // Vertical questions — scroll horizontally on small screens
-                <div className="overflow-x-auto">
-                <div className="grid grid-cols-10 gap-2 min-w-[480px]">
+                // Vertical questions — responsive grid with auto-fit columns
+                <div className="overflow-x-auto -mx-2 px-2">
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(min(80px, 100%), 1fr))',gap:8}}>
                   {block.questions.map((question) => (
                     <div key={question.id} className="pa-qcard" style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
                       <div style={{textAlign:'center',marginBottom:4}}>
