@@ -14,7 +14,14 @@ from slowapi.util import get_remote_address
 logger = logging.getLogger(__name__)
 
 from models import User, PracticeSession, Attempt, PaperAttempt, Paper, StudentProfile, ProfileAuditLog, VacantId, PointsLog, Certificate, get_db
-from auth import get_current_user, get_current_admin, verify_google_token, create_access_token
+from auth import (
+    get_current_user,
+    get_current_admin,
+    verify_google_token,
+    create_access_token,
+    get_admin_email_set,
+    normalize_email,
+)
 from token_manager import create_token_pair, refresh_access_token, verify_refresh_token
 from user_schemas import (
     LoginRequest, LoginResponse, UserResponse, PracticeSessionCreate,
@@ -111,9 +118,8 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
                 print(f"🔗 [LOGIN] Linked pre-created account for {user_info['email']}")
         
         # Check if admin email (you can set this in environment)
-        import os
-        admin_emails = [email.strip() for email in os.getenv("ADMIN_EMAILS", "").split(",") if email.strip()]
-        is_admin_email = user_info["email"] in admin_emails
+        admin_emails = get_admin_email_set()
+        is_admin_email = normalize_email(user_info["email"]) in admin_emails
         
         if not user:
             # New user - assign role based on admin emails
@@ -1721,10 +1727,9 @@ async def promote_self_to_admin(
     Allow users to promote themselves to admin if their email is in ADMIN_EMAILS.
     This is useful for fixing existing users who should be admins.
     """
-    import os
-    admin_emails = [email.strip() for email in os.getenv("ADMIN_EMAILS", "").split(",") if email.strip()]
+    admin_emails = get_admin_email_set()
     
-    if current_user.email not in admin_emails:
+    if normalize_email(current_user.email) not in admin_emails:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Your email is not in the ADMIN_EMAILS list. Contact system administrator."
@@ -2846,4 +2851,3 @@ async def get_points_logs(
         logs=log_responses,
         total_entries=total_entries,
     )
-

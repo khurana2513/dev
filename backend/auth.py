@@ -45,6 +45,21 @@ security = HTTPBearer()
 token_blacklist = TokenBlacklist()
 
 
+def normalize_email(email: Optional[str]) -> str:
+    """Normalize email values before comparing roles/access."""
+    return (email or "").strip().lower()
+
+
+def get_admin_email_set() -> set[str]:
+    """Read ADMIN_EMAILS from env as a normalized set."""
+    raw = os.getenv("ADMIN_EMAILS", "")
+    return {
+        normalize_email(email)
+        for email in raw.split(",")
+        if normalize_email(email)
+    }
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token.
     
@@ -177,6 +192,16 @@ def get_current_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+
+    # Keep admin role aligned with ADMIN_EMAILS even for existing sessions/users.
+    normalized_email = normalize_email(user.email)
+    admin_emails = get_admin_email_set()
+    if normalized_email in admin_emails and user.role != "admin":
+        logger.info("Promoting %s to admin from ADMIN_EMAILS", user.email)
+        user.role = "admin"
+        db.commit()
+        db.refresh(user)
+
     return user
 
 
@@ -371,4 +396,3 @@ def verify_google_token(token: str) -> dict:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid Google token: {str(e)}"
         )
-
