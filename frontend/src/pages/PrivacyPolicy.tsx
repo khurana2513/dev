@@ -72,6 +72,10 @@ export default function PrivacyPolicy() {
             body: "We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the 'Last updated' date.",
           },
           {
+            title: "Account Deletion",
+            body: "Users can request account and associated data deletion by emailing ayushkhurana47@gmail.com from their registered account email with the subject 'Account Deletion Request'. We delete account profile and associated learning data. Minimal records may be retained for legal, security, and fraud-prevention purposes and are removed within 90 days unless a longer period is required by law. Deletion instructions are also available at /account-deletion.",
+          },
+          {
             title: "Contact Us",
             body: "If you have any questions about this Privacy Policy, please contact us at: Talent Hub, New Delhi. Phone: +91 92661 17055.",
           },

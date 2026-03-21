@@ -33,6 +33,7 @@ import STEMCourse from "./pages/STEMCourse";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import AboutUs from "./pages/AboutUs";
+import AccountDeletion from "./pages/AccountDeletion";
 import GridMaster from "./pages/GridMaster";
 import SorobanAbacus from "./pages/SorobanAbacus";
 import Pricing from "./pages/Pricing";
@@ -211,6 +212,7 @@ function AppContent() {
               <Route path="/courses/handwriting" component={HandwritingCourse} />
               <Route path="/courses/stem" component={STEMCourse} />
               <Route path="/privacy-policy" component={PrivacyPolicy} />
+              <Route path="/account-deletion" component={AccountDeletion} />
               <Route path="/terms-of-service" component={TermsOfService} />
               <Route path="/about" component={AboutUs} />
               <Route path="/tools/gridmaster" component={GridMaster} />
