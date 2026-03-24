@@ -3,7 +3,7 @@
   "appName": "Talent Hub",
   "webDir": "frontend/dist",
   "android": {
-    "allowMixedContent": true,
+    "allowMixedContent": false,
     "webContentsDebuggingEnabled": false
   },
   "plugins": {

@@ -321,12 +321,20 @@ def process_expirations(db: Session) -> Tuple[int, int]:
 
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
 CASHFREE_SECRET_KEY = os.getenv("CASHFREE_SECRET_KEY", "")
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+
+
+def _is_production_env() -> bool:
+    return APP_ENV in {"production", "staging"}
 
 
 def verify_razorpay_signature(order_id: str, payment_id: str, signature: str) -> bool:
     if not RAZORPAY_KEY_SECRET:
+        if _is_production_env():
+            logger.error("[RAZORPAY] RAZORPAY_KEY_SECRET missing in %s", APP_ENV)
+            return False
         logger.warning("[RAZORPAY] RAZORPAY_KEY_SECRET not set — skipping verify in dev mode")
-        return True  # dev fallback — MUST be set in production
+        return True
     message = f"{order_id}|{payment_id}"
     expected = hmac.new(
         RAZORPAY_KEY_SECRET.encode(), message.encode(), hashlib.sha256
@@ -336,6 +344,9 @@ def verify_razorpay_signature(order_id: str, payment_id: str, signature: str) ->
 
 def verify_cashfree_signature(timestamp: str, data: str, signature: str) -> bool:
     if not CASHFREE_SECRET_KEY:
+        if _is_production_env():
+            logger.error("[CASHFREE] CASHFREE_SECRET_KEY missing in %s", APP_ENV)
+            return False
         logger.warning("[CASHFREE] CASHFREE_SECRET_KEY not set — skipping verify in dev mode")
         return True
     message = f"{timestamp}{data}"

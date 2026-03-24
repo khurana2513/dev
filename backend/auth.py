@@ -90,7 +90,6 @@ def create_tokens_for_user(user_id: int) -> Tuple[str, str]:
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    print("🔥 NEW AUTH FILE LOADED")
     """Verify JWT token and check if it's been revoked.
     
     Raises:
