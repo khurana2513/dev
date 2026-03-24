@@ -8,13 +8,9 @@
  * - Proper error parsing
  */
 
-import { Capacitor } from "@capacitor/core";
+import { buildApiUrl, looksLikeHtmlDocument, resolveApiBase } from "./apiBase";
 
-// On Android/iOS, the WebView has no nginx proxy, so use the full backend URL.
-// VITE_API_BASE_NATIVE must be set to e.g. https://talenthub.blackmonkey.in/api
-const API_BASE = Capacitor.isNativePlatform()
-  ? (import.meta.env.VITE_API_BASE_NATIVE || "https://talenthub.blackmonkey.in/api")
-  : (import.meta.env.VITE_API_BASE || "/api");
+const API_BASE = resolveApiBase();
 const DEFAULT_TIMEOUT = 30000; // 30 seconds (was 15s — too short, caused cascading retries)
 const MUTATION_TIMEOUT = 45000; // 45 seconds for POST/PUT/DELETE (heavier ops)
 const MAX_RETRIES = 2; // Reduced from 3 — fewer retries = fewer duplicate requests on slow backend
@@ -121,7 +117,7 @@ async function attemptTokenRefresh(): Promise<string | null> {
       console.log("🔄 [API] Attempting to refresh access token");
       
       // Call refresh endpoint WITHOUT auth (to avoid infinite loop)
-      const response = await fetch(`${API_BASE}/users/auth/refresh`, {
+      const response = await fetch(buildApiUrl("/users/auth/refresh"), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -304,6 +300,10 @@ function createApiError(error: any, response?: Response, errorData?: any): Error
     if (status === 404) {
       return new Error('Endpoint not found. The requested resource does not exist.');
     }
+
+    if (status === 405) {
+      return new Error('Method not allowed. This usually means the request hit the wrong host or path instead of the backend API.');
+    }
     
     if (status >= 500) {
       return new Error(`Server error (${status}). Please try again or contact support if the problem persists.`);
@@ -376,7 +376,7 @@ if (endpoint.startsWith("http")) {
     }
   }
 
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+  const url = endpoint.startsWith('http') ? endpoint : buildApiUrl(endpoint);
   const requestKey = createRequestKey(method, url, body);
 
   // Check for pending duplicate request (GET only — mutations must not be deduplicated)
@@ -439,6 +439,9 @@ if (endpoint.startsWith("http")) {
           const text = await response.text();
           if (!text) {
             return null as T;
+          }
+          if (looksLikeHtmlDocument(text)) {
+            throw new Error(`API misconfiguration: ${method} ${endpoint} returned HTML instead of JSON. Resolved URL: ${url}`);
           }
           try {
             return JSON.parse(text) as T;
@@ -594,4 +597,3 @@ export const apiClient = {
 };
 
 export default apiClient;
-

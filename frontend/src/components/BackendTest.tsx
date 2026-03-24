@@ -1,6 +1,7 @@
 // Premium diagnostic component to test backend connectivity
 import { useState } from "react";
 import { Activity, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { buildApiUrl, resolveApiBase } from "../lib/apiBase";
 
 export default function BackendTest() {
   const [results, setResults] = useState<Array<{ time: string; message: string; status: 'success' | 'error' | 'info' }>>([]);
@@ -18,16 +19,13 @@ export default function BackendTest() {
     setTesting(true);
     setResults([]);
     
-    const { Capacitor } = await import('@capacitor/core');
-    const apiBase = Capacitor.isNativePlatform()
-      ? (import.meta.env.VITE_API_BASE_NATIVE || "https://talenthub.blackmonkey.in/api")
-      : (import.meta.env.VITE_API_BASE || "/api");
+    const apiBase = resolveApiBase();
     addResult(`Testing with API_BASE: ${apiBase}`, 'info');
     
     // Test 1: Health endpoint
     try {
       addResult("Test 1: Testing /health...", 'info');
-      const healthRes = await fetch(`${apiBase}/health`);
+      const healthRes = await fetch(buildApiUrl("/health"));
       const healthText = await healthRes.text();
       if (healthRes.ok) {
         addResult(`✅ Health check passed: ${healthText}`, 'success');
@@ -41,7 +39,7 @@ export default function BackendTest() {
     // Test 2: Presets endpoint
     try {
       addResult("Test 2: Testing /presets/AB-1...", 'info');
-      const presetsRes = await fetch(`${apiBase}/presets/AB-1`);
+      const presetsRes = await fetch(buildApiUrl("/presets/AB-1"));
       const presetsText = await presetsRes.text();
       if (presetsRes.ok) {
         const data = JSON.parse(presetsText);
@@ -57,7 +55,7 @@ export default function BackendTest() {
     // Test 4: Login endpoint
     try {
       addResult("Test 4: Testing /users/login endpoint...", 'info');
-      const loginRes = await fetch(`${apiBase}/users/login`, {
+      const loginRes = await fetch(buildApiUrl("/users/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: "test" }),

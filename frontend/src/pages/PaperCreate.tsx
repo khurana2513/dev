@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, Plus, Trash2, Eye, EyeOff, FileDown, XCircle, GripVertical, Copy, ChevronUp, ChevronDown, Play, ChevronDown as ChevronDownIcon, Lock } from "lucide-react";
 import { previewPaper, generatePdf, PaperConfig, BlockConfig, GeneratedBlock } from "@/lib/api";
+import { buildApiUrl, looksLikeHtmlDocument } from "@/lib/apiBase";
 import MathQuestion from "@/components/MathQuestion";
 
 // Helper function to generate section name based on block settings
@@ -395,11 +396,7 @@ export default function PaperCreate() {
 
       // On native Android/iOS use the public backend URL; on web nginx proxies /api
       const loadPresets = async () => {
-        const { Capacitor } = await import('@capacitor/core');
-        const apiBase = Capacitor.isNativePlatform()
-          ? (import.meta.env.VITE_API_BASE_NATIVE || "https://talenthub.blackmonkey.in/api")
-          : (import.meta.env.VITE_API_BASE || "/api");
-        const url = `${apiBase}/presets/${level}`;
+        const url = buildApiUrl(`/presets/${encodeURIComponent(level)}`);
         console.log(`🟦 [PRESETS] Fetching from: ${url}`);
 
         timeoutId = setTimeout(() => {
@@ -421,6 +418,9 @@ export default function PaperCreate() {
           }
           if (!text) {
             throw new Error("Empty response from server");
+          }
+          if (looksLikeHtmlDocument(text)) {
+            throw new Error(`Preset request returned HTML instead of JSON from ${url}`);
           }
           return JSON.parse(text);
         })
@@ -4739,5 +4739,4 @@ export default function PaperCreate() {
     </div>
   );
 }
-
 

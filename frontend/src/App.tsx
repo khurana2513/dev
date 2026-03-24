@@ -50,6 +50,7 @@ import { useInactivityDetection } from "./hooks/useInactivityDetection";
 import InactivityWarningModal from "./components/InactivityWarningModal";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
+import { buildApiUrl } from "./lib/apiBase";
 
 
 const queryClient = new QueryClient();
@@ -113,12 +114,7 @@ function AppContent() {
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    import('@capacitor/core').then(({ Capacitor }) => {
-      const apiBase = Capacitor.isNativePlatform()
-        ? (import.meta.env.VITE_API_BASE_NATIVE || "https://talenthub.blackmonkey.in/api")
-        : (import.meta.env.VITE_API_BASE || "/api");
-      return fetch(`${apiBase}/public/maintenance-status`);
-    })
+    fetch(buildApiUrl("/public/maintenance-status"))
       .then((r) => r.json())
       .then((d) => setMaintenance(d))
       .catch(() => setMaintenance({ enabled: false, message: "" })); // fail open
@@ -290,4 +286,3 @@ function App() {
 }
 
 export default App;
-

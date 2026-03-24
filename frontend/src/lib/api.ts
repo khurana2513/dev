@@ -107,13 +107,11 @@ export interface PreviewResponse {
 }
 
 // Use same API base as userApi for consistency
-import { Capacitor } from "@capacitor/core";
-const API_BASE = Capacitor.isNativePlatform()
-  ? (import.meta.env.VITE_API_BASE_NATIVE || "https://talenthub.blackmonkey.in/api")
-  : (import.meta.env.VITE_API_BASE || "/api");
+import { buildApiUrl, looksLikeHtmlDocument, resolveApiBase } from "./apiBase";
+const API_BASE = resolveApiBase();
 
 export async function previewPaper(config: PaperConfig): Promise<PreviewResponse> {
-  const url = `${API_BASE}/papers/preview`;
+  const url = buildApiUrl("/papers/preview");
   console.log("[PREVIEW] POST", url);
 
   try {
@@ -158,6 +156,10 @@ export async function previewPaper(config: PaperConfig): Promise<PreviewResponse
       throw new Error("Empty response from server");
     }
 
+    if (looksLikeHtmlDocument(responseText)) {
+      throw new Error(`API misconfiguration: preview returned HTML instead of JSON from ${url}`);
+    }
+
     const data = JSON.parse(responseText);
     console.log("✅ [PREVIEW] blocks:", data.blocks?.length, "seed:", data.seed);
     return data;
@@ -175,7 +177,7 @@ export async function generatePdf(
   answersOnly?: boolean,
   includeSeparateAnswerKey?: boolean
 ): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/papers/generate-pdf`, {
+  const res = await fetch(buildApiUrl("/papers/generate-pdf"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ config, withAnswers, seed, generatedBlocks, answersOnly, includeSeparateAnswerKey }),
@@ -349,4 +351,3 @@ export async function getPaperAttemptCount(seed: number, paperTitle: string): Pr
   if (!res.ok) throw new Error("Failed to get attempt count");
   return res.json();
 }
-
