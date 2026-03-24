@@ -79,18 +79,34 @@ export function setAuthToken(token: string | null) {
 }
 
 /**
- * Get auth token (always check localStorage first, then fallback to in-memory)
+ * Get in-memory auth token.
+ * Header-based auth is kept only as a backward-compatible fallback while
+ * HttpOnly cookie auth is the primary mechanism.
  */
 function getAuthToken(): string | null {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem("auth_token");
-    // Sync in-memory token if localStorage has a different value
-    if (token !== authToken) {
-      authToken = token;
-    }
-    return token;
-  }
   return authToken;
+}
+
+function clearClientAuthState(clearUserData: boolean = true) {
+  authToken = null;
+  if (typeof window !== "undefined" && clearUserData) {
+    localStorage.removeItem("user_data");
+  }
+}
+
+async function clearServerSession(): Promise<void> {
+  try {
+    await fetch(buildApiUrl("/users/auth/logout"), {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    });
+  } catch (error) {
+    console.warn("⚠️ [API] Failed to clear server session:", error);
+  }
 }
 
 /**
@@ -108,48 +124,35 @@ async function attemptTokenRefresh(): Promise<string | null> {
   
   refreshTokenPromise = (async () => {
     try {
-      const refreshToken = localStorage.getItem("refresh_token");
-      if (!refreshToken) {
-        console.log("❌ [API] No refresh token available");
-        return null;
-      }
-
       console.log("🔄 [API] Attempting to refresh access token");
       
-      // Call refresh endpoint WITHOUT auth (to avoid infinite loop)
       const response = await fetch(buildApiUrl("/users/auth/refresh"), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        credentials: 'include',
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
         console.error("❌ [API] Token refresh failed:", response.status);
-        // Refresh token expired or invalid - clear all tokens
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("user_data");
-        authToken = null;
+        await clearServerSession();
+        clearClientAuthState();
         return null;
       }
 
       const data = await response.json();
       const newAccessToken = data.access_token;
       
-      // Store new access token
-      localStorage.setItem("auth_token", newAccessToken);
       authToken = newAccessToken;
       
       console.log("✅ [API] Token refreshed successfully");
       return newAccessToken;
     } catch (error) {
       console.error("❌ [API] Token refresh error:", error);
-      // Clear tokens on refresh failure
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("refresh_token");
-      authToken = null;
+      await clearServerSession();
+      clearClientAuthState();
       return null;
     } finally {
       isRefreshingToken = false;
@@ -175,8 +178,7 @@ async function waitForAuth(timeout: number = 5000): Promise<boolean> {
         resolve(true);
       } else if (Date.now() - startTime > timeout) {
         clearInterval(checkInterval);
-        // If we have a token, assume auth is ready
-        resolve(!!getAuthToken());
+        resolve(false);
       }
     }, 100);
   });
@@ -371,7 +373,7 @@ if (endpoint.startsWith("http")) {
   // Wait for auth if required
   if (requireAuth && !skipAuthCheck) {
     const authIsReady = await waitForAuth();
-    if (!authIsReady && !getAuthToken()) {
+    if (!authIsReady) {
       throw new Error('Authentication not ready. Please wait and try again.');
     }
   }
@@ -423,6 +425,7 @@ if (endpoint.startsWith("http")) {
           method,
           headers: requestHeaders,
           signal: controller.signal,
+          credentials: 'include',
         };
 
         if (body !== undefined) {
@@ -538,11 +541,7 @@ if (endpoint.startsWith("http")) {
             continue;
           } else {
             console.log("❌ [API] Token refresh failed - user must log in again");
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('auth_token');
-              localStorage.removeItem('refresh_token');
-              localStorage.removeItem('user_data');
-            }
+            clearClientAuthState();
             throw new Error('Unauthorized: Please log in again.');
           }
         }

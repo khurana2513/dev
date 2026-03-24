@@ -1,6 +1,6 @@
 """API routes for user authentication, progress tracking, and dashboards."""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Response, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import List, Optional
@@ -15,13 +15,20 @@ logger = logging.getLogger(__name__)
 
 from models import User, PracticeSession, Attempt, PaperAttempt, Paper, StudentProfile, ProfileAuditLog, VacantId, PointsLog, Certificate, get_db
 from auth import (
+    ACCESS_COOKIE_NAME,
+    REFRESH_COOKIE_NAME,
+    clear_auth_cookies,
     get_current_user,
     get_current_admin,
+    get_bearer_or_cookie_token,
+    security,
+    set_auth_cookies,
     verify_google_token,
     create_access_token,
     get_admin_email_set,
     normalize_email,
 )
+from fastapi.security import HTTPAuthorizationCredentials
 from token_manager import create_token_pair, refresh_access_token, verify_refresh_token
 from user_schemas import (
     LoginRequest, LoginResponse, UserResponse, PracticeSessionCreate,
@@ -63,9 +70,12 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit("10/minute")  # Security: Rate limit login attempts to prevent brute force
-async def login(request: Request, login_data: LoginRequest, db: Session = Depends(get_db)):
-    print("🧪 LOGIN RAW BODY:", login_data.dict())
-
+async def login(
+    request: Request,
+    response: Response,
+    login_data: LoginRequest,
+    db: Session = Depends(get_db),
+):
     """Login with Google OAuth token."""
     try:
         # Get token from either credential or token field
@@ -212,7 +222,8 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
         except Exception as _login_err:
             logger.warning("[REWARD] daily login bonus failed: %s", _login_err, exc_info=True)
         
-        print(f"✅ [LOGIN] Login successful for user: {user.email}, access_token and refresh_token generated")
+        set_auth_cookies(response, access_token, refresh_token)
+        logger.info("✅ [LOGIN] Login successful for user: %s", user.email)
         return LoginResponse(
             access_token=access_token,
             refresh_token=refresh_token,
@@ -234,26 +245,35 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
 @limiter.limit("20/minute")  # Allow more frequent refresh attempts
 async def refresh_token_endpoint(
     request: Request,
+    response: Response,
     refresh_data: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ):
     """Refresh access token using refresh token."""
     try:
-        print(f"🔄 [REFRESH] Token refresh attempt")
+        logger.info("🔄 [REFRESH] Token refresh attempt")
+        refresh_token = refresh_data.refresh_token or request.cookies.get(REFRESH_COOKIE_NAME)
+        if not refresh_token:
+            clear_auth_cookies(response)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token missing. Please log in again."
+            )
         
         # Verify refresh token and get payload
         try:
-            payload = verify_refresh_token(refresh_data.refresh_token)
+            payload = verify_refresh_token(refresh_token)
             user_id = int(payload.get("sub"))
-            user_email = payload.get("email")
         except ValueError as e:
-            print(f"❌ [REFRESH] Invalid refresh token: {e}")
+            clear_auth_cookies(response)
+            logger.warning("❌ [REFRESH] Invalid refresh token: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired refresh token. Please log in again."
             )
         except Exception as e:
-            print(f"❌ [REFRESH] Token verification error: {e}")
+            clear_auth_cookies(response)
+            logger.exception("❌ [REFRESH] Token verification error: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token verification failed. Please log in again."
@@ -262,7 +282,8 @@ async def refresh_token_endpoint(
         # Verify user still exists and is active
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
-            print(f"❌ [REFRESH] User {user_id} not found")
+            clear_auth_cookies(response)
+            logger.warning("❌ [REFRESH] User %s not found", user_id)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found. Please log in again."
@@ -270,23 +291,41 @@ async def refresh_token_endpoint(
         
         # Generate new access token
         new_access_token = refresh_access_token(
-            refresh_data.refresh_token,
+            refresh_token,
             user_data={"email": user.email}
         )
+        set_auth_cookies(response, new_access_token, refresh_token)
         
-        print(f"✅ [REFRESH] Token refreshed successfully for user: {user.email}")
+        logger.info("✅ [REFRESH] Token refreshed successfully for user: %s", user.email)
         return RefreshTokenResponse(access_token=new_access_token)
         
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        print(f"❌ [REFRESH] Unexpected error: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception("❌ [REFRESH] Unexpected error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Token refresh failed. Please try again or log in."
         )
+
+
+@router.post("/auth/logout")
+async def logout(
+    response: Response,
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Logout current user and clear auth cookies."""
+    token = get_bearer_or_cookie_token(
+        request,
+        credentials,
+        cookie_name=ACCESS_COOKIE_NAME,
+    )
+    if token:
+        from token_manager import revoke_token
+        revoke_token(token)
+    clear_auth_cookies(response)
+    return {"success": True}
 
 
 @router.get("/me", response_model=UserResponse)

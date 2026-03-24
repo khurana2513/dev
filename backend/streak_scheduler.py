@@ -13,14 +13,32 @@ from datetime import timedelta
 
 from models import SessionLocal
 from timezone_utils import get_ist_now
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
 _scheduler_thread: threading.Thread | None = None
+_ADVISORY_LOCK_ID = 910002
 
 # Fire at 00:05 IST — 5 minutes after IST midnight so the day has fully turned.
 TARGET_HOUR = 0
 TARGET_MINUTE = 5
+
+
+def _acquire_scheduler_lock(db) -> bool:
+    """Use Postgres advisory locks so only one app instance runs the job."""
+    bind = db.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return True
+    return bool(db.execute(text("SELECT pg_try_advisory_lock(:lock_id)"), {"lock_id": _ADVISORY_LOCK_ID}).scalar())
+
+
+def _release_scheduler_lock(db) -> None:
+    bind = db.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return
+    db.execute(text("SELECT pg_advisory_unlock(:lock_id)"), {"lock_id": _ADVISORY_LOCK_ID})
+    db.commit()
 
 
 def run_streak_reset() -> None:
@@ -28,6 +46,9 @@ def run_streak_reset() -> None:
     logger.info("[STREAK-SCHEDULER] Running nightly streak reset")
     db = SessionLocal()
     try:
+        if not _acquire_scheduler_lock(db):
+            logger.info("[STREAK-SCHEDULER] Skipping run; another instance holds the scheduler lock")
+            return
         from reward_scheduler import run_nightly_streak_reset
         result = run_nightly_streak_reset(db)
         logger.info(
@@ -38,6 +59,10 @@ def run_streak_reset() -> None:
     except Exception as e:
         logger.exception("[STREAK-SCHEDULER] Error during streak reset: %s", e)
     finally:
+        try:
+            _release_scheduler_lock(db)
+        except Exception:
+            logger.exception("[STREAK-SCHEDULER] Failed to release scheduler lock")
         db.close()
 
 

@@ -155,12 +155,13 @@ export interface AdminDashboardData {
 
 // Set auth token
 export function setAuthToken(token: string): void {
-  localStorage.setItem("auth_token", token);
+  void token;
 }
 
 // Remove auth token
 export function removeAuthToken(): void {
-  localStorage.removeItem("auth_token");  localStorage.removeItem("refresh_token");}
+  // Auth now lives in HttpOnly cookies; only clear client-side cached profile data.
+}
 
 // Login with Google OAuth token - Uses centralized API client
 export async function loginWithGoogle(token: string): Promise<LoginResponse> {
@@ -175,12 +176,6 @@ export async function loginWithGoogle(token: string): Promise<LoginResponse> {
     }
     
     console.log("✅ [LOGIN] Login successful, received access_token and refresh_token!");
-    setAuthToken(data.access_token);
-    // Store refresh token
-    if (data.refresh_token) {
-      localStorage.setItem("refresh_token", data.refresh_token);
-      console.log("✅ [LOGIN] Refresh token stored");
-    }
     return data;
   } catch (error: any) {
     console.error("❌ [LOGIN] Login failed:", error);
@@ -188,12 +183,12 @@ export async function loginWithGoogle(token: string): Promise<LoginResponse> {
   }
 }
 
-export async function refreshAccessToken(refreshToken: string): Promise<{ access_token: string }> {
+export async function refreshAccessToken(refreshToken?: string): Promise<{ access_token: string }> {
   console.log("🔄 [REFRESH] Attempting to refresh access token");
   try {
     const response = await apiClient.post<{ access_token: string; token_type: string }>(
       "/users/auth/refresh", 
-      { refresh_token: refreshToken },
+      refreshToken ? { refresh_token: refreshToken } : {},
       { requireAuth: false }
     );
     console.log("✅ [REFRESH] Token refreshed successfully");
@@ -201,6 +196,14 @@ export async function refreshAccessToken(refreshToken: string): Promise<{ access
   } catch (error) {
     console.error("❌ [REFRESH] Token refresh failed:", error);
     throw error;
+  }
+}
+
+export async function logoutUser(): Promise<void> {
+  try {
+    await apiClient.post("/users/auth/logout", {}, { requireAuth: false });
+  } catch (error) {
+    console.warn("⚠️ [LOGOUT] Backend logout failed:", error);
   }
 }
 

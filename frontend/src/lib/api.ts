@@ -110,6 +110,13 @@ export interface PreviewResponse {
 import { buildApiUrl, looksLikeHtmlDocument, resolveApiBase } from "./apiBase";
 const API_BASE = resolveApiBase();
 
+function buildJsonHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    ...extra,
+  };
+}
+
 export async function previewPaper(config: PaperConfig): Promise<PreviewResponse> {
   const url = buildApiUrl("/papers/preview");
   console.log("[PREVIEW] POST", url);
@@ -118,15 +125,14 @@ export async function previewPaper(config: PaperConfig): Promise<PreviewResponse
     const requestBody = JSON.stringify(config);
 
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+      ...buildJsonHeaders(),
       "Accept": "application/json",
     };
-    const token = localStorage.getItem("auth_token");
-    if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const res = await fetch(url, {
       method: "POST",
       headers,
+      credentials: "include",
       body: requestBody,
     });
 
@@ -179,7 +185,8 @@ export async function generatePdf(
 ): Promise<Blob> {
   const res = await fetch(buildApiUrl("/papers/generate-pdf"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildJsonHeaders(),
+    credentials: "include",
     body: JSON.stringify({ config, withAnswers, seed, generatedBlocks, answersOnly, includeSeparateAnswerKey }),
   });
   if (!res.ok) throw new Error("Failed to generate PDF");
@@ -220,14 +227,10 @@ export interface PaperAttemptCreate {
 }
 
 export async function startPaperAttempt(data: PaperAttemptCreate): Promise<PaperAttempt> {
-  const token = localStorage.getItem("auth_token");
-  if (!token) throw new Error("Not authenticated");
   const res = await fetch(`${API_BASE}/papers/attempt`, {
     method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`
-    },
+    headers: buildJsonHeaders(),
+    credentials: "include",
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -242,16 +245,11 @@ export async function submitPaperAttempt(
   answers: { [questionId: string]: number },
   timeTaken: number
 ): Promise<PaperAttempt> {
-  const token = localStorage.getItem("auth_token");
-  if (!token) throw new Error("Not authenticated");
-  
   try {
     const res = await fetch(`${API_BASE}/papers/attempt/${attemptId}`, {
       method: "PUT",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
+      headers: buildJsonHeaders(),
+      credentials: "include",
       body: JSON.stringify({ answers, time_taken: timeTaken }),
     });
     
@@ -291,10 +289,8 @@ export async function submitPaperAttempt(
 }
 
 export async function getPaperAttempt(attemptId: number): Promise<PaperAttemptDetail> {
-  const token = localStorage.getItem("auth_token");
-  if (!token) throw new Error("Not authenticated");
   const res = await fetch(`${API_BASE}/papers/attempt/${attemptId}`, {
-    headers: { "Authorization": `Bearer ${token}` },
+    credentials: "include",
   });
   if (!res.ok) throw new Error("Failed to get attempt");
   return res.json();
@@ -307,20 +303,16 @@ export interface PaperAttemptValidation {
 }
 
 export async function validatePaperAttempt(attemptId: number): Promise<PaperAttemptValidation> {
-  const token = localStorage.getItem("auth_token");
-  if (!token) throw new Error("Not authenticated");
   const res = await fetch(`${API_BASE}/papers/attempt/${attemptId}/validate`, {
-    headers: { "Authorization": `Bearer ${token}` },
+    credentials: "include",
   });
   if (!res.ok) throw new Error("Failed to validate attempt");
   return res.json();
 }
 
 export async function getPaperAttempts(): Promise<PaperAttempt[]> {
-  const token = localStorage.getItem("auth_token");
-  if (!token) throw new Error("Not authenticated");
   const res = await fetch(`${API_BASE}/papers/attempts`, {
-    headers: { "Authorization": `Bearer ${token}` },
+    credentials: "include",
   });
   if (!res.ok) {
     const errorText = await res.text();
@@ -343,10 +335,8 @@ export interface PaperAttemptCount {
 }
 
 export async function getPaperAttemptCount(seed: number, paperTitle: string): Promise<PaperAttemptCount> {
-  const token = localStorage.getItem("auth_token");
-  if (!token) throw new Error("Not authenticated");
   const res = await fetch(`${API_BASE}/papers/attempt/count?seed=${seed}&paper_title=${encodeURIComponent(paperTitle)}`, {
-    headers: { "Authorization": `Bearer ${token}` },
+    credentials: "include",
   });
   if (!res.ok) throw new Error("Failed to get attempt count");
   return res.json();

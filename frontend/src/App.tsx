@@ -2,48 +2,17 @@ import { Switch, Route } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { SubscriptionProvider } from "./contexts/SubscriptionContext";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { LoadingScreen } from "./components/LoadingScreen";
 import './styles/loading.css';
 
-import MaintenancePage from "./pages/MaintenancePage";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import GraceBanner from "./components/GraceBanner";
 import ErrorBoundary from "./components/ErrorBoundary";
 // import Jugnu from "./components/Jugnu";
 import Home from "./pages/Home";
-import PaperCreate from "./pages/PaperCreate";
-import PaperAttempt from "./pages/PaperAttempt";
-import Mental from "./pages/Mental";
-import BurstMode from "./pages/BurstMode";
-import NotFound from "./pages/NotFound";
 import Login from "./components/Login";
-import StudentDashboard from "./pages/StudentDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
-import StudentProfile from "./pages/StudentProfile";
-import AdminStudentIDManagement from "./pages/AdminStudentIDManagement";
-import AdminAttendance from "./pages/AdminAttendance";
-import AdminStudentManagement from "./pages/AdminStudentManagement";
-import StudentAttendance from "./pages/StudentAttendance";
-import AbacusCourse from "./pages/AbacusCourse";
-import VedicMathsCourse from "./pages/VedicMathsCourse";
-import HandwritingCourse from "./pages/HandwritingCourse";
-import STEMCourse from "./pages/STEMCourse";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import TermsOfService from "./pages/TermsOfService";
-import AboutUs from "./pages/AboutUs";
-import AccountDeletion from "./pages/AccountDeletion";
-import GridMaster from "./pages/GridMaster";
-import SorobanAbacus from "./pages/SorobanAbacus";
-import Pricing from "./pages/Pricing";
-import AdminAccessControl from "./pages/AdminAccessControl";
-import StudentRewards from "./pages/StudentRewards";
-import AdminRewards from "./pages/AdminRewards";
-import LeaderboardComingSoon from "./pages/LeaderboardComingSoon";
-import BadgeUnlockCinematic from "./components/rewards/BadgeUnlockCinematic";
-import StreakCelebrationOverlay from "./components/rewards/StreakCelebrationOverlay";
-import SuperLetterCinematic from "./components/rewards/SuperLetterCinematic";
 import { ReactNode } from "react";
 import { useScrollRestoration } from "./hooks/useScrollRestoration";
 import { useInactivityDetection } from "./hooks/useInactivityDetection";
@@ -52,6 +21,37 @@ import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
 import { buildApiUrl } from "./lib/apiBase";
 
+const MaintenancePage = lazy(() => import("./pages/MaintenancePage"));
+const PaperCreate = lazy(() => import("./pages/PaperCreate"));
+const PaperAttempt = lazy(() => import("./pages/PaperAttempt"));
+const Mental = lazy(() => import("./pages/Mental"));
+const BurstMode = lazy(() => import("./pages/BurstMode"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const StudentDashboard = lazy(() => import("./pages/StudentDashboard"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const StudentProfile = lazy(() => import("./pages/StudentProfile"));
+const AdminStudentIDManagement = lazy(() => import("./pages/AdminStudentIDManagement"));
+const AdminAttendance = lazy(() => import("./pages/AdminAttendance"));
+const AdminStudentManagement = lazy(() => import("./pages/AdminStudentManagement"));
+const StudentAttendance = lazy(() => import("./pages/StudentAttendance"));
+const AbacusCourse = lazy(() => import("./pages/AbacusCourse"));
+const VedicMathsCourse = lazy(() => import("./pages/VedicMathsCourse"));
+const HandwritingCourse = lazy(() => import("./pages/HandwritingCourse"));
+const STEMCourse = lazy(() => import("./pages/STEMCourse"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const AboutUs = lazy(() => import("./pages/AboutUs"));
+const AccountDeletion = lazy(() => import("./pages/AccountDeletion"));
+const GridMaster = lazy(() => import("./pages/GridMaster"));
+const SorobanAbacus = lazy(() => import("./pages/SorobanAbacus"));
+const Pricing = lazy(() => import("./pages/Pricing"));
+const AdminAccessControl = lazy(() => import("./pages/AdminAccessControl"));
+const StudentRewards = lazy(() => import("./pages/StudentRewards"));
+const AdminRewards = lazy(() => import("./pages/AdminRewards"));
+const LeaderboardComingSoon = lazy(() => import("./pages/LeaderboardComingSoon"));
+const BadgeUnlockCinematic = lazy(() => import("./components/rewards/BadgeUnlockCinematic"));
+const StreakCelebrationOverlay = lazy(() => import("./components/rewards/StreakCelebrationOverlay"));
+const SuperLetterCinematic = lazy(() => import("./components/rewards/SuperLetterCinematic"));
 
 const queryClient = new QueryClient();
 
@@ -121,7 +121,11 @@ function AppContent() {
   }, []);
 
   if (maintenance?.enabled && !isAdmin) {
-    return <MaintenancePage message={maintenance.message} />;
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        <MaintenancePage message={maintenance.message} />
+      </Suspense>
+    );
   }
 
   return (
@@ -232,9 +236,11 @@ function AppContent() {
         </main>
         <Footer />
       </div>
-      <BadgeUnlockCinematic />
-      <StreakCelebrationOverlay />
-      <SuperLetterCinematic />
+      <Suspense fallback={null}>
+        <BadgeUnlockCinematic />
+        <StreakCelebrationOverlay />
+        <SuperLetterCinematic />
+      </Suspense>
       {/* <Jugnu /> */}
     </ErrorBoundary>
   );

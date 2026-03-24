@@ -12,10 +12,28 @@ import time as time_module
 from models import SessionLocal
 from subscription_service import process_expirations
 from timezone_utils import get_ist_now
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
 _scheduler_thread: threading.Thread | None = None
+_ADVISORY_LOCK_ID = 910001
+
+
+def _acquire_scheduler_lock(db) -> bool:
+    """Use Postgres advisory locks so only one app instance runs the job."""
+    bind = db.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return True
+    return bool(db.execute(text("SELECT pg_try_advisory_lock(:lock_id)"), {"lock_id": _ADVISORY_LOCK_ID}).scalar())
+
+
+def _release_scheduler_lock(db) -> None:
+    bind = db.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return
+    db.execute(text("SELECT pg_advisory_unlock(:lock_id)"), {"lock_id": _ADVISORY_LOCK_ID})
+    db.commit()
 
 
 def run_expiry_check() -> None:
@@ -23,6 +41,9 @@ def run_expiry_check() -> None:
     logger.info("[EXPIRY] Running subscription expiry check")
     db = SessionLocal()
     try:
+        if not _acquire_scheduler_lock(db):
+            logger.info("[EXPIRY] Skipping run; another instance holds the scheduler lock")
+            return
         to_grace, to_expired = process_expirations(db)
         logger.info(
             "[EXPIRY] Done: %d → grace, %d → expired",
@@ -31,6 +52,10 @@ def run_expiry_check() -> None:
     except Exception as e:
         logger.exception("[EXPIRY] Error during expiry check: %s", e)
     finally:
+        try:
+            _release_scheduler_lock(db)
+        except Exception:
+            logger.exception("[EXPIRY] Failed to release scheduler lock")
         db.close()
 
 

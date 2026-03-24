@@ -1,5 +1,5 @@
 """Authentication and authorization utilities."""
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
@@ -41,8 +41,67 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour
 REFRESH_TOKEN_EXPIRE_DAYS = 30  # 30 days for refresh tokens
 
-security = HTTPBearer()
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+COOKIE_SECURE = APP_ENV in {"production", "staging"}
+COOKIE_SAMESITE = "none" if COOKIE_SECURE else "lax"
+ACCESS_COOKIE_NAME = "th_access_token"
+REFRESH_COOKIE_NAME = "th_refresh_token"
+
+security = HTTPBearer(auto_error=False)
 token_blacklist = TokenBlacklist()
+
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    """Persist auth tokens in secure HttpOnly cookies."""
+    response.set_cookie(
+        key=ACCESS_COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/",
+    )
+
+
+def clear_auth_cookies(response: Response) -> None:
+    """Delete auth cookies on logout or auth failure."""
+    response.delete_cookie(
+        key=ACCESS_COOKIE_NAME,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+    response.delete_cookie(
+        key=REFRESH_COOKIE_NAME,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+
+
+def get_bearer_or_cookie_token(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials],
+    *,
+    cookie_name: str,
+) -> Optional[str]:
+    """Resolve auth token from Authorization header first, then cookie fallback."""
+    if credentials and credentials.credentials:
+        return credentials.credentials
+    cookie_value = request.cookies.get(cookie_name)
+    return cookie_value.strip() if cookie_value else None
 
 
 def normalize_email(email: Optional[str]) -> str:
@@ -89,13 +148,26 @@ def create_tokens_for_user(user_id: int) -> Tuple[str, str]:
     return create_token_pair({"sub": str(user_id)})
 
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def verify_token(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Verify JWT token and check if it's been revoked.
     
     Raises:
         HTTPException: If token is invalid, expired, or revoked
     """
-    token = credentials.credentials
+    token = get_bearer_or_cookie_token(
+        request,
+        credentials,
+        cookie_name=ACCESS_COOKIE_NAME,
+    )
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         # Check if token is in blacklist (revoked)
         if token_blacklist.is_blacklisted(token):

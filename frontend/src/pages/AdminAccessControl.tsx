@@ -431,8 +431,10 @@ export default function AdminAccessControl() {
   const toggleMaintenance = async () => {
     setMaintenanceLoading(true);
     try {
-      const token = localStorage.getItem("auth_token") ?? "";
-      const res = await fetch(buildApiUrl("/admin/maintenance/toggle"), { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(buildApiUrl("/admin/maintenance/toggle"), {
+        method: "POST",
+        credentials: "include",
+      });
       const d = await res.json();
       setMaintenanceEnabled(d.enabled);
       setMaintenanceMsg(d.message);
@@ -444,8 +446,12 @@ export default function AdminAccessControl() {
   const saveMaintenanceMessage = async () => {
     setMaintenanceLoading(true);
     try {
-      const token = localStorage.getItem("auth_token") ?? "";
-      const res = await fetch(buildApiUrl("/admin/maintenance/message"), { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ message: maintenanceMsgDraft }) });
+      const res = await fetch(buildApiUrl("/admin/maintenance/message"), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: maintenanceMsgDraft }),
+      });
       const d = await res.json();
       setMaintenanceMsg(d.message);
       setMaintenanceMsgDraft(d.message);

@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 
-const DEFAULT_NATIVE_API_BASE = "https://talenthub.blackmonkey.in/api";
+const DEFAULT_NATIVE_API_BASE = "https://th.blackmonkey.in/api";
 const DEFAULT_WEB_API_BASE = "/api";
 
 function stripTrailingSlash(value: string): string {
@@ -39,6 +39,27 @@ export function resolveApiBase(): string {
   }
 
   return stripTrailingSlash(ensureProtocol(trimmedValue));
+}
+
+export function getApiBaseCandidates(): string[] {
+  const isNative = Capacitor.isNativePlatform();
+  const envNative = stripTrailingSlash(ensureProtocol(import.meta.env.VITE_API_BASE_NATIVE || DEFAULT_NATIVE_API_BASE));
+  const envWeb = import.meta.env.VITE_API_BASE?.trim();
+  const candidates = [
+    envNative,
+    DEFAULT_NATIVE_API_BASE,
+    "https://talenthub.blackmonkey.in/api",
+  ];
+
+  if (envWeb && /^https?:\/\//i.test(envWeb)) {
+    candidates.unshift(stripTrailingSlash(ensureProtocol(envWeb)));
+  }
+
+  if (!isNative) {
+    candidates.unshift(resolveApiBase());
+  }
+
+  return Array.from(new Set(candidates.filter(Boolean)));
 }
 
 export function buildApiUrl(endpoint: string): string {

@@ -260,18 +260,6 @@ export default function PaperAttempt() {
           return;
         }
         
-        // Verify token exists in localStorage (double-check)
-        const token = localStorage.getItem("auth_token");
-        if (!token) {
-          console.error("❌ [ATTEMPT] isAuthenticated is true but no token in localStorage");
-          if (mounted) {
-            setError("Authentication token not found. Please log in again.");
-            setLoading(false);
-            setLocation("/login");
-          }
-          return;
-        }
-
         // Reset initializedRef first to allow new attempts
         // This is critical for re-attempts to work
         const wasInitialized = initializedRef.current;
@@ -356,12 +344,6 @@ export default function PaperAttempt() {
         
         // Start the attempt immediately with the loaded data
         try {
-          // Double-check token before API call
-          const token = localStorage.getItem("auth_token");
-          if (!token) {
-            throw new Error("Authentication token not found. Please log in again.");
-          }
-          
           console.log("🟢 [ATTEMPT] Starting attempt API call...");
           const attemptData: PaperAttemptCreate = {
             paper_title: config.title,
