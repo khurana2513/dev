@@ -106,9 +106,9 @@ export interface PreviewResponse {
   seed: number;
 }
 
+import apiClient from "./apiClient";
 // Use same API base as userApi for consistency
-import { buildApiUrl, looksLikeHtmlDocument, resolveApiBase } from "./apiBase";
-const API_BASE = resolveApiBase();
+import { buildApiUrl, looksLikeHtmlDocument } from "./apiBase";
 
 function buildJsonHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
@@ -227,17 +227,7 @@ export interface PaperAttemptCreate {
 }
 
 export async function startPaperAttempt(data: PaperAttemptCreate): Promise<PaperAttempt> {
-  const res = await fetch(`${API_BASE}/papers/attempt`, {
-    method: "POST",
-    headers: buildJsonHeaders(),
-    credentials: "include",
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: "Failed to start attempt" }));
-    throw new Error(error.detail || "Failed to start attempt");
-  }
-  return res.json();
+  return apiClient.post<PaperAttempt>("/papers/attempt", data);
 }
 
 export async function submitPaperAttempt(
@@ -245,55 +235,14 @@ export async function submitPaperAttempt(
   answers: { [questionId: string]: number },
   timeTaken: number
 ): Promise<PaperAttempt> {
-  try {
-    const res = await fetch(`${API_BASE}/papers/attempt/${attemptId}`, {
-      method: "PUT",
-      headers: buildJsonHeaders(),
-      credentials: "include",
-      body: JSON.stringify({ answers, time_taken: timeTaken }),
-    });
-    
-    if (!res.ok) {
-      let errorMessage = "Failed to submit attempt";
-      try {
-        const errorData = await res.json();
-        if (errorData.detail) {
-          // Handle both string and object detail
-          if (typeof errorData.detail === 'string') {
-            errorMessage = errorData.detail;
-          } else if (Array.isArray(errorData.detail)) {
-            errorMessage = errorData.detail.map((e: any) => 
-              `${e.loc?.join('.')}: ${e.msg || e.message || JSON.stringify(e)}`
-            ).join(', ');
-          } else {
-            errorMessage = JSON.stringify(errorData.detail);
-          }
-        } else if (errorData.message) {
-          errorMessage = typeof errorData.message === 'string' ? errorData.message : JSON.stringify(errorData.message);
-        }
-      } catch (parseError) {
-        const text = await res.text().catch(() => "");
-        errorMessage = text || `Server error: ${res.status} ${res.statusText}`;
-      }
-      throw new Error(errorMessage);
-    }
-    
-    return res.json();
-  } catch (error) {
-    // Re-throw with better error message
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error(typeof error === 'string' ? error : "Failed to submit attempt");
-  }
+  return apiClient.put<PaperAttempt>(`/papers/attempt/${attemptId}`, {
+    answers,
+    time_taken: timeTaken,
+  });
 }
 
 export async function getPaperAttempt(attemptId: number): Promise<PaperAttemptDetail> {
-  const res = await fetch(`${API_BASE}/papers/attempt/${attemptId}`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("Failed to get attempt");
-  return res.json();
+  return apiClient.get<PaperAttemptDetail>(`/papers/attempt/${attemptId}`);
 }
 
 export interface PaperAttemptValidation {
@@ -303,29 +252,11 @@ export interface PaperAttemptValidation {
 }
 
 export async function validatePaperAttempt(attemptId: number): Promise<PaperAttemptValidation> {
-  const res = await fetch(`${API_BASE}/papers/attempt/${attemptId}/validate`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("Failed to validate attempt");
-  return res.json();
+  return apiClient.get<PaperAttemptValidation>(`/papers/attempt/${attemptId}/validate`);
 }
 
 export async function getPaperAttempts(): Promise<PaperAttempt[]> {
-  const res = await fetch(`${API_BASE}/papers/attempts`, {
-    credentials: "include",
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error("❌ [API] getPaperAttempts error:", res.status, errorText);
-    try {
-      const errorJson = JSON.parse(errorText);
-      console.error("❌ [API] Error details:", errorJson);
-    } catch {
-      // Not JSON, use text
-    }
-    throw new Error(`Failed to get attempts: ${res.status} ${errorText}`);
-  }
-  return res.json();
+  return apiClient.get<PaperAttempt[]>("/papers/attempts");
 }
 
 export interface PaperAttemptCount {
@@ -335,9 +266,9 @@ export interface PaperAttemptCount {
 }
 
 export async function getPaperAttemptCount(seed: number, paperTitle: string): Promise<PaperAttemptCount> {
-  const res = await fetch(`${API_BASE}/papers/attempt/count?seed=${seed}&paper_title=${encodeURIComponent(paperTitle)}`, {
-    credentials: "include",
+  const searchParams = new URLSearchParams({
+    seed: String(seed),
+    paper_title: paperTitle,
   });
-  if (!res.ok) throw new Error("Failed to get attempt count");
-  return res.json();
+  return apiClient.get<PaperAttemptCount>(`/papers/attempt/count?${searchParams.toString()}`);
 }

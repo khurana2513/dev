@@ -1,7 +1,15 @@
 import { Capacitor } from "@capacitor/core";
 
-const DEFAULT_NATIVE_API_BASE = "https://th.blackmonkey.in/api";
+const DEFAULT_NATIVE_API_BASE = "https://hi-test.up.railway.app";
 const DEFAULT_WEB_API_BASE = "/api";
+const API_BASE_STORAGE_KEY = "th_active_api_base";
+const NATIVE_API_FALLBACKS = [
+  "https://th.blackmonkey.in/api",
+  "https://talenthub.blackmonkey.in/api",
+];
+const DISABLED_NATIVE_API_BASES = new Set([
+  "https://th.blackmonkey.in/api",
+]);
 
 function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
@@ -24,6 +32,11 @@ function ensureProtocol(value: string): string {
 }
 
 export function resolveApiBase(): string {
+  const storedValue = getStoredApiBase();
+  if (storedValue) {
+    return storedValue;
+  }
+
   const isNative = Capacitor.isNativePlatform();
   const rawValue = isNative
     ? (import.meta.env.VITE_API_BASE_NATIVE || DEFAULT_NATIVE_API_BASE)
@@ -48,7 +61,7 @@ export function getApiBaseCandidates(): string[] {
   const candidates = [
     envNative,
     DEFAULT_NATIVE_API_BASE,
-    "https://talenthub.blackmonkey.in/api",
+    ...NATIVE_API_FALLBACKS,
   ];
 
   if (envWeb && /^https?:\/\//i.test(envWeb)) {
@@ -60,6 +73,33 @@ export function getApiBaseCandidates(): string[] {
   }
 
   return Array.from(new Set(candidates.filter(Boolean)));
+}
+
+function getStoredApiBase(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const value = window.localStorage.getItem(API_BASE_STORAGE_KEY);
+  if (!value) {
+    return null;
+  }
+  const normalizedValue = stripTrailingSlash(value);
+  if (DISABLED_NATIVE_API_BASES.has(normalizedValue)) {
+    window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+    return null;
+  }
+  return normalizedValue;
+}
+
+export function setActiveApiBase(apiBase: string | null): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (!apiBase) {
+    window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(API_BASE_STORAGE_KEY, stripTrailingSlash(apiBase));
 }
 
 export function buildApiUrl(endpoint: string): string {

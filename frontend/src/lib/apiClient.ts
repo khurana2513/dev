@@ -8,7 +8,7 @@
  * - Proper error parsing
  */
 
-import { buildApiUrl, looksLikeHtmlDocument, resolveApiBase } from "./apiBase";
+import { buildApiUrl, getApiBaseCandidates, looksLikeHtmlDocument, resolveApiBase, setActiveApiBase } from "./apiBase";
 
 const API_BASE = resolveApiBase();
 const DEFAULT_TIMEOUT = 30000; // 30 seconds (was 15s — too short, caused cascading retries)
@@ -199,6 +199,26 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function buildCandidateUrls(endpoint: string): string[] {
+  if (endpoint.startsWith("http")) {
+    return [endpoint];
+  }
+  const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  return getApiBaseCandidates().map((base) => `${base}${normalizedEndpoint}`);
+}
+
+function getAlternativeUrls(currentUrl: string, endpoint: string): string[] {
+  return buildCandidateUrls(endpoint).filter((candidate) => candidate !== currentUrl);
+}
+
+function extractApiBase(url: string, endpoint: string): string {
+  const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  if (url.endsWith(normalizedEndpoint)) {
+    return url.slice(0, -normalizedEndpoint.length);
+  }
+  return url.replace(/\/+$/, "");
+}
+
 /**
  * Parse error response safely
  */
@@ -378,8 +398,8 @@ if (endpoint.startsWith("http")) {
     }
   }
 
-  const url = endpoint.startsWith('http') ? endpoint : buildApiUrl(endpoint);
-  const requestKey = createRequestKey(method, url, body);
+  const primaryUrl = endpoint.startsWith('http') ? endpoint : buildApiUrl(endpoint);
+  const requestKey = createRequestKey(method, primaryUrl, body);
 
   // Check for pending duplicate request (GET only — mutations must not be deduplicated)
   if (!isMutation) {
@@ -394,6 +414,8 @@ if (endpoint.startsWith("http")) {
   const requestPromise = (async (): Promise<T> => {
     let lastError: any;
     let lastResponse: Response | undefined;
+    let currentUrl = primaryUrl;
+    let fallbackUrls = getAlternativeUrls(primaryUrl, endpoint);
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -432,7 +454,7 @@ if (endpoint.startsWith("http")) {
           fetchOptions.body = JSON.stringify(body);
         }
 
-        const response = await fetch(url, fetchOptions);
+        const response = await fetch(currentUrl, fetchOptions);
         clearTimeout(timeoutId);
 
         lastResponse = response;
@@ -444,9 +466,16 @@ if (endpoint.startsWith("http")) {
             return null as T;
           }
           if (looksLikeHtmlDocument(text)) {
-            throw new Error(`API misconfiguration: ${method} ${endpoint} returned HTML instead of JSON. Resolved URL: ${url}`);
+            if (fallbackUrls.length > 0) {
+              currentUrl = fallbackUrls.shift() as string;
+              continue;
+            }
+            throw new Error(`API misconfiguration: ${method} ${endpoint} returned HTML instead of JSON. Resolved URL: ${currentUrl}`);
           }
           try {
+            if (!endpoint.startsWith("http")) {
+              setActiveApiBase(extractApiBase(currentUrl, endpoint));
+            }
             return JSON.parse(text) as T;
           } catch {
             // Some endpoints return empty body, return null
@@ -456,6 +485,11 @@ if (endpoint.startsWith("http")) {
 
         // Handle errors
         const errorData = await parseErrorResponse(response);
+
+        if ((response.status === 404 || response.status === 405) && fallbackUrls.length > 0) {
+          currentUrl = fallbackUrls.shift() as string;
+          continue;
+        }
 
         // Check if error is retryable
         if (attempt < retries && isRetryableError(errorData, response)) {
@@ -499,6 +533,10 @@ if (endpoint.startsWith("http")) {
                                 errorMessage.includes('NetworkError');
         
         if (isNetworkError || isEmptyResponse) {
+          if (fallbackUrls.length > 0) {
+            currentUrl = fallbackUrls.shift() as string;
+            continue;
+          }
           if (attempt < retries) {
             const delay = RETRY_DELAY * Math.pow(2, attempt);
             const errorType = isEmptyResponse ? 'Empty response (connection closed)' : 'Network error';

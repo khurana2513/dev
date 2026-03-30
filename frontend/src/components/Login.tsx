@@ -64,6 +64,22 @@ export default function Login() {
   }, [isAuthenticated, setLocation]);
 
   // ── Native (Android/iOS) sign-in via Capacitor Google Auth plugin ──
+  const formatNativeAuthError = (err: any): string => {
+    const code = err?.code ?? err?.statusCode ?? err?.status ?? err?.error;
+    const message = err?.message || err?.toString?.() || "Sign-in failed. Please try again.";
+    const normalized = `${code ?? ""} ${message}`.toUpperCase();
+
+    if (normalized.includes("DEVELOPER_ERROR") || String(code) === "10") {
+      return "Google Sign-In is not configured for the Play Store signing certificate. Add the Google Play App Signing SHA-1 and SHA-256 for com.blackmonkey.talenthub in Google/Firebase, then update the Android config and republish.";
+    }
+
+    if (normalized.includes("12500") || normalized.includes("12501") || normalized.includes("CANCELED")) {
+      return "Google Sign-In was cancelled or interrupted. Please try again.";
+    }
+
+    return code ? `${message} (code: ${code})` : message;
+  };
+
   const handleNativeSignIn = async () => {
     setLoading(true);
     setError(null);
@@ -75,7 +91,8 @@ export default function Login() {
       setLoading(false);
     } catch (err: any) {
       console.error("❌ [NATIVE GOOGLE] Sign-in error:", err);
-      const msg = err?.message || err?.toString() || "Sign-in failed. Please try again.";
+      console.error("❌ [NATIVE GOOGLE] Serialized error:", JSON.stringify(err, null, 2));
+      const msg = formatNativeAuthError(err);
       setError(msg);
       setLoading(false);
     }
