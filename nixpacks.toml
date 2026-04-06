@@ -13,7 +13,7 @@ nixPkgs = [
   "expat",
   "fontconfig",
   "freetype",
-  "gbm",
+  "mesa",
   "gtk3",
   "pango",
   "xorg.libX11",
