@@ -6,3 +6,6 @@ buildCommand = "pip install -r requirements.txt && playwright install chromium"
 startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/health"
 healthcheckTimeout = 60
+
+# NOTE: this file is used when Railway service root is set to /backend.
+# If service root is the repo root, see /railway.toml instead.
