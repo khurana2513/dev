@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd plist — Auto-start TalentHub dev backend on Mac Mini login.
+
+  INSTALL:
+    cp scripts/com.talenthub.dev-backend.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.talenthub.dev-backend.plist
+
+  START/STOP without reboot:
+    launchctl start  com.talenthub.dev-backend
+    launchctl stop   com.talenthub.dev-backend
+
+  CHECK STATUS:
+    launchctl list | grep talenthub
+
+  VIEW LOGS:
+    tail -f /path/to/repo/logs/launchd-backend.log
+
+  ⚠️  REPLACE /PATH/TO/REPO below with the actual repo path.
+  Example: /Users/ayush/Desktop/talenthublive-main
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.talenthub.dev-backend</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/PATH/TO/REPO/scripts/mac-mini-start.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/PATH/TO/REPO/logs/launchd-backend.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/PATH/TO/REPO/logs/launchd-backend.log</string>
+
+  <!-- Wait 10s after login before starting (ensures network is up) -->
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+</dict>
+</plist>
