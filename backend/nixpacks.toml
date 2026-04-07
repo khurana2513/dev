@@ -3,6 +3,7 @@ NIXPACKS_PYTHON_VERSION = "3.12"
 
 [phases.setup]
 nixPkgs = [
+  "python312",
   "glib",
   "nss",
   "atk",
