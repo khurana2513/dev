@@ -23,5 +23,5 @@ nixPkgs = [
   "xorg.libXfixes",
   "xorg.libXrandr",
   "xorg.libxcb",
-  "xorg.libxkbcommon"
+  "libxkbcommon"
 ]
