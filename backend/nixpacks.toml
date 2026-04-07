@@ -25,3 +25,6 @@ nixPkgs = [
   "xorg.libxcb",
   "libxkbcommon"
 ]
+
+[phases.install]
+cmds = []
