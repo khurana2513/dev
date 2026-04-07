@@ -1,38 +1,5 @@
-[variables]
-NIXPACKS_PYTHON_VERSION = "3.12"
-
-[phases.setup]
-nixPkgs = [
-  "python312",
-  "glib",
-  "nss",
-  "atk",
-  "at-spi2-atk",
-  "cups",
-  "dbus",
-  "libdrm",
-  "expat",
-  "fontconfig",
-  "freetype",
-  "mesa",
-  "gtk3",
-  "pango",
-  "xorg.libX11",
-  "xorg.libXcomposite",
-  "xorg.libXdamage",
-  "xorg.libXext",
-  "xorg.libXfixes",
-  "xorg.libXrandr",
-  "xorg.libxcb",
-  "libxkbcommon"
-]
+# This file only exists to suppress npm ci if Nixpacks is ever used.
+# The actual build uses backend/Dockerfile (builder = DOCKERFILE in railway.toml).
 
 [phases.install]
 cmds = []
-
-[phases.build]
-cmds = [
-  "python3.12 -m venv /app/.venv",
-  "/app/.venv/bin/pip install --no-cache-dir -r requirements.txt",
-  "PLAYWRIGHT_BROWSERS_PATH=0 /app/.venv/bin/playwright install chromium"
-]
