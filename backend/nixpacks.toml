@@ -29,3 +29,10 @@ nixPkgs = [
 
 [phases.install]
 cmds = []
+
+[phases.build]
+cmds = [
+  "python3.12 -m venv /app/.venv",
+  "/app/.venv/bin/pip install --no-cache-dir -r requirements.txt",
+  "PLAYWRIGHT_BROWSERS_PATH=0 /app/.venv/bin/playwright install chromium"
+]
