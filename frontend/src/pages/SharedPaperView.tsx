@@ -83,6 +83,9 @@ export default function SharedPaperView() {
       },
       blocks: paper.generated_blocks,
       seed: paper.seed,
+      // Pass the share code so PaperAttempt can track this as a shared attempt,
+      // bypassing the direct 2-attempt limit.
+      sharedPaperCode: code,
     };
     try {
       sessionStorage.setItem("paperAttemptData", JSON.stringify(paperData));
@@ -395,14 +398,29 @@ export default function SharedPaperView() {
 
         {/* ── Action bar ── */}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:24}}>
-          <button
-            onClick={handleAttemptPaper}
-            disabled={timeLeft === 'Expired'}
-            style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px',background:timeLeft === 'Expired' ? 'rgba(255,255,255,0.04)' : 'linear-gradient(135deg,#EF4444,#DC2626)',borderRadius:14,border:'none',color:timeLeft === 'Expired' ? '#525870' : 'white',fontFamily:'DM Sans,sans-serif',fontWeight:700,fontSize:14,cursor:timeLeft === 'Expired' ? 'not-allowed' : 'pointer',boxShadow:timeLeft === 'Expired' ? 'none' : '0 4px 16px rgba(239,68,68,0.35)',transition:'all 0.2s'}}
-          >
-            <Play style={{width:16,height:16}} />
-            {isAuthenticated ? 'Attempt Paper' : 'Sign in to Attempt'}
-          </button>
+          {(() => {
+            const isExpiredTimer = timeLeft === 'Expired';
+            const tooFewQuestions = paper.total_questions < 15;
+            const attemptDisabled = isExpiredTimer || tooFewQuestions;
+            const attemptLabel = !isAuthenticated
+              ? 'Sign in to Attempt'
+              : isExpiredTimer
+                ? 'Paper Expired'
+                : tooFewQuestions
+                  ? 'Too Few Questions'
+                  : 'Attempt Paper';
+            return (
+              <button
+                onClick={handleAttemptPaper}
+                disabled={attemptDisabled}
+                title={tooFewQuestions ? 'This paper has fewer than 15 questions and cannot be attempted.' : undefined}
+                style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px',background:attemptDisabled ? 'rgba(255,255,255,0.04)' : 'linear-gradient(135deg,#EF4444,#DC2626)',borderRadius:14,border:'none',color:attemptDisabled ? '#525870' : 'white',fontFamily:'DM Sans,sans-serif',fontWeight:700,fontSize:14,cursor:attemptDisabled ? 'not-allowed' : 'pointer',boxShadow:attemptDisabled ? 'none' : '0 4px 16px rgba(239,68,68,0.35)',transition:'all 0.2s'}}
+              >
+                <Play style={{width:16,height:16}} />
+                {attemptLabel}
+              </button>
+            );
+          })()}
           <button
             onClick={() => handleDownloadPdf(false)}
             disabled={downloading || timeLeft === 'Expired'}
@@ -452,6 +470,16 @@ export default function SharedPaperView() {
             <AlertTriangle style={{width:18,height:18,color:'#F59E0B',flexShrink:0}} />
             <p style={{color:'#F59E0B',fontFamily:'DM Sans,sans-serif',fontSize:13,margin:0,lineHeight:1.5}}>
               Sign in to attempt this paper and track your progress. <button onClick={() => { sessionStorage.setItem("postLoginRedirect",`/paper/shared/${code}`); setLocation("/login"); }} style={{background:'none',border:'none',color:'#F59E0B',fontWeight:700,textDecoration:'underline',cursor:'pointer',fontFamily:'inherit',fontSize:'inherit',padding:0}}>Sign in now</button>
+            </p>
+          </div>
+        )}
+
+        {/* ── Too few questions banner ── */}
+        {paper.total_questions < 15 && (
+          <div style={{marginTop:20,padding:'14px 18px',background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:14,display:'flex',alignItems:'center',gap:12}}>
+            <AlertTriangle style={{width:18,height:18,color:'#EF4444',flexShrink:0}} />
+            <p style={{color:'#EF4444',fontFamily:'DM Sans,sans-serif',fontSize:13,margin:0,lineHeight:1.5}}>
+              This paper only has <strong>{paper.total_questions} questions</strong> and cannot be attempted — a minimum of 15 is required. The creator needs to share a new paper with at least 15 questions.
             </p>
           </div>
         )}

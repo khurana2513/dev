@@ -27,6 +27,7 @@ const PaperAttempt = lazy(() => import("./pages/PaperAttempt"));
 const Mental = lazy(() => import("./pages/Mental"));
 const BurstMode = lazy(() => import("./pages/BurstMode"));
 const SharedPaperView = lazy(() => import("./pages/SharedPaperView"));
+const EnterCode = lazy(() => import("./pages/EnterCode"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const StudentDashboard = lazy(() => import("./pages/StudentDashboard"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
@@ -46,6 +47,7 @@ const AdminAccessControl = lazy(() => import("./pages/AdminAccessControl"));
 const StudentRewards = lazy(() => import("./pages/StudentRewards"));
 const AdminRewards = lazy(() => import("./pages/AdminRewards"));
 const LeaderboardComingSoon = lazy(() => import("./pages/LeaderboardComingSoon"));
+const DuelMode = lazy(() => import("./pages/DuelMode"));
 const BadgeUnlockCinematic = lazy(() => import("./components/rewards/BadgeUnlockCinematic"));
 const StreakCelebrationOverlay = lazy(() => import("./components/rewards/StreakCelebrationOverlay"));
 const SuperLetterCinematic = lazy(() => import("./components/rewards/SuperLetterCinematic"));
@@ -188,6 +190,16 @@ function AppContent() {
                   <BurstMode />
                 </ProtectedRoute>
               </Route>
+              <Route path="/duel/:code">
+                <ProtectedRoute>
+                  <DuelMode />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/duel">
+                <ProtectedRoute>
+                  <DuelMode />
+                </ProtectedRoute>
+              </Route>
               <Route path="/paper/attempt">
                 <ProtectedRoute>
                   <ErrorBoundary>
@@ -255,6 +267,7 @@ function AppContent() {
                 </AdminRoute>
               </Route>
               <Route path="/paper/shared/:code" component={SharedPaperView} />
+              <Route path="/paper/enter-code" component={EnterCode} />
               <Route component={NotFound} />
             </Switch>
             </Suspense>

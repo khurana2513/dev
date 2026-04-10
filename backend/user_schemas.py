@@ -211,6 +211,10 @@ class PaperAttemptCreate(BaseModel):
     seed: int
     answers: Optional[dict] = None  # {question_id: answer}
     time_taken: Optional[float] = None
+    # When set, this attempt originated from a shared paper link.
+    # The attempt bypasses the direct 2-attempt limit and is instead
+    # tracked as one attempt per shared-paper-code per user.
+    shared_paper_code: Optional[str] = None
 
 
 class PaperAttemptResponse(BaseModel):

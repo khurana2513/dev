@@ -259,6 +259,14 @@ export default function PaperAttempt() {
           if (mounted) setLocation("/login");
           return;
         }
+
+        // ── Critical guard: if a paper is already active, don't reinitialize. ──
+        // This prevents auth-context refreshes (token refresh, re-render) from
+        // clearing the activeAttemptIdRef mid-session and causing "No active attempt" errors.
+        if (activeAttemptIdRef.current !== null && !isSubmitted) {
+          console.log("🟡 [ATTEMPT] Paper already active (attemptId:", activeAttemptIdRef.current, "), skipping re-initialization");
+          return;
+        }
         
         // Reset initializedRef first to allow new attempts
         // This is critical for re-attempts to work
@@ -350,7 +358,11 @@ export default function PaperAttempt() {
             paper_level: config.level,
             paper_config: config,
             generated_blocks: blocks,
-            seed: seedValue
+            seed: seedValue,
+            // Pass the share code when this attempt originated from a shared paper link.
+            // The backend uses this to bypass the direct 2-attempt limit and instead
+            // tracks one attempt per user per share code.
+            ...(data.sharedPaperCode ? { shared_paper_code: data.sharedPaperCode } : {}),
           };
           
           const attempt = await startPaperAttempt(attemptData);
@@ -392,12 +404,18 @@ export default function PaperAttempt() {
             setError(errorMessage);
             setLoading(false);
             
-            // If it's an auth error, redirect to login
-            if (errorMessage.includes("Not authenticated") || errorMessage.includes("authentication") || errorMessage.includes("token")) {
+            // Detect auth failures and redirect to login
+            const isAuthError = (
+              errorMessage.includes("Not authenticated") ||
+              errorMessage.includes("authentication") ||
+              errorMessage.includes("token") ||
+              errorMessage.toLowerCase().includes("unauthorized") ||
+              errorMessage.includes("Please log in") ||
+              errorMessage.includes("log in again")
+            );
+            if (isAuthError) {
               console.log("🟡 [ATTEMPT] Auth error detected, redirecting to login");
-              setTimeout(() => {
-                setLocation("/login");
-              }, 1000); // Small delay to show error message
+              setTimeout(() => { setLocation("/login"); }, 1500);
             }
             // Don't remove from sessionStorage on error, so user can retry
           }

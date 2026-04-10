@@ -146,6 +146,10 @@ class PaperAttempt(Base):
     started_at = Column(DateTime(timezone=True), default=lambda: datetime.utcnow().replace(tzinfo=timezone.utc))
     completed_at = Column(DateTime(timezone=True), nullable=True)
     
+    # Tracks which SharedPaper (by code) triggered this attempt, if any.
+    # NULL for direct practice attempts; set for attempts started from a share link.
+    shared_paper_code = Column(String(8), nullable=True, index=True)
+
     # Relationships
     user = relationship("User", back_populates="paper_attempts")
     

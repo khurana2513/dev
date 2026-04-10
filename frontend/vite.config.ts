@@ -239,11 +239,19 @@ export default defineConfig({
     },
 
     proxy: {
+      // 🔴 The specific duel WS path MUST come before the generic /api entry
+      //    so Vite matches it first and enables WebSocket proxying only here.
+      "/api/duel/ws": {
+        target: "http://127.0.0.1:8001",
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
       "/api": {
         target: "http://127.0.0.1:8001",
         changeOrigin: true,
         secure: false,
-        ws: false, // 🔴 VERY IMPORTANT (prevents socket hangs)
+        ws: false, // 🔴 VERY IMPORTANT (prevents socket hangs on non-duel routes)
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },

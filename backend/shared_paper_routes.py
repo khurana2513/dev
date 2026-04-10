@@ -126,6 +126,13 @@ async def share_paper(
     if total_q == 0:
         raise HTTPException(status_code=422, detail="The paper has no questions to share.")
 
+    if total_q < 15:
+        raise HTTPException(
+            status_code=422,
+            detail=f"A shared paper must have at least 15 questions so it can be attempted. "
+                   f"This paper only has {total_q}. Add more questions and try again.",
+        )
+
     code = _generate_code(db)
 
     shared = SharedPaper(

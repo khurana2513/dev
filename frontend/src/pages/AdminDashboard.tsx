@@ -9,6 +9,7 @@ import {
   getStudentPaperAttemptDetailAdmin, User, AdminDashboardData,
   getOverallLeaderboard, getWeeklyLeaderboard, LeaderboardEntry,
 } from "../lib/userApi";
+import { getAttendanceMetrics } from "../lib/attendanceApi";
 import { PaperAttemptDetail } from "../lib/api";
 import { Shield, Users, BarChart3, Target, TrendingUp, User as UserIcon, Edit2, RefreshCw, Database, X, Brain, FileText, Clock, Eye, CheckCircle2, XCircle, Trophy, IdCard } from "lucide-react";
 import { useLocation } from "wouter";
@@ -45,6 +46,14 @@ export default function AdminDashboard() {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: true,
+  });
+
+  const { data: attendanceMetrics } = useQuery({
+    queryKey: ["attn-metrics-dashboard"],
+    queryFn:  () => getAttendanceMetrics(),
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    retry: false,
   });
 
   // ─── Combined Admin Dashboard Query (replaces 3 separate API calls) ────────
@@ -272,6 +281,130 @@ export default function AdminDashboard() {
             </div>
             <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Active Today</div>
             <div className="text-2xl sm:text-3xl font-black italic text-card-foreground">{stats.active_students_today}</div>
+          </div>
+        </div>
+
+        {/* ── Attendance Overview ───────────────────────────────────── */}
+        <div className="mb-8 bg-card border border-border rounded-[2.5rem] shadow-xl overflow-hidden">
+          <div className="px-4 sm:px-8 pt-5 sm:pt-8 pb-5 sm:pb-8">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center shadow-lg">
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-card-foreground">Attendance Overview</h2>
+                <p className="text-xs text-muted-foreground">Today · This Month</p>
+              </div>
+            </div>
+
+            {attendanceMetrics ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Today */}
+                {(() => {
+                  const pct = attendanceMetrics.date_stats.attendance_percentage;
+                  const present = attendanceMetrics.date_stats.present;
+                  const absent  = attendanceMetrics.date_stats.absent;
+                  const onBreak = attendanceMetrics.date_stats.on_break;
+                  const total   = attendanceMetrics.date_stats.total_marked;
+                  const r = 30, stroke = 5, circ = 2 * Math.PI * r;
+                  const dash = (pct / 100) * circ;
+                  return (
+                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 sm:p-5 flex items-center gap-4">
+                      {/* Donut */}
+                      <svg width={74} height={74} className="shrink-0">
+                        <circle cx={37} cy={37} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
+                        <circle cx={37} cy={37} r={r} fill="none" stroke="rgb(34 197 94)" strokeWidth={stroke}
+                          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+                          transform="rotate(-90 37 37)" style={{ transition: "stroke-dasharray 0.5s ease" }}
+                        />
+                        <text x={37} y={34} textAnchor="middle" className="fill-emerald-400" style={{ fontSize: 12, fontWeight: 800 }}>
+                          {Math.round(pct)}%
+                        </text>
+                        <text x={37} y={46} textAnchor="middle" style={{ fontSize: 8, fill: "currentColor", opacity: 0.5 }}>
+                          today
+                        </text>
+                      </svg>
+                      {/* Counts */}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-2">Today</p>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-emerald-400 font-semibold">Present</span>
+                            <span className="text-sm font-black text-card-foreground">{present}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-rose-400 font-semibold">Absent</span>
+                            <span className="text-sm font-black text-card-foreground">{absent}</span>
+                          </div>
+                          {onBreak > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-amber-400 font-semibold">Break</span>
+                              <span className="text-sm font-black text-card-foreground">{onBreak}</span>
+                            </div>
+                          )}
+                          <div className="pt-1 border-t border-border flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Marked</span>
+                            <span className="text-xs font-bold text-muted-foreground">{total}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* This Month */}
+                {(() => {
+                  const pct     = attendanceMetrics.monthly_stats.attendance_percentage;
+                  const present = attendanceMetrics.monthly_stats.present;
+                  const total   = attendanceMetrics.monthly_stats.total;
+                  const r = 30, stroke = 5, circ = 2 * Math.PI * r;
+                  const dash = (pct / 100) * circ;
+                  return (
+                    <div className="bg-violet-500/5 border border-violet-500/20 rounded-2xl p-4 sm:p-5 flex items-center gap-4">
+                      {/* Donut */}
+                      <svg width={74} height={74} className="shrink-0">
+                        <circle cx={37} cy={37} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
+                        <circle cx={37} cy={37} r={r} fill="none" stroke="rgb(139 92 246)" strokeWidth={stroke}
+                          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+                          transform="rotate(-90 37 37)" style={{ transition: "stroke-dasharray 0.5s ease" }}
+                        />
+                        <text x={37} y={34} textAnchor="middle" style={{ fontSize: 12, fontWeight: 800, fill: "rgb(139 92 246)" }}>
+                          {Math.round(pct)}%
+                        </text>
+                        <text x={37} y={46} textAnchor="middle" style={{ fontSize: 8, fill: "currentColor", opacity: 0.5 }}>
+                          month
+                        </text>
+                      </svg>
+                      {/* Counts */}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-2">This Month</p>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-violet-400 font-semibold">Present</span>
+                            <span className="text-sm font-black text-card-foreground">{present}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground font-semibold">Total</span>
+                            <span className="text-sm font-black text-card-foreground">{total}</span>
+                          </div>
+                          <div className="pt-1 border-t border-border">
+                            <div className="w-full bg-background rounded-full h-1.5 mt-1">
+                              <div className="bg-violet-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[0, 1].map(i => (
+                  <div key={i} className="h-24 bg-background/50 rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

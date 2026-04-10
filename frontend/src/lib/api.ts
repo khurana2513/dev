@@ -224,6 +224,9 @@ export interface PaperAttemptCreate {
   generated_blocks: GeneratedBlock[];
   seed: number;
   answers?: { [questionId: string]: number };
+  /** When set, the attempt was started from a shared paper link.
+   *  The backend tracks this separately from direct attempts (1 per share code per user). */
+  shared_paper_code?: string;
 }
 
 export async function startPaperAttempt(data: PaperAttemptCreate): Promise<PaperAttempt> {

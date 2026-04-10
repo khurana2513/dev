@@ -43,6 +43,15 @@ interface BurstResult {
   userAnswer: number | null;
   isCorrect: boolean;
   timeTaken: number;
+  /** Set during mix mode to track which combo generated this question */
+  comboOpType?: BurstOperationType;
+  comboOption?: string;
+}
+
+/** A single (operation, difficulty) pair that is active in mix mode */
+interface SelectedCombo {
+  opType: BurstOperationType;
+  option: string;
 }
 
 // ── Configuration ────────────────────────────────────────────────────────────
@@ -429,7 +438,7 @@ function toBurstOperation(opType: BurstOperationType): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-type Phase = "select" | "config" | "countdown" | "playing" | "results";
+type Phase = "select" | "config" | "mix" | "countdown" | "playing" | "results";
 
 export default function BurstMode() {
   const { refreshUser } = useAuth();
@@ -456,6 +465,24 @@ export default function BurstMode() {
   const [phase, setPhase] = useState<Phase>("select");
   const [selectedOp, setSelectedOp] = useState<BurstOperationType | null>(null);
   const [selectedOption, setSelectedOption] = useState<string>("");
+
+  // Mix mode state
+  const [selectedCombos, setSelectedCombos] = useState<SelectedCombo[]>([]);
+  /** Tracks which combo generated the currently-displayed question (mix mode only) */
+  const currentComboRef = useRef<SelectedCombo | null>(null);
+
+  /** Toggle a (opType, option) combo in/out of the mix selection. */
+  const toggleCombo = (opType: BurstOperationType, option: string) => {
+    setSelectedCombos(prev => {
+      const idx = prev.findIndex(c => c.opType === opType && c.option === option);
+      if (idx >= 0) return prev.filter((_, i) => i !== idx);
+      return [...prev, { opType, option }];
+    });
+  };
+
+  /** Check whether a combo is currently selected. */
+  const isComboSelected = (opType: BurstOperationType, option: string): boolean =>
+    selectedCombos.some(c => c.opType === opType && c.option === option);
 
   // Game state
   const [timeLeft, setTimeLeft] = useState(BURST_DURATION);
@@ -615,9 +642,22 @@ export default function BurstMode() {
     if (countdownNum <= 0) {
       playCountdownTone(0);
       // Start playing — generate first question with anti-repeat seeding
-      let q = generateBurstQuestion(selectedOp!, selectedOption, 1);
-      for (let i = 0; i < 12 && recentTextsRef.current.includes(q.text); i++) {
+      const isMix = selectedCombos.length > 0;
+      let q: BurstQuestion;
+      if (isMix) {
+        let combo = pick(selectedCombos);
+        q = generateBurstQuestion(combo.opType, combo.option, 1);
+        for (let i = 0; i < 12 && recentTextsRef.current.includes(q.text); i++) {
+          combo = pick(selectedCombos);
+          q = generateBurstQuestion(combo.opType, combo.option, 1);
+        }
+        currentComboRef.current = combo;
+      } else {
         q = generateBurstQuestion(selectedOp!, selectedOption, 1);
+        for (let i = 0; i < 12 && recentTextsRef.current.includes(q.text); i++) {
+          q = generateBurstQuestion(selectedOp!, selectedOption, 1);
+        }
+        currentComboRef.current = null;
       }
       recentTextsRef.current = [q.text];
       setCurrentQuestion(q);
@@ -630,7 +670,7 @@ export default function BurstMode() {
     playCountdownTone(countdownNum);
     const t = setTimeout(() => setCountdownNum((n) => n - 1), 1000);
     return () => clearTimeout(t);
-  }, [phase, countdownNum, selectedOp, selectedOption, playCountdownTone]);
+  }, [phase, countdownNum, selectedOp, selectedOption, selectedCombos, playCountdownTone]);
 
   // Timer effect
   useEffect(() => {
@@ -667,20 +707,42 @@ export default function BurstMode() {
     const userAnswer = parseFloat(userInput);
     const isCorrect = !isNaN(userAnswer) && compareAnswers(userAnswer, currentQuestion.answer);
 
+    // Record result — attach combo info when in mix mode
     setResults((prev) => [
       ...prev,
-      { question: currentQuestion, userAnswer: isNaN(userAnswer) ? null : userAnswer, isCorrect, timeTaken },
+      {
+        question: currentQuestion,
+        userAnswer: isNaN(userAnswer) ? null : userAnswer,
+        isCorrect,
+        timeTaken,
+        comboOpType: currentComboRef.current?.opType,
+        comboOption: currentComboRef.current?.option,
+      },
     ]);
 
     // Flash feedback
     setFlashColor(isCorrect ? "green" : "red");
     setTimeout(() => setFlashColor(""), 200);
 
-    // Next question: retry until text is not in recent history (max 12 attempts)
-    let nextQ = generateBurstQuestion(selectedOp!, selectedOption, questionId);
-    for (let i = 0; i < 12 && recentTextsRef.current.includes(nextQ.text); i++) {
+    // Next question: pick combo (mix) or use fixed op/option (single), then anti-repeat
+    const isMix = selectedCombos.length > 0;
+    let nextQ: BurstQuestion;
+    if (isMix) {
+      let nextCombo = pick(selectedCombos);
+      nextQ = generateBurstQuestion(nextCombo.opType, nextCombo.option, questionId);
+      for (let i = 0; i < 12 && recentTextsRef.current.includes(nextQ.text); i++) {
+        nextCombo = pick(selectedCombos);
+        nextQ = generateBurstQuestion(nextCombo.opType, nextCombo.option, questionId);
+      }
+      currentComboRef.current = nextCombo;
+    } else {
       nextQ = generateBurstQuestion(selectedOp!, selectedOption, questionId);
+      for (let i = 0; i < 12 && recentTextsRef.current.includes(nextQ.text); i++) {
+        nextQ = generateBurstQuestion(selectedOp!, selectedOption, questionId);
+      }
+      currentComboRef.current = null;
     }
+
     // Keep last 10 question texts in history
     recentTextsRef.current = [...recentTextsRef.current.slice(-9), nextQ.text];
     setCurrentQuestion(nextQ);
@@ -688,7 +750,7 @@ export default function BurstMode() {
     setUserInput("");
     questionStartRef.current = Date.now();
     inputRef.current?.focus();
-  }, [currentQuestion, phase, userInput, selectedOp, selectedOption, questionId]);
+  }, [currentQuestion, phase, userInput, selectedOp, selectedOption, selectedCombos, questionId]);
 
   // Enter key
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -707,7 +769,9 @@ export default function BurstMode() {
   }, [phase]);
 
   const saveSession = async () => {
-    if (!selectedOp || results.length === 0) return;
+    const isMix = selectedCombos.length > 0;
+    if (!isMix && !selectedOp) return;
+    if (results.length === 0) return;
     if (savingRef.current) return;  // prevent double-save (StrictMode / retry)
     savingRef.current = true;
     setSaving(true);
@@ -731,8 +795,10 @@ export default function BurstMode() {
         question_number: i + 1,
       }));
 
+      // For mix mode use the first combo's op type so backend can store the session;
+      // preset_key "mix" won't match any point rule — points are calculated client-side.
       const sessionData: PracticeSessionData = {
-        operation_type: selectedOp,
+        operation_type: isMix ? selectedCombos[0].opType : selectedOp!,
         difficulty_mode: "burst_mode",
         total_questions: results.length,
         correct_answers: correct,
@@ -741,7 +807,7 @@ export default function BurstMode() {
         score: correct,
         time_taken: totalTime,
         points_earned: 0, // Backend recalculates via PointRuleEngine
-        preset_key: selectedOption, // Raw option value — backend normalises
+        preset_key: isMix ? "mix" : selectedOption, // "mix" skips point rule; backend normalises single-op
         attempts,
       };
 
@@ -789,6 +855,9 @@ export default function BurstMode() {
   const handleBack = () => {
     if (phase === "playing") {
       setExitConfirm(true);
+    } else if (phase === "mix") {
+      setPhase("select");
+      setSelectedCombos([]);
     } else {
       resetToSelect();
     }
@@ -809,6 +878,8 @@ export default function BurstMode() {
     setPhase("select");
     setSelectedOp(null);
     setSelectedOption("");
+    setSelectedCombos([]);
+    currentComboRef.current = null;
     setResults([]);
     setTimeLeft(BURST_DURATION);
     setQuestionId(1);
@@ -949,7 +1020,7 @@ export default function BurstMode() {
               60 seconds. Unlimited questions. Push your speed to the limit.
             </p>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--bm-burstdim)", border: "1px solid rgba(249,115,22,.22)", borderRadius: 100, padding: "6px 16px", fontFamily: "var(--bm-fm)", fontSize: 12, color: "var(--bm-burst2)" }}>
-              ⚡ 10 modes available · 60s each
+              ⚡ 10 modes · Mix Mode · 60s each
             </div>
           </div>
         </div>
@@ -1017,6 +1088,186 @@ export default function BurstMode() {
                 );
               }
             )}
+          </div>
+
+          {/* Mix Mode banner — full-width below the 10 cards */}
+          <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 clamp(12px,3vw,24px) clamp(28px,5vw,44px)" }}>
+            <button
+              onClick={() => { setSelectedCombos([]); setPhase("mix"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              style={{
+                all: "unset", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "space-between",
+                width: "100%", padding: "20px 24px", borderRadius: 18, cursor: "pointer",
+                background: "linear-gradient(135deg, rgba(249,115,22,.06) 0%, rgba(123,92,229,.06) 100%)",
+                border: "1px solid rgba(249,115,22,.18)", transition: "all .3s cubic-bezier(.4,0,.2,1)",
+                animation: "bm-fade-up .5s ease .52s both",
+              }}
+              onMouseEnter={(e) => {
+                const b = e.currentTarget as HTMLButtonElement;
+                b.style.borderColor = "rgba(249,115,22,.4)";
+                b.style.background = "linear-gradient(135deg, rgba(249,115,22,.1) 0%, rgba(123,92,229,.1) 100%)";
+                b.style.transform = "translateY(-3px)";
+                b.style.boxShadow = "0 12px 36px rgba(249,115,22,.12)";
+              }}
+              onMouseLeave={(e) => {
+                const b = e.currentTarget as HTMLButtonElement;
+                b.style.borderColor = "rgba(249,115,22,.18)";
+                b.style.background = "linear-gradient(135deg, rgba(249,115,22,.06) 0%, rgba(123,92,229,.06) 100%)";
+                b.style.transform = "";
+                b.style.boxShadow = "";
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 15, background: "rgba(249,115,22,.12)", border: "1px solid rgba(249,115,22,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>🎲</div>
+                <div>
+                  <div style={{ fontFamily: "var(--bm-fd)", fontSize: 17, fontWeight: 800, color: "var(--bm-white)", letterSpacing: "-.02em", marginBottom: 3 }}>Mix Mode</div>
+                  <div style={{ fontFamily: "var(--bm-fb)", fontSize: 13, color: "var(--bm-muted)", lineHeight: 1.4 }}>
+                    Combine multiple operations — questions appear randomly in one 60s session
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 16 }}>
+                <span style={{ fontFamily: "var(--bm-fm)", fontSize: 11, fontWeight: 600, color: "var(--bm-burst2)", background: "rgba(249,115,22,.1)", border: "1px solid rgba(249,115,22,.2)", borderRadius: 8, padding: "3px 10px", letterSpacing: ".04em", whiteSpace: "nowrap" }}>BUILD MIX</span>
+                <ChevronRight style={{ width: 18, height: 18, color: "var(--bm-burst2)" }} />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Mix phase ─────────────────────────────────────────────────────────────
+  if (phase === "mix") {
+    const mixCount = selectedCombos.length;
+    const canStart = mixCount > 0;
+    return (
+      <div style={{ minHeight: "100vh", background: "var(--bm-bg)", position: "relative", overflowX: "hidden" }}>
+
+        {/* Sticky nav */}
+        <div style={{ position: "sticky", top: 0, zIndex: 40, background: "rgba(6,7,15,0.94)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "0 clamp(12px,3vw,28px)" }}>
+          <div style={{ maxWidth: 780, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0" }}>
+            <button onClick={() => { setPhase("select"); setSelectedCombos([]); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#B8BDD8", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontWeight: 500, fontSize: 13 }}>
+              <ArrowLeft style={{ width: 14, height: 14 }} />
+              Back
+            </button>
+            <div style={{ fontFamily: "var(--bm-fm)", fontSize: 12, fontWeight: 600, color: mixCount > 0 ? "var(--bm-burst2)" : "var(--bm-muted)", letterSpacing: ".04em" }}>
+              {mixCount === 0 ? "Select at least 1 difficulty" : `${mixCount} combination${mixCount !== 1 ? "s" : ""} selected`}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ maxWidth: 780, margin: "0 auto", padding: "clamp(20px,4vw,32px) clamp(12px,3vw,24px) 100px" }}>
+
+          {/* Header */}
+          <div style={{ textAlign: "center", marginBottom: 28 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 16, background: "rgba(249,115,22,.15)", marginBottom: 14, boxShadow: "0 6px 24px rgba(249,115,22,.12)" }}>
+              <span style={{ fontSize: 24 }}>🎲</span>
+            </div>
+            <h2 style={{ fontFamily: "var(--bm-fd)", fontSize: "clamp(22px,4vw,32px)", fontWeight: 800, letterSpacing: "-.03em", color: "var(--bm-white)", margin: "0 0 6px" }}>Build Your Mix</h2>
+            <p style={{ fontFamily: "var(--bm-fb)", fontSize: 14, color: "var(--bm-muted)", margin: 0, lineHeight: 1.5 }}>
+              Pick any combination of operations & difficulty levels.
+              <br />All selected pairs appear randomly during the 60-second burst.
+            </p>
+          </div>
+
+          {/* Operations accordion */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {(Object.entries(BURST_OPERATIONS) as [BurstOperationType, BurstConfig][]).map(([key, config]) => {
+              const anySelected = config.options.some(o => isComboSelected(key, o.value));
+              return (
+                <div
+                  key={key}
+                  style={{ background: anySelected ? "rgba(249,115,22,.04)" : "var(--bm-surf)", border: `1px solid ${anySelected ? "rgba(249,115,22,.22)" : "var(--bm-bdr)"}`, borderRadius: 16, padding: "14px 18px", transition: "border-color .25s ease, background .25s ease" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <span style={{ fontSize: 20, lineHeight: 1 }}>{config.icon}</span>
+                    <span style={{ fontFamily: "var(--bm-fd)", fontSize: 15, fontWeight: 700, color: anySelected ? "var(--bm-white)" : "var(--bm-white2)" }}>{config.label}</span>
+                    {anySelected && (
+                      <span style={{ marginLeft: "auto", fontFamily: "var(--bm-fm)", fontSize: 10, fontWeight: 700, color: "var(--bm-burst2)", background: "rgba(249,115,22,.12)", border: "1px solid rgba(249,115,22,.2)", borderRadius: 6, padding: "2px 7px" }}>
+                        {config.options.filter(o => isComboSelected(key, o.value)).length} / {config.options.length}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {config.options.map(opt => {
+                      const sel = isComboSelected(key, opt.value);
+                      const pts = getPointsForOption(key, opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => toggleCombo(key, opt.value)}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            padding: "7px 13px", borderRadius: 10, cursor: "pointer",
+                            fontFamily: "var(--bm-fm)", fontSize: 13, fontWeight: sel ? 700 : 500,
+                            transition: "all .18s cubic-bezier(.4,0,.2,1)",
+                            background: sel ? "rgba(249,115,22,.14)" : "var(--bm-surf2)",
+                            border: sel ? "1.5px solid rgba(249,115,22,.55)" : "1px solid var(--bm-bdr2)",
+                            color: sel ? "var(--bm-burst2)" : "var(--bm-white2)",
+                            boxShadow: sel ? "0 0 14px rgba(249,115,22,.1)" : "none",
+                            transform: sel ? "none" : "none",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!sel) {
+                              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(249,115,22,.3)";
+                              (e.currentTarget as HTMLButtonElement).style.color = "var(--bm-white)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!sel) {
+                              (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--bm-bdr2)";
+                              (e.currentTarget as HTMLButtonElement).style.color = "var(--bm-white2)";
+                            }
+                          }}
+                        >
+                          {sel && <span style={{ fontSize: 10, lineHeight: 1 }}>✓</span>}
+                          {opt.label}
+                          {pts > 0 && (
+                            <span style={{ fontFamily: "var(--bm-fm)", fontSize: 9, fontWeight: 700, color: sel ? "var(--bm-green)" : "rgba(16,185,129,.6)", background: "rgba(16,185,129,.08)", borderRadius: 5, padding: "1px 5px" }}>+{pts}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Sticky bottom start bar */}
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, padding: "12px clamp(12px,3vw,24px)", background: "rgba(6,7,15,.96)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,.06)" }}>
+          <div style={{ maxWidth: 780, margin: "0 auto" }}>
+            <button
+              disabled={!canStart}
+              onClick={() => {
+                setResults([]);
+                setTimeLeft(BURST_DURATION);
+                setSessionSaved(false);
+                savingRef.current = false;
+                setBackendPoints(null);
+                recentTextsRef.current = [];
+                currentComboRef.current = null;
+                setCountdownNum(3);
+                setQuestionId(1);
+                setUserInput("");
+                setFlashColor("");
+                setCurrentQuestion(null);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                setPhase("countdown");
+              }}
+              style={{
+                width: "100%", padding: "15px 20px", borderRadius: 14, border: "none", cursor: canStart ? "pointer" : "not-allowed",
+                background: canStart ? "linear-gradient(135deg, var(--bm-burst) 0%, #C2410C 100%)" : "var(--bm-surf2)",
+                color: canStart ? "white" : "var(--bm-muted)", fontFamily: "var(--bm-fd)", fontSize: 16, fontWeight: 800,
+                letterSpacing: "-.01em", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                boxShadow: canStart ? "0 8px 32px rgba(249,115,22,.28), inset 0 1px 0 rgba(255,255,255,.1)" : "none",
+                transition: "all .25s ease",
+              }}
+            >
+              <Play style={{ width: 18, height: 18 }} />
+              {canStart ? `START MIX BURST · ${mixCount} combination${mixCount !== 1 ? "s" : ""}` : "Select at least 1 difficulty to start"}
+            </button>
           </div>
         </div>
       </div>
@@ -1136,7 +1387,10 @@ export default function BurstMode() {
           </p>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--bm-surf)", border: "1px solid var(--bm-bdr2)", borderRadius: 100, padding: "7px 16px", marginTop: 16, animation: "bm-fade-in .5s ease .4s both" }}>
             <span style={{ fontFamily: "var(--bm-fm)", fontSize: 12, color: "var(--bm-muted)" }}>
-              {selectedOp ? BURST_OPERATIONS[selectedOp].label : ""} · {BURST_OPERATIONS[selectedOp!]?.options.find(o => o.value === selectedOption)?.label} · 60s
+              {selectedCombos.length > 0
+                ? `Mix Mode · ${selectedCombos.length} combination${selectedCombos.length !== 1 ? "s" : ""} · 60s`
+                : `${selectedOp ? BURST_OPERATIONS[selectedOp].label : ""} · ${BURST_OPERATIONS[selectedOp!]?.options.find(o => o.value === selectedOption)?.label} · 60s`
+              }
             </span>
           </div>
         </div>
@@ -1302,12 +1556,18 @@ export default function BurstMode() {
 
   // Results phase
   if (phase === "results") {
+    const isMix = selectedCombos.length > 0;
     const config = selectedOp ? BURST_OPERATIONS[selectedOp] : null;
     const avgTime = results.length > 0 ? results.reduce((s, r) => s + r.timeTaken, 0) / results.length : 0;
-    // Calculate points earned for display — use backend value when available
+    // Points: mix mode — sum per-result using the combo that generated each question
+    //          single mode — use backend value (most accurate) or local estimate
     const perCorrectPts = selectedOp ? getPointsForOption(selectedOp, selectedOption) : 0;
-    const localPtsEstimate = perCorrectPts * correctCount;
-    const totalPtsEarned = backendPoints != null ? backendPoints : localPtsEstimate;
+    const mixPtsLocal = results
+      .filter(r => r.isCorrect && r.comboOpType && r.comboOption)
+      .reduce((sum, r) => sum + getPointsForOption(r.comboOpType!, r.comboOption!), 0);
+    const totalPtsEarned = isMix
+      ? mixPtsLocal
+      : (backendPoints != null ? backendPoints : perCorrectPts * correctCount);
 
     return (
       <div style={{ minHeight: "100vh", background: "var(--bm-bg)", position: "relative" }}>
@@ -1322,11 +1582,23 @@ export default function BurstMode() {
             </div>
             <h1 style={{ fontFamily: "var(--bm-fd)", fontSize: "clamp(28px,4vw,44px)", fontWeight: 800, letterSpacing: "-.03em", color: "var(--bm-white)", margin: "0 0 6px" }}>Burst Complete!</h1>
             <p style={{ fontFamily: "var(--bm-fm)", fontSize: 13, color: "var(--bm-muted)", letterSpacing: ".04em", margin: 0 }}>
-              <span style={{ color: "var(--bm-burst2)" }}>{config?.label}</span>
-              <span style={{ color: "var(--bm-muted)" }}> · </span>
-              <span style={{ color: "var(--bm-white2)" }}>{BURST_OPERATIONS[selectedOp!]?.options.find(o => o.value === selectedOption)?.label}</span>
-              <span style={{ color: "var(--bm-muted)" }}> · </span>
-              <span style={{ color: "var(--bm-white2)" }}>You answered {results.length} question{results.length !== 1 ? "s" : ""}</span>
+              {isMix ? (
+                <>
+                  <span style={{ color: "var(--bm-burst2)" }}>Mix Mode</span>
+                  <span style={{ color: "var(--bm-muted)" }}> · </span>
+                  <span style={{ color: "var(--bm-white2)" }}>{selectedCombos.length} combination{selectedCombos.length !== 1 ? "s" : ""}</span>
+                  <span style={{ color: "var(--bm-muted)" }}> · </span>
+                  <span style={{ color: "var(--bm-white2)" }}>You answered {results.length} question{results.length !== 1 ? "s" : ""}</span>
+                </>
+              ) : (
+                <>
+                  <span style={{ color: "var(--bm-burst2)" }}>{config?.label}</span>
+                  <span style={{ color: "var(--bm-muted)" }}> · </span>
+                  <span style={{ color: "var(--bm-white2)" }}>{BURST_OPERATIONS[selectedOp!]?.options.find(o => o.value === selectedOption)?.label}</span>
+                  <span style={{ color: "var(--bm-muted)" }}> · </span>
+                  <span style={{ color: "var(--bm-white2)" }}>You answered {results.length} question{results.length !== 1 ? "s" : ""}</span>
+                </>
+              )}
             </p>
           </div>
 
@@ -1379,6 +1651,43 @@ export default function BurstMode() {
             </div>
           </div>
 
+          {/* Per-operation breakdown — mix mode only */}
+          {isMix && selectedCombos.length > 0 && (
+            <div style={{ background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 16, marginBottom: 20, overflow: "hidden" }}>
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--bm-bdr)", display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 14 }}>🎲</span>
+                <span style={{ fontFamily: "var(--bm-fd)", fontSize: 15, fontWeight: 700, color: "var(--bm-white)" }}>Mix Breakdown</span>
+              </div>
+              <div style={{ padding: "8px 12px" }}>
+                {selectedCombos.map(combo => {
+                  const comboResults = results.filter(r => r.comboOpType === combo.opType && r.comboOption === combo.option);
+                  if (comboResults.length === 0) return null;
+                  const comboCorrect = comboResults.filter(r => r.isCorrect).length;
+                  const comboAcc = Math.round((comboCorrect / comboResults.length) * 100);
+                  const comboCfg = BURST_OPERATIONS[combo.opType];
+                  const optLabel = comboCfg.options.find(o => o.value === combo.option)?.label ?? combo.option;
+                  return (
+                    <div key={`${combo.opType}-${combo.option}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 8px", borderRadius: 10, marginBottom: 2 }}>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{comboCfg.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "var(--bm-fm)", fontSize: 12, fontWeight: 600, color: "var(--bm-white2)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {comboCfg.label} <span style={{ color: "var(--bm-muted)" }}>·</span> {optLabel}
+                        </div>
+                        <div style={{ height: 4, borderRadius: 99, background: "var(--bm-bdr2)", marginTop: 4, overflow: "hidden" }}>
+                          <div style={{ height: "100%", borderRadius: 99, background: comboAcc >= 70 ? "var(--bm-green)" : comboAcc >= 40 ? "var(--bm-gold)" : "var(--bm-red)", width: `${comboAcc}%`, transition: "width 1.2s ease .5s" }} />
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontFamily: "var(--bm-fm)", fontSize: 13, fontWeight: 700, color: comboAcc >= 70 ? "var(--bm-green)" : comboAcc >= 40 ? "var(--bm-gold)" : "var(--bm-red)" }}>{comboCorrect}/{comboResults.length}</div>
+                        <div style={{ fontFamily: "var(--bm-fm)", fontSize: 10, color: "var(--bm-muted)" }}>{comboAcc}%</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="bm-action-grid" style={{ marginBottom: 24 }}>
             <button
@@ -1387,7 +1696,7 @@ export default function BurstMode() {
               onMouseEnter={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = "translateY(-2px)"; b.style.boxShadow = "0 12px 36px rgba(249,115,22,.35)"; }}
               onMouseLeave={(e) => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = ""; b.style.boxShadow = "0 6px 20px rgba(249,115,22,.22)"; }}
             >
-              <RotateCcw style={{ width: 15, height: 15 }} />Burst Again
+              <RotateCcw style={{ width: 15, height: 15 }} />{isMix ? "Mix Again" : "Burst Again"}
             </button>
             <button
               onClick={resetToSelect}

@@ -4,7 +4,7 @@ import {
   ChevronDown, LogOut, BarChart3, Shield, GraduationCap,
   Calculator, Menu, X, Brain, FileText,
   User, ArrowRight, Lock, Zap, Calendar, Grid3X3,
-  Gamepad2, Sparkles, Award
+  Gamepad2, Sparkles, Award, Hash
 } from "lucide-react";
 import { useAuthSafe } from "../contexts/AuthContext";
 import { motion } from "framer-motion";
@@ -226,6 +226,13 @@ export default function Header() {
                     <Link href="/create/basic">
                       <div className={navItem(isActive("/create") || isActive("/vedic-maths"))} onClick={() => setPracticeOpen(false)}>
                         <FileText className="w-4 h-4" />Create Paper
+                      </div>
+                    </Link>
+
+                    {/* Enter shared paper code */}
+                    <Link href="/paper/enter-code">
+                      <div className={navItem(isActive("/paper/enter-code"))} onClick={() => setPracticeOpen(false)}>
+                        <Hash className="w-4 h-4" />Enter Code
                       </div>
                     </Link>
 
@@ -487,6 +494,12 @@ export default function Header() {
                   isActive("/create") || isActive("/vedic-maths")
                     ? "text-primary bg-primary/10" : "text-card-foreground hover:bg-secondary"
                 }`}><FileText className="w-4 h-4" />Create Paper</div>
+              </Link>
+              <Link href="/paper/enter-code" onClick={() => setMobileMenuOpen(false)}>
+                <div className={`px-4 py-2.5 text-sm font-medium rounded-lg flex items-center gap-3 transition-colors ${
+                  isActive("/paper/enter-code")
+                    ? "text-primary bg-primary/10" : "text-card-foreground hover:bg-secondary"
+                }`}><Hash className="w-4 h-4" />Enter Code</div>
               </Link>
               <Link href="/mental" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Brain className="w-4 h-4" />Mental Math</div>

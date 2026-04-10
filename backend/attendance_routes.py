@@ -1,5 +1,6 @@
 """API routes for attendance management system."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_, or_
 from typing import List, Optional
@@ -264,6 +265,52 @@ async def delete_class_schedule(
         raise HTTPException(status_code=500, detail=f"Failed to delete schedule: {str(e)}")
 
 
+# ──────────────────────────────────────────────────────────────────
+# START TODAY — create or return today's session (idempotent)
+# ──────────────────────────────────────────────────────────────────
+
+class _StartTodayBody(BaseModel):
+    branch: str
+    course: Optional[str] = None
+    level: Optional[str] = None
+    batch_name: Optional[str] = None
+    topic: Optional[str] = None
+    schedule_id: Optional[int] = None
+
+
+@router.post("/sessions/start-today", response_model=ClassSessionResponse)
+async def start_today_session(
+    body: _StartTodayBody,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Idempotently create or return today's session for a branch/course."""
+    today = _normalize_session_date(get_ist_now())
+    query = db.query(ClassSession).filter(
+        func.date(ClassSession.session_date) == func.date(today),
+        ClassSession.branch == body.branch,
+    )
+    if body.course:
+        query = query.filter(ClassSession.course == body.course)
+    existing = query.first()
+    if existing:
+        return ClassSessionResponse.model_validate(existing)
+    session = ClassSession(
+        schedule_id=body.schedule_id,
+        session_date=today,
+        branch=body.branch,
+        course=body.course,
+        level=body.level,
+        batch_name=body.batch_name,
+        topic=body.topic,
+        created_by_user_id=admin.id,
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return ClassSessionResponse.model_validate(session)
+
+
 # Class Session Management
 @router.post("/sessions", response_model=ClassSessionResponse)
 async def create_class_session(
@@ -303,9 +350,15 @@ async def get_class_sessions(
         query = db.query(ClassSession)
 
         if branch:
-            query = query.filter(ClassSession.branch == branch)
+            # Include sessions tagged to the specific branch OR sessions tagged for all branches
+            query = query.filter(
+                or_(ClassSession.branch == branch, ClassSession.branch == "All Branches")
+            )
         if course:
-            query = query.filter(ClassSession.course == course)
+            # Include sessions tagged to the specific course OR sessions with no course (applies to all)
+            query = query.filter(
+                or_(ClassSession.course == course, ClassSession.course == None)
+            )
 
         # Frontend sends ISO strings like "...Z" (UTC). Pydantic parses those as
         # timezone-aware datetimes, but our DB DateTime fields are naive.
@@ -826,11 +879,14 @@ async def get_attendance_sheet(
         raise HTTPException(status_code=404, detail="Session not found")
 
     # Fetch all active students for this branch (course-filtered if session has a course)
+    # "All Branches" (or empty-string branch) sessions show students from every branch
+    _ALL_BRANCHES_SENTINEL = {"All Branches", ""}
     query = db.query(StudentProfile, User).join(User).filter(
         User.role == "student",
         StudentProfile.status == "active",
-        StudentProfile.branch == session.branch,
     )
+    if session.branch and session.branch not in _ALL_BRANCHES_SENTINEL:
+        query = query.filter(StudentProfile.branch == session.branch)
     if session.course:
         query = query.filter(StudentProfile.course == session.course)
 
@@ -902,6 +958,27 @@ async def get_attendance_sheet(
 # ──────────────────────────────────────────────────────────────────
 # UPDATE SESSION (edit topic, remarks, date, etc.)
 # ──────────────────────────────────────────────────────────────────
+
+# ──────────────────────────────────────────────────────────────────
+# CLOSE SESSION — mark as completed
+# ──────────────────────────────────────────────────────────────────
+
+@router.post("/sessions/{session_id}/close", response_model=ClassSessionResponse)
+async def close_class_session(
+    session_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Mark a class session as completed."""
+    session = db.query(ClassSession).filter(ClassSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    session.is_completed = True
+    session.updated_at = get_ist_now()
+    db.commit()
+    db.refresh(session)
+    return ClassSessionResponse.model_validate(session)
+
 
 @router.put("/sessions/{session_id}", response_model=ClassSessionResponse)
 async def update_class_session(

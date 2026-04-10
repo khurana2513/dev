@@ -299,6 +299,35 @@ export async function getAttendanceMetrics(filters?: {
   return apiClient.get(`/attendance/metrics${qs ? "?" + qs : ""}`);
 }
 
+/** Get active class schedules (optionally filtered by branch/course) */
+export async function getSchedules(filters?: {
+  branch?: string;
+  course?: string;
+}): Promise<ClassSchedule[]> {
+  const params = new URLSearchParams();
+  if (filters?.branch) params.set("branch", filters.branch);
+  if (filters?.course) params.set("course", filters.course);
+  const qs = params.toString();
+  return apiClient.get<ClassSchedule[]>(`/attendance/schedules${qs ? "?" + qs : ""}`);
+}
+
+/** Idempotently create or get today's session for a branch/course */
+export async function startTodaySession(data: {
+  branch: string;
+  course?: string;
+  level?: string;
+  batch_name?: string;
+  topic?: string;
+  schedule_id?: number;
+}): Promise<ClassSession> {
+  return apiClient.post<ClassSession>("/attendance/sessions/start-today", data);
+}
+
+/** Mark a session as completed */
+export async function closeSession(sessionId: number): Promise<ClassSession> {
+  return apiClient.post<ClassSession>(`/attendance/sessions/${sessionId}/close`, {});
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 export const BRANCHES = ["Rohini-16", "Rohini-11", "Gurgaon", "Online"] as const;

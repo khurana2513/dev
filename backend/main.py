@@ -20,7 +20,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from models import Paper, PaperAttempt, get_db, init_db, PointsLog, VacantId  # Import models to register them with Base.metadata
+from models import Paper, PaperAttempt, SharedPaper, get_db, init_db, PointsLog, VacantId  # Import models to register them with Base.metadata
 from schemas import (
     PaperCreate, PaperResponse, PaperConfig, PreviewResponse,
     GeneratedBlock, BlockConfig
@@ -127,6 +127,14 @@ try:
 except Exception as e:
     import traceback
     logger.exception("[IMPORT] shared_paper_routes failed: %s", str(e))
+
+duel_router = None
+try:
+    from duel_routes import router as duel_router
+    logger.info("[IMPORT] duel_routes loaded")
+except Exception as e:
+    import traceback
+    logger.exception("[IMPORT] duel_routes failed: %s", str(e))
 
 app = FastAPI(title="Abacus Paper Generator", version="3.0.0")
 app_start_time = time.monotonic()
@@ -273,6 +281,7 @@ for _name, _rtr in [
     ("org_router", org_router),
     ("template_router", template_router),
     ("shared_paper_router", shared_paper_router),
+    ("duel_router", duel_router),
 ]:
     if _rtr:
         try:
@@ -317,6 +326,14 @@ async def startup_event() -> None:
             logger.info("[STARTUP] reward system data seeded")
         except Exception as _rwd_err:
             logger.warning("[STARTUP] reward system seed failed: %s", _rwd_err)
+
+        # Migrate: add shared_paper_code column to paper_attempts (idempotent)
+        try:
+            from add_shared_paper_code_column import run as _migrate_shared_code
+            _migrate_shared_code()
+            logger.info("[STARTUP] shared_paper_code column ensured")
+        except Exception as _sc_err:
+            logger.warning("[STARTUP] shared_paper_code migration: %s", _sc_err)
 
         # Seed default subscription plans (idempotent)
         try:
@@ -977,23 +994,57 @@ async def start_paper_attempt(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Start a new paper attempt. Maximum 2 attempts per paper (1 fresh + 1 re-attempt)."""
-    # Check how many attempts this user has for this paper (same seed = same paper)
-    existing_attempts = db.query(PaperAttempt).filter(
-        PaperAttempt.user_id == current_user.id,
-        PaperAttempt.seed == attempt_data.seed,
-        PaperAttempt.paper_title == attempt_data.paper_title
-    ).count()
-    
-    if existing_attempts >= 2:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Maximum attempts reached. You can only attempt this paper twice (1 fresh attempt + 1 re-attempt)."
-        )
-    
+    """Start a new paper attempt.
+
+    Two distinct attempt tracks:
+    - Direct attempts (no shared_paper_code): max 2 per seed+title per user.
+    - Shared-paper attempts (shared_paper_code set): max 1 per share code per user,
+      tracked independently from direct attempts so creators can freely attempt
+      their own shared papers.
+    """
+    code = (attempt_data.shared_paper_code or "").strip().upper() or None
+
+    if code:
+        # ── Shared-paper attempt path ─────────────────────────────────────
+        utc_now = get_utc_now()
+        shared_paper = db.query(SharedPaper).filter(
+            SharedPaper.code == code,
+            SharedPaper.expires_at > utc_now,
+        ).first()
+        if not shared_paper:
+            raise HTTPException(
+                status_code=404,
+                detail="Shared paper not found or has expired. Ask the sender to share a new link.",
+            )
+
+        # One attempt per user per share code
+        already_attempted = db.query(PaperAttempt).filter(
+            PaperAttempt.user_id == current_user.id,
+            PaperAttempt.shared_paper_code == code,
+        ).first()
+        if already_attempted:
+            raise HTTPException(
+                status_code=400,
+                detail="You have already attempted this shared paper. Each shared paper can only be attempted once.",
+            )
+    else:
+        # ── Direct attempt path ───────────────────────────────────────────
+        existing_attempts = db.query(PaperAttempt).filter(
+            PaperAttempt.user_id == current_user.id,
+            PaperAttempt.seed == attempt_data.seed,
+            PaperAttempt.paper_title == attempt_data.paper_title,
+            PaperAttempt.shared_paper_code == None,  # noqa: E711 — SQLAlchemy IS NULL
+        ).count()
+
+        if existing_attempts >= 2:
+            raise HTTPException(
+                status_code=400,
+                detail="Maximum attempts reached. You can only attempt this paper twice (1 fresh attempt + 1 re-attempt).",
+            )
+
     # Calculate total questions
     total_questions = sum(len(block.get("questions", [])) for block in attempt_data.generated_blocks)
-    
+
     # Create paper attempt
     paper_attempt = PaperAttempt(
         user_id=current_user.id,
@@ -1003,12 +1054,13 @@ async def start_paper_attempt(
         generated_blocks=attempt_data.generated_blocks,
         seed=attempt_data.seed,
         total_questions=total_questions,
-        answers=attempt_data.answers or {}
+        answers=attempt_data.answers or {},
+        shared_paper_code=code,
     )
     db.add(paper_attempt)
     db.commit()
     db.refresh(paper_attempt)
-    
+
     return PaperAttemptResponse.model_validate(paper_attempt)
 
 @app.put("/papers/attempt/{attempt_id}", response_model=PaperAttemptResponse)

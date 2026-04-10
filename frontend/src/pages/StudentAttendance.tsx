@@ -78,6 +78,72 @@ function ProgressRing({ percentage, size = 108, strokeWidth = 9 }: { percentage:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Today Banner — shows today's status and current streak (current month only)
+// ─────────────────────────────────────────────────────────────────────────────
+function TodayBanner({ data, month, year }: { data: StudentMonthlyAttendance; month: number; year: number }) {
+  const now          = new Date();
+  const isThisMonth  = month === now.getMonth() + 1 && year === now.getFullYear();
+  if (!isThisMonth) return null;
+
+  const todayStr    = todayDateStr();
+  const todayEntry  = data.sessions.find(s => isoDateOnly(s.session_date) === todayStr) ?? null;
+
+  // Streak: count consecutive "present" sessions going backwards from the latest marked session
+  const markedSorted = [...data.sessions]
+    .filter(s => s.status !== null && isoDateOnly(s.session_date) <= todayStr)
+    .sort((a, b) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime());
+  let streak = 0;
+  for (const s of markedSorted) {
+    if (s.status === "present") streak++;
+    else break;
+  }
+
+  const todayCfg = todayEntry?.status ? STATUS_CONFIG[todayEntry.status as AttendanceStatus] : null;
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      background: T.surface, border: `1px solid ${T.border}`,
+      borderRadius: 16, padding: "14px 18px",
+      backdropFilter: "blur(12px)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+          background: todayCfg ? todayCfg.bg : "rgba(255,255,255,0.04)",
+          border: `1px solid ${todayCfg ? todayCfg.border : "rgba(255,255,255,0.06)"}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          {todayEntry ? (
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: todayCfg?.dot ?? T.textMuted }} />
+          ) : (
+            <span style={{ fontSize: 14 }}>📅</span>
+          )}
+        </div>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 700, color: T.text }}>Today</p>
+          <p style={{ fontSize: 11, color: todayCfg ? todayCfg.text : T.textMuted, marginTop: 1 }}>
+            {todayEntry
+              ? todayCfg?.label ?? "Unknown"
+              : "No class scheduled"}
+            {todayEntry?.t_shirt_worn && todayEntry.status === "present" && (
+              <span style={{ marginLeft: 5 }}>· 👕 T-shirt</span>
+            )}
+          </p>
+        </div>
+      </div>
+      {streak >= 2 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.2)", borderRadius: 99 }}>
+          <span style={{ fontSize: 14 }}>🔥</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.orange }}>{streak}</span>
+          <span style={{ fontSize: 11, color: T.textMuted }}>day streak</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Summary Card
 // ─────────────────────────────────────────────────────────────────────────────
 function SummaryCard({ data, monthName, year }: { data: StudentMonthlyAttendance; monthName: string; year: number }) {
@@ -393,6 +459,9 @@ export default function StudentAttendance() {
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {/* ── Today Banner ──────────────────────────────────────────── */}
+        {data && <TodayBanner data={data} month={month} year={year} />}
 
         {/* ── Summary Card ──────────────────────────────────────────── */}
         {isLoading ? (

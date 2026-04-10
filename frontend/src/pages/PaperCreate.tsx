@@ -5139,13 +5139,6 @@ export default function PaperCreate() {
                             <MessageCircle style={{width:16,height:16}} />
                             WhatsApp
                           </button>
-                          <button
-                            onClick={handleCopyShareLink}
-                            style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'13px',background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:12,color:'#60A5FA',fontFamily:'DM Sans,sans-serif',fontWeight:700,fontSize:13,cursor:'pointer',transition:'all 0.15s'}}
-                          >
-                            <LinkIcon style={{width:16,height:16}} />
-                            Copy Link
-                          </button>
                         </div>
 
                         {/* Tip */}
