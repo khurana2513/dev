@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import {
   ChevronDown, LogOut, BarChart3, Shield, GraduationCap,
-  Calculator, BookOpen, PenTool, Rocket, Menu, X, Brain, FileText,
+  Calculator, Menu, X, Brain, FileText,
   User, ArrowRight, Lock, Zap, Calendar, Grid3X3,
   Gamepad2, Sparkles, Award
 } from "lucide-react";
@@ -10,7 +10,6 @@ import { useAuthSafe } from "../contexts/AuthContext";
 import { motion } from "framer-motion";
 
 export default function Header() {
-  const [coursesOpen, setCoursesOpen]         = useState(false);
   const [practiceOpen, setPracticeOpen]       = useState(false);
   const [gamesOpen, setGamesOpen]             = useState(false);
   const [userMenuOpen, setUserMenuOpen]       = useState(false);
@@ -20,12 +19,10 @@ export default function Header() {
 
   const [location, setLocation] = useLocation();
 
-  const coursesDropdownRef  = useRef<HTMLDivElement>(null);
   const practiceDropdownRef = useRef<HTMLDivElement>(null);
   const gamesDropdownRef    = useRef<HTMLDivElement>(null);
   const userMenuRef         = useRef<HTMLDivElement>(null);
 
-  const coursesTimeoutRef     = useRef<NodeJS.Timeout | null>(null);
   const practiceTimeoutRef    = useRef<NodeJS.Timeout | null>(null);
   const gamesTimeoutRef       = useRef<NodeJS.Timeout | null>(null);
   const userMenuTimeoutRef    = useRef<NodeJS.Timeout | null>(null);
@@ -83,11 +80,6 @@ export default function Header() {
 
   const clearRef = (r: React.MutableRefObject<NodeJS.Timeout | null>) => {
     if (r.current) { clearTimeout(r.current); r.current = null; }
-  };
-
-  const handleCoursesEnter = () => { clearRef(coursesTimeoutRef); setCoursesOpen(true); };
-  const handleCoursesLeave = () => {
-    coursesTimeoutRef.current = setTimeout(() => setCoursesOpen(false), 200);
   };
 
   const handlePracticeEnter = () => { clearRef(practiceTimeoutRef); setPracticeOpen(true); };
@@ -194,7 +186,7 @@ export default function Header() {
             <div className="relative">
               <img
                 src="/imagesproject/logo.ico.jpg"
-                alt="Talent Hub Logo"
+                alt="BlackMonkey Logo"
                 className="w-11 h-11 rounded-xl object-cover shadow-md group-hover:shadow-lg transition-all duration-300 group-hover:scale-105"
                 onError={(e) => {
                   const t = e.target as HTMLImageElement;
@@ -208,42 +200,13 @@ export default function Header() {
               </div>
             </div>
             {/* <div>
-              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1.2 }} className="text-foreground group-hover:text-primary transition-colors">Talent Hub</div>
+              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1.2 }} className="text-foreground group-hover:text-primary transition-colors">BlackMonkey</div>
             </div> */}
           </Link>
 
           {/* ── Center Nav Pill (Desktop) ─────────────────────────────── */}
           <nav className="hidden lg:flex items-center gap-2 bg-secondary/90 backdrop-blur-md p-1.5 rounded-full absolute left-1/2 -translate-x-1/2 z-[10]">
             <div className="nav-pill-ring" aria-hidden="true" />
-
-            {/* COURSES */}
-            <div ref={coursesDropdownRef} className="relative" onMouseEnter={handleCoursesEnter} onMouseLeave={handleCoursesLeave}>
-              <button className={`flex items-center gap-1.5 px-5 py-2.5 text-xs font-black uppercase tracking-widest rounded-full transition-all duration-200 ${
-                isActive("/courses") ? "text-primary bg-card/70 shadow-sm" : "text-foreground/70 hover:text-primary hover:bg-card/60"
-              }`}>
-                Courses
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${coursesOpen ? "rotate-180" : ""}`} />
-              </button>
-              {coursesOpen && (
-                <div className="absolute top-full left-0 mt-3 w-72 bg-card backdrop-blur-2xl border-2 border-border/60 rounded-2xl shadow-2xl overflow-hidden z-[200]"
-                  style={CARD_STYLE} onMouseEnter={handleCoursesEnter} onMouseLeave={handleCoursesLeave}>
-                  <div className="p-1.5">
-                    <Link href="/courses/abacus">
-                      <div className={navItem(isActive("/courses/abacus"))}><Calculator className="w-4 h-4" />Study Abacus</div>
-                    </Link>
-                    <Link href="/courses/vedic-maths">
-                      <div className={navItem(isActive("/courses/vedic-maths"))}><BookOpen className="w-4 h-4" />Vedic Maths</div>
-                    </Link>
-                    <Link href="/courses/handwriting">
-                      <div className={navItem(isActive("/courses/handwriting"))}><PenTool className="w-4 h-4" />Handwriting</div>
-                    </Link>
-                    <Link href="/courses/stem">
-                      <div className={navItem(isActive("/courses/stem"))}><Rocket className="w-4 h-4" />STEM</div>
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
 
             {/* PRACTICE */}
             <div ref={practiceDropdownRef} className="relative" onMouseEnter={handlePracticeEnter} onMouseLeave={handlePracticeLeave}>
@@ -517,19 +480,6 @@ export default function Header() {
               }}
             >
             <div className="flex flex-col gap-1 px-2 py-3">
-              <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Courses</div>
-              <Link href="/courses/abacus" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Calculator className="w-4 h-4" />Study Abacus</div>
-              </Link>
-              <Link href="/courses/vedic-maths" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><BookOpen className="w-4 h-4" />Vedic Maths</div>
-              </Link>
-              <Link href="/courses/handwriting" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><PenTool className="w-4 h-4" />Handwriting</div>
-              </Link>
-              <Link href="/courses/stem" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Rocket className="w-4 h-4" />STEM</div>
-              </Link>
               <div className="border-t border-border my-2" />
               <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Practice</div>
               <Link href="/create/basic" onClick={() => setMobileMenuOpen(false)}>

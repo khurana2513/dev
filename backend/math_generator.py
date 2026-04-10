@@ -1867,331 +1867,522 @@ def generate_question(
         text = f"{dividend} ÷ {divisor} ="
     
     elif question_type == "direct_add_sub":
-        operator = "±"  # Mixed operations
+        operator = "±"
         is_vertical = True
-        
-        # Get constraints - typically 1 digit for Junior level
-        digits = constraints.digits or 1
-        rows = constraints.rows or 3
-        rows = max(2, min(15, rows))
-        digits = max(1, min(2, digits))  # Limit to 1-2 digits for Junior
-        
-        # Direct operations: No movement of 5 or 10 bead groups
-        # For single digits: sum < 10, and not using 5 bead complements
-        # Direct pairs (a, b) where a+b < 10 and doesn't involve 5 bead:
-        # Examples: 1+7, 2+2, 3+4, 4+3, 6+1, 7+2, 8+1, 9-1, 8-7, 6-5, etc.
-        # Excludes: pairs summing to 5 (small friends) or 10 (big friends)
-        
-        def is_direct_pair(a: int, b: int, is_add: bool) -> bool:
-            """Check if a pair forms a direct operation (no 5/10 movement)."""
-            if is_add:
-                total = a + b
-                # Must be < 10 (no crossing 10)
-                if total >= 10:
-                    return False
-                # Must not be small friends (sum to 5)
-                if (a + b) == 5:
-                    return False
-                # Must not be big friends (would sum to 10 if added, but we check total < 10 above)
-                return True
+
+        digits = max(1, min(4, constraints.digits or 1))
+        rows   = max(3, min(10, constraints.rows or 3))
+
+        # ── Soroban "Direct" rules ──────────────────────────────────────────
+        # For column digit c, adding b (c+b ≤ 9, no carry):
+        #   c<5, c+b<5  → push earth         ✓  |  c<5, b≥5, c+b≤9  → push heaven+earth ✓
+        #   c<5, b<5, c+b≥5 → small friend   ✗  |  c≥5 → push earth above heaven        ✓
+        # For column digit c, subtracting b (c-b ≥ 0, no borrow):
+        #   c<5, b≤c → pull earth            ✓  |  c≥5, b≤c-5 → pull earth above heaven ✓
+        #   c≥5, b=5 → pull heaven           ✓  |  c≥5, b>5, b≤c → pull heaven+earth   ✓
+        #   c≥5, b<5, b>c-5 → small friend   ✗
+
+        def _da(c):
+            c = c % 10
+            if c < 5:
+                return [b for b in range(1, 10 - c) if (c+b)<5 or b>=5]
             else:
-                # Subtraction: result >= 0, and doesn't require 5 bead borrowing
-                result = a - b
-                if result < 0:
-                    return False
-                # Check if it involves small friends complement (e.g., 8-4, where 4+1=5)
-                # Actually, for direct, we want simple cases like 9-1, 8-7, 6-5, 7-2, etc.
-                # Avoid cases where we'd use 5 bead technique
-                # Direct subtraction: simple cases where result + b doesn't involve 5 technique
-                return True
-        
-        # Generate direct operations
-        operands = []
+                return list(range(1, 10 - c))
+
+        def _ds(c):
+            c = c % 10
+            if c < 5:
+                return list(range(1, c + 1))
+            else:
+                return [b for b in range(1, c + 1) if b <= c - 5 or b >= 5]
+
+        # ── Column-sequence generation ────────────────────────────────────
+        # Strategy: pre-generate each column's full digit sequence independently.
+        # Each step in the sequence is the direction (add/sub) AND operand digit.
+        # For each step, ALL columns must agree on add vs sub.
+        # We generate the ones column sequence first (it determines direction per step),
+        # then fill other columns matching that direction.
+
+        def _build_col_digits(start_cd, directions):
+            """Given list of booleans (True=add), build operand digit list for one column."""
+            cd = start_cd
+            operand_digits = []
+            for do_add in directions:
+                opts = _da(cd) if do_add else _ds(cd)
+                if not opts:
+                    return None  # stuck
+                b = opts[int(random_func() * len(opts))]
+                operand_digits.append(b)
+                cd = (cd + b) if do_add else (cd - b)
+            return operand_digits
+
+        # Generate ones column sequence (determines directions)
+        directions = None
+        ones_start = None
+        ones_digits = None
+        for _ in range(60):
+            cd = int(random_func() * 8) + 1  # 1..8
+            dirs = []
+            digs = []
+            cur_cd = cd
+            ok = True
+            for step in range(rows - 1):
+                add_opts = _da(cur_cd)
+                sub_opts = _ds(cur_cd)
+                if not add_opts and not sub_opts:
+                    ok = False; break
+                do_add = (random_func() < 0.6) if (add_opts and sub_opts) else bool(add_opts)
+                opts = add_opts if do_add else sub_opts
+                b = opts[int(random_func() * len(opts))]
+                dirs.append(do_add)
+                digs.append(b)
+                cur_cd = (cur_cd + b) if do_add else (cur_cd - b)
+            if ok and all(x > 0 for x in digs):
+                directions = dirs
+                ones_start = cd
+                ones_digits = digs
+                break
+
+        if directions is None:
+            if retry_count < 20:
+                return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
+            directions = [True] * (rows - 1)
+            ones_start = 3
+            ones_digits = [1] * (rows - 1)
+
+        # For each column, build operand digit sequence matching the directions
+        col_starts = [ones_start]
+        col_operand_digits = [ones_digits]
+
+        for col in range(1, digits):
+            found = False
+            for _ in range(60):
+                start_cd = int(random_func() * 8) + 1
+                col_digits = _build_col_digits(start_cd, directions)
+                if col_digits is not None and all(b > 0 for b in col_digits):
+                    col_starts.append(start_cd)
+                    col_operand_digits.append(col_digits)
+                    found = True
+                    break
+            if not found:
+                # Fallback: use ones column pattern
+                col_starts.append(ones_start)
+                col_operand_digits.append(ones_digits[:])
+
+        # Build first number and operand list
+        first = sum(col_starts[col] * (10 ** col) for col in range(digits))
+        operands = [first]
         operators_list = []
-        
-        # Generate first operand (0-9 for 1 digit, 10-99 for 2 digits)
-        min_val = 0 if digits == 1 else 10
-        max_val = 9 if digits == 1 else 99
-        
-        first = int(random_func() * (max_val - min_val + 1)) + min_val
-        operands.append(first)
         current = first
-        
-        for i in range(rows - 1):
-            # Decide operation type (mostly addition, some subtraction)
-            is_add = random_func() < 0.7  # 70% addition, 30% subtraction
-            
-            if digits == 1:
-                # Single digit operations
-                if is_add:
-                    # Generate a number such that current + num < 10 and not small friends
-                    max_num = min(9 - current, 9)
-                    if max_num <= 0:
-                        is_add = False
-                    else:
-                        # Avoid small friends (sum to 5)
-                        valid_nums = [n for n in range(1, max_num + 1) if (current % 10 + n) != 5]
-                        if not valid_nums:
-                            is_add = False
-                
-                if is_add:
-                    max_num = min(9 - current, 9)
-                    valid_nums = [n for n in range(1, max_num + 1) if (current % 10 + n) != 5]
-                    if valid_nums:
-                        num = valid_nums[int(random_func() * len(valid_nums))]
-                        operators_list.append("+")
-                        current += num
-                    else:
-                        # Fallback to subtraction
-                        valid_nums = [n for n in range(1, (current % 10) + 1) if n != (current % 10) and (current % 10 - n) != 5]
-                        if valid_nums:
-                            num = valid_nums[int(random_func() * len(valid_nums))]
-                            operators_list.append("-")
-                            current -= num
-                        else:
-                            num = 1
-                            operators_list.append("-")
-                            current -= num
-                else:
-                    # Subtraction
-                    valid_nums = [n for n in range(1, (current % 10) + 1) if (current % 10 - n) != 5]
-                    if not valid_nums:
-                        valid_nums = [1]
-                    num = valid_nums[int(random_func() * len(valid_nums))]
-                    operators_list.append("-")
-                    current -= num
-                
-                operands.append(num)
+
+        for step in range(rows - 1):
+            num = sum(col_operand_digits[col][step] * (10 ** col) for col in range(digits))
+            do_add = directions[step]
+
+            if num == 0:
+                num = 1
+
+            if do_add:
+                operators_list.append("+")
+                current += num
             else:
-                # 2-digit operations - simpler approach
-                num = int(random_func() * 9) + 1
-                if is_add and current + num < 100:
-                    operators_list.append("+")
-                    current += num
-                else:
-                    if current > num:
-                        operators_list.append("-")
-                        current -= num
-                    else:
-                        operators_list.append("+")
-                        current += num
-                operands.append(num)
-        
-        # Calculate final answer
+                if current < num:
+                    if retry_count < 20:
+                        return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
+                    num = 1
+                operators_list.append("-")
+                current -= num
+
+            operands.append(num)
+
         answer = float(operands[0])
         for i, op in enumerate(operators_list):
-            if op == "+":
-                answer += operands[i + 1]
-            else:
-                answer -= operands[i + 1]
-        
-        # Ensure positive answer
+            answer = answer + operands[i + 1] if op == "+" else answer - operands[i + 1]
+
         if answer < 0:
             if retry_count < 20:
                 return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
-            # Last resort: make it positive
             operators_list = ["+"] * (rows - 1)
             answer = float(sum(operands))
-        
+
         operators = operators_list
     
     elif question_type == "small_friends_add_sub":
         operator = "±"
         is_vertical = True
-        
-        digits = constraints.digits or 1
-        rows = constraints.rows or 3
-        rows = max(2, min(15, rows))
-        digits = max(1, min(2, digits))
-        
-        # Small friends: pairs that sum to 5 (1+4, 2+3, 3+2, 4+1, 0+5, 5+0)
-        small_friends_pairs = [(1, 4), (2, 3), (3, 2), (4, 1), (0, 5), (5, 0)]
-        
-        operands = []
-        operators_list = []
-        
-        min_val = 0 if digits == 1 else 10
-        max_val = 9 if digits == 1 else 99
-        
-        first = int(random_func() * (max_val - min_val + 1)) + min_val
-        operands.append(first)
+
+        digits = max(1, min(4, constraints.digits or 1))
+        rows   = max(3, min(10, constraints.rows or 3))
+
+        # ── Small Friends (complement-of-5) rules per column ──────────────
+        # Small-friend ADD  : c ∈ {1,2,3,4}, b = 5-c  (c+b=5, use heaven+complement)
+        # Small-friend SUB  : c ∈ {5,6,7,8}, b ∈ {1..} where b > c-5  and b < 5
+        #                     i.e. b ∈ {c-4, c-3, c-2, c-1} ∩ {1,2,3,4}
+        # Each column is independent; no carry/borrow between columns.
+
+        def _sfa(c: int):
+            """Small-friend addend for column digit c. Returns [] if none."""
+            c = c % 10
+            if 1 <= c <= 4:
+                return [5 - c]
+            return []
+
+        def _sfs(c: int):
+            """Small-friend subtrahend options for column digit c. Returns []."""
+            c = c % 10
+            if 5 <= c <= 8:
+                # b must satisfy: b < 5, b > c-5  → b in range(c-4, 5) ∩ {1..4}
+                return [b for b in range(max(1, c - 4), 5) if b > c - 5]
+            return []
+
+        def _sf_first_col(col):
+            """Pick a starting column digit that has both add and sub options."""
+            for _ in range(40):
+                cd = int(random_func() * 9) + 1  # 1..9
+                if _sfa(cd) or _sfs(cd):
+                    return cd
+            return 3  # fallback
+
+        # Build first number column by column
+        first = 0
+        for col in range(digits):
+            place = 10 ** col
+            first += _sf_first_col(col) * place
+
+        operands: list = [first]
+        operators_list: list = []
         current = first
-        
-        for i in range(rows - 1):
-            is_add = random_func() < 0.7
-            
-            if digits == 1:
-                ones_digit = current % 10
-                # Find small friend
-                friend_pairs = [p for p in small_friends_pairs if p[0] == ones_digit or p[1] == ones_digit]
-                if not friend_pairs:
-                    # If current ones digit is not in any pair, use a random friend pair
-                    friend_pairs = small_friends_pairs
-                
-                pair = friend_pairs[int(random_func() * len(friend_pairs))]
-                if pair[0] == ones_digit:
-                    friend_digit = pair[1]
-                elif pair[1] == ones_digit:
-                    friend_digit = pair[0]
+
+        for _ in range(rows - 1):
+            ones_cd = current % 10
+            can_add = bool(_sfa(ones_cd))
+            can_sub = bool([b for b in _sfs(ones_cd) if current >= b])
+
+            if not can_add and not can_sub:
+                if retry_count < 20:
+                    return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
+                break
+
+            do_add = (random_func() < 0.6) if (can_add and can_sub) else can_add
+
+            # Build D-digit operand column by column:
+            # ones column → small-friend rule (required)
+            # higher columns → small-friend preferred, proper direct rule as fallback
+            # (direct = pure push/pull, no friend technique; student knows direct before small)
+            num = 0
+            for col in range(digits):
+                place = 10 ** col
+                cd = (current // place) % 10
+                col_total = current // place
+                if do_add:
+                    opts = _sfa(cd)
                 else:
-                    friend_digit = pair[1]  # Default
-                
-                if is_add:
-                    operators_list.append("+")
-                    current += friend_digit
-                    operands.append(friend_digit)
-                else:
-                    if current >= friend_digit:
-                        operators_list.append("-")
-                        current -= friend_digit
-                        operands.append(friend_digit)
+                    opts = [b for b in _sfs(cd) if col_total >= b]
+                if not opts and col > 0:
+                    # Fallback: proper direct (no carry/borrow, no friend technique)
+                    if do_add:
+                        # _da(cd): valid direct addends for column digit cd
+                        opts = [b for b in range(1, 10 - cd)
+                                if (cd < 5 and ((cd + b) < 5 or b >= 5))
+                                or (cd >= 5)]
+                        opts = [b for b in opts if cd + b <= 9]
                     else:
-                        # Can't subtract, use addition instead
-                        operators_list.append("+")
-                        current += friend_digit
-                        operands.append(friend_digit)
+                        # _ds(cd): valid direct subtrahends for column digit cd
+                        if cd < 5:
+                            opts = [b for b in range(1, cd + 1) if col_total >= b]
+                        else:
+                            opts = [b for b in range(1, cd + 1)
+                                    if (b <= cd - 5 or b >= 5) and col_total >= b]
+                if opts:
+                    num += opts[int(random_func() * len(opts))] * place
+
+            if num == 0:
+                num = 1  # safety
+
+            if do_add:
+                operators_list.append("+")
+                current += num
             else:
-                # 2-digit: use ones place for small friends
-                ones_digit = current % 10
-                friend_pairs = [p for p in small_friends_pairs if p[0] == ones_digit or p[1] == ones_digit]
-                if not friend_pairs:
-                    friend_pairs = small_friends_pairs
-                
-                pair = friend_pairs[int(random_func() * len(friend_pairs))]
-                if pair[0] == ones_digit:
-                    friend_digit = pair[1]
-                else:
-                    friend_digit = pair[0]
-                
-                num = friend_digit + int(random_func() * 9) * 10  # Add tens for 2-digit
-                if is_add:
-                    operators_list.append("+")
-                    current += num
-                else:
-                    if current >= num:
-                        operators_list.append("-")
-                        current -= num
-                    else:
-                        operators_list.append("+")
-                        current += num
-                operands.append(num)
-        
-        # Calculate answer
+                if current < num:
+                    if retry_count < 20:
+                        return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
+                    num = 1
+                operators_list.append("-")
+                current -= num
+
+            operands.append(num)
+
         answer = float(operands[0])
         for i, op in enumerate(operators_list):
-            if op == "+":
-                answer += operands[i + 1]
-            else:
-                answer -= operands[i + 1]
-        
+            answer = answer + operands[i + 1] if op == "+" else answer - operands[i + 1]
+
         if answer < 0:
             if retry_count < 20:
                 return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
             operators_list = ["+"] * (rows - 1)
             answer = float(sum(operands))
-        
+
         operators = operators_list
     
     elif question_type == "big_friends_add_sub":
         operator = "±"
         is_vertical = True
-        
-        digits = constraints.digits or 1
-        rows = constraints.rows or 3
-        rows = max(2, min(15, rows))
-        digits = max(1, min(2, digits))
-        
-        # Big friends: pairs that sum to 10 (1+9, 2+8, 3+7, 4+6, 5+5, 6+4, 7+3, 8+2, 9+1, 0+10, 10+0)
-        big_friends_pairs = [(1, 9), (2, 8), (3, 7), (4, 6), (5, 5), (6, 4), (7, 3), (8, 2), (9, 1), (0, 10), (10, 0)]
-        
-        operands = []
+
+        digits = max(1, min(4, constraints.digits or 1))
+        rows   = max(3, min(10, constraints.rows or 3))
+
+        # ── Big Friends (complement-of-10) ───────────────────────────────
+        # Big-friend ADD at column digit c (c∈{1..9}): b = 10-c (c+b=10, carry to next column).
+        # Big-friend SUB at column digit c (c∈{1..4}): b = 10-c (borrow from next column, c-b<0).
+        # For sequences: we track the full running integer and decide per-step.
+        # Column digit c = (current // 10^col) % 10.
+        # After ADD: actual column digit becomes (c + b - 10) = 0 with carry. Next column +1.
+        # After SUB: actual column digit becomes (c - b + 10) = (2c - 10 + 10) = ... wait.
+        #   For SUB big-friend: c∈{1..4}, b=10-c. c - (10-c) = 2c-10 < 0. Needs borrow.
+        #   The result digit = c - (10-c) + 10 = 2c. (Borrowed 10 from next column.)
+        # We track per-column digit sequences with explicit carry/borrow.
+
+        def _bfa_opts(c):
+            """Big-friend addend options for column digit c. Returns [b] or []."""
+            c = c % 10
+            return [10 - c] if 1 <= c <= 9 else []
+
+        def _bfs_opts(c):
+            """Big-friend subtrahend options for column digit c. Returns [b] or [].
+            Valid when c∈{1..4}: borrow needed (b=10-c > c)."""
+            c = c % 10
+            return [10 - c] if 1 <= c <= 4 else []
+
+        # For D-digit operands: ones column ALWAYS uses big-friend rule.
+        # Higher columns use DIRECT rule (students know direct before big-friend).
+        # This guarantees D-digit operands and pure big-friend technique on ones.
+
+        def _direct_add_opts(c):
+            c = c % 10
+            if c < 5:
+                return [b for b in range(1, 10 - c) if (c + b) < 5 or b >= 5]
+            return list(range(1, 10 - c))
+
+        def _direct_sub_opts(c):
+            c = c % 10
+            if c < 5:
+                return list(range(1, c + 1))
+            return [b for b in range(1, c + 1) if b <= c - 5 or b >= 5]
+
+        # Build first number
+        ones_cands = [c for c in range(1, 10) if _bfa_opts(c) and _bfs_opts(c)]
+        ones_start = ones_cands[int(random_func() * len(ones_cands))]  # {1,2,3,4}
+        first = ones_start
+        for col in range(1, digits):
+            cd = int(random_func() * 8) + 1  # 1..8 for direct viability
+            first += cd * (10 ** col)
+
+        operands = [first]
         operators_list = []
-        
-        min_val = 0 if digits == 1 else 10
-        max_val = 9 if digits == 1 else 99
-        
-        first = int(random_func() * (max_val - min_val + 1)) + min_val
-        operands.append(first)
         current = first
-        
-        for i in range(rows - 1):
-            is_add = random_func() < 0.7
-            
-            if digits == 1:
-                ones_digit = current % 10
-                # Find big friend
-                friend_pairs = [p for p in big_friends_pairs if p[0] == ones_digit or p[1] == ones_digit]
-                if not friend_pairs:
-                    friend_pairs = big_friends_pairs
-                
-                pair = friend_pairs[int(random_func() * len(friend_pairs))]
-                if pair[0] == ones_digit:
-                    friend_digit = pair[1]
-                elif pair[1] == ones_digit:
-                    friend_digit = pair[0]
+
+        for _ in range(rows - 1):
+            ones_c = current % 10
+            can_bf_add = bool(_bfa_opts(ones_c))
+            can_bf_sub = bool(_bfs_opts(ones_c))
+
+            if not can_bf_add and not can_bf_sub:
+                if retry_count < 20:
+                    return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
+                break
+
+            do_add = (random_func() < 0.5) if (can_bf_add and can_bf_sub) else can_bf_add
+
+            # Ones: big-friend; higher cols: direct (ensuring b ≥ 1 for digit count)
+            b_ones = 10 - ones_c
+            num = b_ones
+            for col in range(1, digits):
+                place = 10 ** col
+                cd = (current // place) % 10
+                if do_add:
+                    opts = _direct_add_opts(cd)
+                    if not opts:
+                        opts = [b for b in range(1, 10) if cd + b <= 9] or [1]
                 else:
-                    friend_digit = pair[1]
-                
-                # For big friends, friend might be 10, handle it
-                if friend_digit == 10:
-                    friend_digit = 10  # Use 10 directly
-                
-                if is_add:
-                    operators_list.append("+")
-                    current += friend_digit
-                    operands.append(friend_digit)
-                else:
-                    if current >= friend_digit:
-                        operators_list.append("-")
-                        current -= friend_digit
-                        operands.append(friend_digit)
-                    else:
-                        operators_list.append("+")
-                        current += friend_digit
-                        operands.append(friend_digit)
+                    col_total = current // place
+                    opts = [b for b in _direct_sub_opts(cd) if col_total >= b]
+                    if not opts:
+                        opts = [b for b in range(1, cd + 1)] if cd > 0 else []
+                if not opts:
+                    # No direct option; contribute 0 (loses D-digit but avoids crash)
+                    continue
+                num += opts[int(random_func() * len(opts))] * place
+
+            # Ensure num has full D digits (ones already guaranteed ≥1)
+            if digits > 1 and len(str(num)) < digits:
+                # Higher digit was 0; fill with 1..8 direct
+                for col in range(1, digits):
+                    if (num // (10 ** col)) % 10 == 0:
+                        num += (10 ** col)  # add place value of 1
+
+            if do_add:
+                operators_list.append("+")
+                current += num
             else:
-                # 2-digit: use ones place for big friends
-                ones_digit = current % 10
-                friend_pairs = [p for p in big_friends_pairs if p[0] == ones_digit or p[1] == ones_digit]
-                if not friend_pairs:
-                    friend_pairs = big_friends_pairs
-                
-                pair = friend_pairs[int(random_func() * len(friend_pairs))]
-                if pair[0] == ones_digit:
-                    friend_digit = pair[1]
-                else:
-                    friend_digit = pair[0]
-                
-                # For 2-digit, friend_digit is the ones place, add appropriate tens
-                num = friend_digit + int(random_func() * 9) * 10
-                if is_add:
+                if current < num:
+                    # Switch to add to avoid negative
                     operators_list.append("+")
                     current += num
                 else:
-                    if current >= num:
-                        operators_list.append("-")
-                        current -= num
-                    else:
-                        operators_list.append("+")
-                        current += num
-                operands.append(num)
-        
-        # Calculate answer
+                    operators_list.append("-")
+                    current -= num
+
+            operands.append(num)
+
         answer = float(operands[0])
         for i, op in enumerate(operators_list):
-            if op == "+":
-                answer += operands[i + 1]
-            else:
-                answer -= operands[i + 1]
-        
+            answer = answer + operands[i + 1] if op == "+" else answer - operands[i + 1]
+
         if answer < 0:
             if retry_count < 20:
                 return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
             operators_list = ["+"] * (rows - 1)
             answer = float(sum(operands))
-        
+
         operators = operators_list
-    
+
+    elif question_type == "mix_friends_add_sub":
+        operator = "±"
+        is_vertical = True
+
+        digits = max(1, min(4, constraints.digits or 1))
+        rows   = max(3, min(10, constraints.rows or 3))
+
+        # ── Mix Friends (big-friend + small-friend combined) per column ───
+        # Mix-friend ADD: c ≥ 5, b ≥ 6, c+b ≥ 10 (carry), column result = (c+b)%10
+        # Mix-friend SUB: reverse — if c_after = (c_before + b) % 10, then
+        #   subtracting b from c_after (with borrow) reverses to c_before.
+        #   Valid mix-sub: c is in mix_sub_map and b ≤ col_total.
+
+        mix_add_map: dict = {}
+        for c in range(5, 10):
+            opts = [b for b in range(6, 10) if c + b >= 10]
+            if opts:
+                mix_add_map[c] = opts
+
+        mix_sub_map: dict = {}
+        for c_before, b_list in mix_add_map.items():
+            for b in b_list:
+                c_after = (c_before + b) % 10
+                mix_sub_map.setdefault(c_after, []).append(b)
+
+        def _mfa(c):
+            return mix_add_map.get(c % 10, [])
+
+        def _mfs(c):
+            return mix_sub_map.get(c % 10, [])
+
+        def _is_mix_add_valid(current_number, b_number, digits):
+            """Check that each digit-column of b_number is a valid mix-add for current_number."""
+            for col in range(digits):
+                place = 10 ** col
+                cd = (current_number // place) % 10
+                bd = (b_number // place) % 10
+                if bd not in _mfa(cd):
+                    return False
+            return True
+
+        def _is_mix_sub_valid(current_number, b_number, digits):
+            """Check that each digit-column of b_number is a valid mix-sub for current_number."""
+            if current_number < b_number:
+                return False
+            for col in range(digits):
+                place = 10 ** col
+                cd = (current_number // place) % 10
+                bd = (b_number // place) % 10
+                if bd not in _mfs(cd):
+                    return False
+            return True
+
+        # Generate a valid D-digit mix-friend operand for given running total and direction
+        def _gen_mix_operand(current_number, do_add, digits):
+            num = 0
+            for col in range(digits):
+                place = 10 ** col
+                cd = (current_number // place) % 10
+                opts = _mfa(cd) if do_add else _mfs(cd)
+                if not opts:
+                    return None
+                b = opts[int(random_func() * len(opts))]
+                num += b * place
+            if not do_add and current_number < num:
+                return None
+            return num
+
+        # Build first number: each column digit in mix_add_map keys {5..9}
+        mix_keys = list(mix_add_map.keys())
+        first = sum(
+            mix_keys[int(random_func() * len(mix_keys))] * (10 ** col)
+            for col in range(digits)
+        )
+
+        operands = [first]
+        operators_list = []
+        current = first
+
+        for _ in range(rows - 1):
+            ones_cd = current % 10
+            can_add = bool(_mfa(ones_cd))
+            can_sub = bool(_mfs(ones_cd)) and current >= 10 ** (digits - 1)
+
+            if not can_add and not can_sub:
+                if retry_count < 20:
+                    return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
+                break
+
+            do_add = (random_func() < 0.5) if (can_add and can_sub) else can_add
+
+            num = None
+            for _ in range(20):
+                num = _gen_mix_operand(current, do_add, digits)
+                if num is not None and num > 0:
+                    break
+                # Try opposite direction if stuck
+                if do_add and can_sub:
+                    do_add = False
+                elif not do_add and can_add:
+                    do_add = True
+                else:
+                    break
+
+            if num is None or num == 0:
+                if retry_count < 20:
+                    return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
+                break
+
+            if do_add:
+                operators_list.append("+")
+                current += num
+            else:
+                operators_list.append("-")
+                current -= num
+
+            operands.append(num)
+
+        # Pad to rows if loop broke early
+        while len(operands) < rows:
+            fallback = sum(mix_keys[int(random_func() * len(mix_keys))] * (10 ** col) for col in range(digits))
+            operators_list.append("+")
+            current += fallback
+            operands.append(fallback)
+
+        answer = float(operands[0])
+        for i, op in enumerate(operators_list):
+            answer = answer + operands[i + 1] if op == "+" else answer - operands[i + 1]
+
+        if answer < 0:
+            if retry_count < 20:
+                return generate_question(question_id, question_type, constraints, seed, retry_count + 1)
+            operators_list = ["+"] * (rows - 1)
+            answer = float(sum(operands))
+
+        operators = operators_list
+
     # ========== VEDIC MATHS LEVEL 1 OPERATIONS ==========
     elif question_type == "vedic_multiply_by_11":
         operator = "×"
@@ -3995,7 +4186,7 @@ def generate_question(
     skip_answer_bounds = (
         "decimal_multiplication", "square_root", "cube_root", "lcm", "gcd", "integer_add_sub", 
         "decimal_division", "decimal_add_sub", "direct_add_sub", "small_friends_add_sub", 
-        "big_friends_add_sub", "percentage",
+        "big_friends_add_sub", "mix_friends_add_sub", "percentage",
         "vedic_divide_by_2", "vedic_divide_by_4", "vedic_divide_single_digit", "vedic_divide_by_11",
         "vedic_divide_by_5_25_125", "vedic_divide_by_5_50_500", "vedic_divide_with_remainder",
         "vedic_divide_by_9s_repetition_equal", "vedic_divide_by_9s_repetition_less_than",
@@ -4016,7 +4207,7 @@ def generate_question(
     
     # Build text representation (skip if already built for special operations)
     # Operations that already have text set: square_root, cube_root, lcm, gcd, decimal_multiplication, decimal_division, decimal_add_sub, percentage, and all vedic operations
-    # Junior operations (direct_add_sub, small_friends_add_sub, big_friends_add_sub) use standard vertical format, so text will be built below
+    # Junior operations (direct_add_sub, small_friends_add_sub, big_friends_add_sub, mix_friends_add_sub) use standard vertical format, so text will be built below
     if text is None:
         text_parts = []
         if is_vertical:

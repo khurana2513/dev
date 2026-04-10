@@ -982,7 +982,7 @@ async def update_attendance_record(
 # ──────────────────────────────────────────────────────────────────
 
 @router.get("/student/monthly")
-async def get_student_monthly_attendance(
+def get_student_monthly_attendance(
     month: int = Query(..., ge=1, le=12),
     year: int = Query(..., ge=2020),
     student_profile_id: Optional[int] = Query(None),
@@ -992,9 +992,12 @@ async def get_student_monthly_attendance(
     """Get a student's attendance for a specific month."""
     # Resolve which profile to query
     if current_user.role == "admin":
-        if student_profile_id is None:
-            raise HTTPException(status_code=400, detail="student_profile_id required for admin")
-        profile = db.query(StudentProfile).filter(StudentProfile.id == student_profile_id).first()
+        if student_profile_id is not None:
+            # Admin viewing a specific student's attendance
+            profile = db.query(StudentProfile).filter(StudentProfile.id == student_profile_id).first()
+        else:
+            # Admin viewing their own attendance on the student dashboard — look up their own profile
+            profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
     else:
         profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
 

@@ -109,7 +109,7 @@ export default function MaintenancePage({ message }: Props) {
               <div style={{ width: 44, height: 44, borderRadius: 14, background: "linear-gradient(135deg,#7c5af6,#a78bfa)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
               </div>
-              <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 24, fontWeight: 900, color: "#e2e8f0", letterSpacing: "-0.01em" }}>Talent Hub</span>
+              <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 24, fontWeight: 900, color: "#e2e8f0", letterSpacing: "-0.01em" }}>BlackMonkey</span>
             </div>
           </div>
 
@@ -130,7 +130,7 @@ export default function MaintenancePage({ message }: Props) {
             </h1>
 
             <p style={{ color: "rgba(255,255,255,0.52)", fontSize: 15.5, lineHeight: 1.65, textAlign: "center", margin: "0 0 36px", maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>
-              {message ?? "We're upgrading Talent Hub to bring you an even better learning experience."}
+              {message ?? "We're upgrading BlackMonkey to bring you an even better learning experience."}
             </p>
 
             {/* Progress bar */}
@@ -162,7 +162,7 @@ export default function MaintenancePage({ message }: Props) {
 
           {/* Footer note */}
           <p style={{ textAlign: "center", marginTop: 24, color: "rgba(255,255,255,0.22)", fontSize: 13 }}>
-            Questions? Contact <span style={{ color: "rgba(167,139,250,0.7)" }}>support@talenthub.in</span>
+            Questions? Contact <span style={{ color: "rgba(167,139,250,0.7)" }}>support@blackmonkey.in</span>
           </p>
         </div>
       </div>

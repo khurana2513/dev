@@ -25,6 +25,13 @@ PRESETS = {
             constraints=Constraints(digits=1, rows=3),
             title="Big Friends Add/Sub"
         ),
+        BlockConfig(
+            id="jr-4",
+            type="mix_friends_add_sub",
+            count=10,
+            constraints=Constraints(digits=1, rows=3),
+            title="Mix Friends Add/Sub"
+        ),
     ],
     "AB-1": [
         BlockConfig(id="ab1-1", type="add_sub", count=10, constraints=Constraints(digits=1, rows=3), title="Add/Sub Mix 1D 3R"),

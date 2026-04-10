@@ -78,7 +78,7 @@ export function PWAInstallPrompt() {
   return (
     <div
       role="dialog"
-      aria-label="Install Talent Hub"
+      aria-label="Install BlackMonkey"
       className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9998] w-[calc(100%-2rem)] max-w-sm
                  bg-[#0f0c29]/95 backdrop-blur border border-violet-500/30 rounded-2xl
                  shadow-2xl p-4 text-sm text-slate-200"
@@ -95,11 +95,11 @@ export function PWAInstallPrompt() {
       <div className="flex items-start gap-3 pr-6">
         <img
           src="/icons/pwa-192x192.png"
-          alt="Talent Hub icon"
+          alt="BlackMonkey icon"
           className="w-12 h-12 rounded-xl flex-shrink-0"
         />
         <div>
-          <p className="font-semibold text-white">Install Talent Hub</p>
+          <p className="font-semibold text-white">Install BlackMonkey</p>
           <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
             Add to your home screen for faster access and an app-like experience — works offline too.
           </p>

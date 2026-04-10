@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Plus, Trash2, Eye, EyeOff, FileDown, XCircle, GripVertical, Copy, ChevronUp, ChevronDown, Play, ChevronDown as ChevronDownIcon, Lock } from "lucide-react";
-import { previewPaper, generatePdf, PaperConfig, BlockConfig, GeneratedBlock } from "@/lib/api";
+import { ArrowLeft, Plus, Trash2, Eye, EyeOff, FileDown, XCircle, GripVertical, Copy, ChevronUp, ChevronDown, Play, ChevronDown as ChevronDownIcon, Save, Pencil, BookmarkPlus, Check, Share2, Link as LinkIcon, MessageCircle, Clock } from "lucide-react";
+import { previewPaper, generatePdf, PaperConfig, BlockConfig, GeneratedBlock, getUserPaperTemplates, createUserPaperTemplate, updateUserPaperTemplate, deleteUserPaperTemplate, UserPaperTemplate, sharePaper, SharedPaper } from "@/lib/api";
 import { buildApiUrl, looksLikeHtmlDocument } from "@/lib/apiBase";
+import { useAuth } from "@/contexts/AuthContext";
 import MathQuestion from "@/components/MathQuestion";
 
 // Helper function to generate section name based on block settings
@@ -55,6 +56,8 @@ function generateSectionName(block: BlockConfig): string {
     return `Small Friends Add/Sub ${block.constraints.digits || 1}D ${block.constraints.rows || 3}R`;
   } else if (block.type === "big_friends_add_sub") {
     return `Big Friends Add/Sub ${block.constraints.digits || 1}D ${block.constraints.rows || 3}R`;
+  } else if (block.type === "mix_friends_add_sub") {
+    return `Mix Friends Add/Sub ${block.constraints.digits || 1}D ${block.constraints.rows || 3}R`;
   } else if (block.type === "percentage") {
     const pctMin = block.constraints.percentageMin ?? 1;
     const pctMax = block.constraints.percentageMax ?? 100;
@@ -326,6 +329,8 @@ function generateSectionName(block: BlockConfig): string {
 
 export default function PaperCreate() {
   const [location, setLocation] = useLocation();
+  const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const isJuniorPage = location === "/create/junior";
   const isAdvancedPage = location === "/create/advanced";
   const isBasicPage = location === "/create/basic";
@@ -349,8 +354,238 @@ export default function PaperCreate() {
   const [level, setLevel] = useState<PaperConfig["level"]>("Custom");
   const [blocks, setBlocks] = useState<BlockConfig[]>([]);
   const [loadingPresets, setLoadingPresets] = useState(false);
-  
-  // Track previous location to detect page changes
+
+  // ── Template state ────────────────────────────────────────────────────────
+  const [activeTemplateId, setActiveTemplateId] = useState<number | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveModalMode, setSaveModalMode] = useState<"create" | "update">("create");
+  const [saveModalName, setSaveModalName] = useState("");
+  const [saveModalError, setSaveModalError] = useState("");
+  // Inline rename state
+  const [renamingTemplateId, setRenamingTemplateId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState("");
+  // Toast notification
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Prevents the level-change useEffect from firing preset loads when loading a template
+  const skipPresetLoadRef = useRef(false);
+
+  // Share paper state
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareResult, setShareResult] = useState<SharedPaper | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const showToast = (msg: string, ok = true) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ msg, ok });
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  };
+
+  // Load templates (only when authenticated)
+  const { data: templates = [] } = useQuery<UserPaperTemplate[]>({
+    queryKey: ["userPaperTemplates"],
+    queryFn: getUserPaperTemplates,
+    enabled: isAuthenticated,
+    staleTime: 30_000,
+  });
+
+  const MAX_TEMPLATES = 5;
+  const atTemplateLimit = templates.length >= MAX_TEMPLATES;
+
+  // Mutation: create template
+  const createTemplateMutation = useMutation({
+    mutationFn: createUserPaperTemplate,
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ["userPaperTemplates"] });
+      setActiveTemplateId(created.id);
+      setShowSaveModal(false);
+      setSaveModalError("");
+      showToast("Template saved!");
+    },
+    onError: (err: any) => {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.toLowerCase().includes("already exists")
+        ? "A template with this name already exists — please choose a different name."
+        : raw || "Failed to save template.";
+      setSaveModalError(msg);
+    },
+  });
+
+  // Mutation: update template
+  const updateTemplateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof updateUserPaperTemplate>[1] }) =>
+      updateUserPaperTemplate(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["userPaperTemplates"] });
+      if (showSaveModal) {
+        setShowSaveModal(false);
+        setSaveModalError("");
+        showToast("Template updated!");
+      } else {
+        setRenamingTemplateId(null);
+        setRenameError("");
+        showToast("Template renamed!");
+      }
+    },
+    onError: (err: any) => {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.toLowerCase().includes("already exists")
+        ? "A template with this name already exists — please choose a different name."
+        : raw || "Failed to update template.";
+      setSaveModalError(msg);
+      setRenameError(msg);
+    },
+  });
+
+  // Mutation: delete template
+  const deleteTemplateMutation = useMutation({
+    mutationFn: deleteUserPaperTemplate,
+    onSuccess: (_v, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ["userPaperTemplates"] });
+      if (activeTemplateId === deletedId) setActiveTemplateId(null);
+      showToast("Template deleted.");
+    },
+  });
+
+  // Mutation: share paper
+  const shareMutation = useMutation({
+    mutationFn: sharePaper,
+    onSuccess: (result) => {
+      setShareResult(result);
+      setShareCopied(false);
+    },
+    onError: (err: any) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(msg || "Failed to share paper.", false);
+      setShowShareModal(false);
+    },
+  });
+
+  const handleSharePaper = () => {
+    if (!previewData) return;
+    setShareResult(null);
+    setShareCopied(false);
+    setShowShareModal(true);
+    shareMutation.mutate({
+      paper_title: title || "Practice Paper",
+      paper_level: level || "Custom",
+      paper_config: {
+        level: level || "Custom",
+        title: title || "Practice Paper",
+        totalQuestions: "20",
+        blocks,
+        orientation: "portrait",
+      },
+      generated_blocks: previewData.blocks,
+      seed: previewData.seed,
+    });
+  };
+
+  const getShareLink = () => {
+    if (!shareResult) return "";
+    return `${window.location.origin}/paper/shared/${shareResult.code}`;
+  };
+
+  const handleCopyShareLink = async () => {
+    const link = getShareLink();
+    try {
+      await navigator.clipboard.writeText(link);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    } catch {
+      // Fallback
+      const ta = document.createElement("textarea");
+      ta.value = link;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    }
+  };
+
+  const handleWhatsAppShare = () => {
+    const link = getShareLink();
+    const text = `Hey! Try this math paper I made on TalentHub: ${shareResult?.paper_title || "Practice Paper"}\n\nCode: ${shareResult?.code}\n\n${link}\n\nValid for 24 hours!`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
+  // Load blocks from a saved template
+  const handleLoadTemplate = (tplId: number) => {
+    const tpl = templates.find((t) => t.id === tplId);
+    if (!tpl) return;
+    const shouldReplace =
+      blocks.length === 0 ||
+      window.confirm(
+        "Loading a template will replace your current blocks. Continue?"
+      );
+    if (!shouldReplace) return;
+    // Prevent the level-change useEffect from fetching preset blocks and overwriting template blocks
+    skipPresetLoadRef.current = true;
+    setActiveTemplateId(tpl.id);
+    const tplLevel = (tpl.level as PaperConfig["level"]) || "Custom";
+    setLevel(tplLevel);
+    setTitle(tpl.name);
+    // Convert raw JSON blocks back to BlockConfig[]
+    const converted: BlockConfig[] = (tpl.blocks as any[]).map((b: any) => ({
+      id: b.id || `block-${Date.now()}-${Math.random()}`,
+      type: b.type,
+      count: b.count ?? 10,
+      constraints: b.constraints ?? {},
+      title: b.title || "",
+    }));
+    setBlocks(converted);
+    setStep(1);
+    setPreviewData(null);
+    setValidationErrors({});
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Open save modal for new template
+  const handleOpenSaveModal = () => {
+    if (!isAuthenticated) return;
+    setSaveModalMode("create");
+    setSaveModalName(title || "");
+    setSaveModalError("");
+    setShowSaveModal(true);
+  };
+
+  // Open save modal targeted at updating existing template
+  const handleOpenUpdateModal = () => {
+    if (!activeTemplateId) return;
+    const tpl = templates.find((t) => t.id === activeTemplateId);
+    setSaveModalMode("update");
+    setSaveModalName(tpl?.name || title || "");
+    setSaveModalError("");
+    setShowSaveModal(true);
+  };
+
+  // Submit the save modal
+  const handleSaveModalSubmit = () => {
+    const name = saveModalName.trim();
+    if (!name) { setSaveModalError("Please enter a template name."); return; }
+    if (name.length > 60) { setSaveModalError("Name must be 60 characters or fewer."); return; }
+    if (blocks.length < 1) { setSaveModalError("Add at least 1 block before saving."); return; }
+    const totalQ = blocks.reduce((s, b) => s + b.count, 0);
+    if (totalQ < 10) { setSaveModalError("Template needs at least 10 questions in total."); return; }
+
+    if (saveModalMode === "update" && activeTemplateId) {
+      updateTemplateMutation.mutate({
+        id: activeTemplateId,
+        data: { name, level: level === "Custom" ? null : level, blocks },
+      });
+    } else {
+      createTemplateMutation.mutate({
+        name,
+        level: level === "Custom" ? null : level,
+        blocks,
+      });
+    }
+  };
+
+  // ── Track previous location to detect page changes ────────────────────────
   const previousLocationRef = useRef<string>(location);
   const isInitialMount = useRef<boolean>(true);
   const previousLevelRef = useRef<PaperConfig["level"] | null>(null);
@@ -372,6 +607,7 @@ export default function PaperCreate() {
       setPreviewData(null);
       setValidationErrors({});
       setLevel("Custom"); // Reset level to Custom when switching pages
+      setActiveTemplateId(null);
     }
     
     previousLocationRef.current = location;
@@ -382,6 +618,11 @@ export default function PaperCreate() {
   
   // Load preset blocks when level changes (but not on initial mount if Custom)
   useEffect(() => {
+    // Skip when level was changed by a template load — template already set its own blocks
+    if (skipPresetLoadRef.current) {
+      skipPresetLoadRef.current = false;
+      return;
+    }
     // Check if level has presets: AB-1 through AB-10, Junior, Advanced, Vedic-Level-1, Vedic-Level-2
     const hasPresets = level.startsWith("AB-") || level === "Junior" || level === "Advanced" || level === "Vedic-Level-1" || level === "Vedic-Level-2";
     
@@ -748,7 +989,7 @@ export default function PaperCreate() {
     // Set default constraints based on block type
     const defaultConstraints: any = {
       digits: isJuniorPage ? 1 : 2,
-      rows: 5,
+      rows: isJuniorPage ? 3 : 5,
       multiplicandDigits: 2,
       multiplierDigits: 1,
       dividendDigits: 2,
@@ -789,7 +1030,7 @@ export default function PaperCreate() {
     }
     const defaultConstraints: any = {
       digits: isJuniorPage ? 1 : 2,
-      rows: 5,
+      rows: isJuniorPage ? 3 : 5,
       multiplicandDigits: 2,
       multiplierDigits: 1,
       dividendDigits: 2,
@@ -856,6 +1097,14 @@ export default function PaperCreate() {
       } else if (updates.type === "vedic_duplex") {
         // Always reset to vedic_duplex default when switching to it
         updatedBlock.constraints.digits = 2;  // Duplex default: 2
+      } else if (["direct_add_sub", "small_friends_add_sub", "big_friends_add_sub", "mix_friends_add_sub"].includes(updates.type)) {
+        // Junior types default to 3 rows and 1 digit
+        if (!updatedBlock.constraints.rows || updatedBlock.constraints.rows > 10) {
+          updatedBlock.constraints.rows = 3;
+        }
+        if (!updatedBlock.constraints.digits || updatedBlock.constraints.digits > 4) {
+          updatedBlock.constraints.digits = 1;
+        }
       }
     }
     
@@ -907,7 +1156,10 @@ export default function PaperCreate() {
   };
 
   const removeBlock = (index: number) => {
-    setBlocks(blocks.filter((_, i) => i !== index));
+    const newBlocks = blocks.filter((_, i) => i !== index);
+    setBlocks(newBlocks);
+    // Clear active template when all blocks are removed — loaded state no longer valid
+    if (newBlocks.length === 0) setActiveTemplateId(null);
   };
 
   const duplicateBlock = (index: number) => {
@@ -1073,18 +1325,21 @@ export default function PaperCreate() {
       if (block.type === "addition" || block.type === "subtraction" || block.type === "add_sub" || 
           block.type === "integer_add_sub" || block.type === "decimal_add_sub" || 
           block.type === "direct_add_sub" || block.type === "small_friends_add_sub" || 
-          block.type === "big_friends_add_sub") {
+          block.type === "big_friends_add_sub" || block.type === "mix_friends_add_sub") {
+        const isJuniorFriendType = block.type === "direct_add_sub" || block.type === "small_friends_add_sub" || block.type === "big_friends_add_sub" || block.type === "mix_friends_add_sub";
+        const maxDigitsAllowed = isJuniorFriendType ? 4 : 10;
+        const maxRowsAllowed = isJuniorFriendType ? 10 : 30;
         const digits = block.constraints.digits;
         if (digits !== undefined && digits !== -1) {
-          if (digits < 1 || digits > 10) {
-            blockErrors.digits = digits < 1 ? "Minimum value for Digits is 1" : "Maximum value for Digits is 10";
+          if (digits < 1 || digits > maxDigitsAllowed) {
+            blockErrors.digits = digits < 1 ? "Minimum value for Digits is 1" : `Maximum value for Digits is ${maxDigitsAllowed}`;
             hasErrors = true;
           }
         }
         const rows = block.constraints.rows;
         if (rows !== undefined && rows !== -1) {
-          if (rows < 3 || rows > 30) {
-            blockErrors.rows = rows < 3 ? "Minimum value for Rows is 3" : "Maximum value for Rows is 30";
+          if (rows < 3 || rows > maxRowsAllowed) {
+            blockErrors.rows = rows < 3 ? "Minimum value for Rows is 3" : `Maximum value for Rows is ${maxRowsAllowed}`;
             hasErrors = true;
           }
         }
@@ -1257,7 +1512,7 @@ export default function PaperCreate() {
         };
         
         // Add digits based on question type (for non-vedic operations)
-        if (b.type === "addition" || b.type === "subtraction" || b.type === "add_sub" || b.type === "integer_add_sub" || b.type === "direct_add_sub" || b.type === "small_friends_add_sub" || b.type === "big_friends_add_sub") {
+        if (b.type === "addition" || b.type === "subtraction" || b.type === "add_sub" || b.type === "integer_add_sub" || b.type === "direct_add_sub" || b.type === "small_friends_add_sub" || b.type === "big_friends_add_sub" || b.type === "mix_friends_add_sub") {
           constraints.digits = b.constraints.digits || 2;
         } else {
           // For multiplication/division, digits is optional but provide default for backend
@@ -1366,13 +1621,10 @@ export default function PaperCreate() {
 
           {/* Abacus group */}
           <span style={{fontSize:10,fontWeight:700,color:'#7B5CE5',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.12em',textTransform:'uppercase',marginRight:2,flexShrink:0}}>Abacus</span>
-          <div
-            title="Coming Soon"
-            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:'rgba(255,255,255,0.02)',border:'1.5px solid rgba(255,255,255,0.05)',color:'#3D4260',cursor:'not-allowed',userSelect:'none'}}
-          >
-            <Lock style={{width:11,height:11,flexShrink:0}} />
-            Junior
-          </div>
+          <button
+            onClick={() => setLocation('/create/junior')}
+            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isJuniorPage?'rgba(123,92,229,0.22)':'rgba(255,255,255,0.04)',border:isJuniorPage?'1.5px solid rgba(123,92,229,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isJuniorPage?'#C4A8FF':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
+          >Junior</button>
           <button
             onClick={() => setLocation('/create/basic')}
             style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isBasicPage?'rgba(123,92,229,0.22)':'rgba(255,255,255,0.04)',border:isBasicPage?'1.5px solid rgba(123,92,229,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isBasicPage?'#C4A8FF':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
@@ -1424,7 +1676,7 @@ export default function PaperCreate() {
               <div style={{marginBottom:28,paddingBottom:24,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
                 <div className="pc-section-label">Junior Operations</div>
                 <h2 style={{fontSize:26,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'4px 0 6px'}}>Junior Operations</h2>
-                <p style={{color:'#525870',fontFamily:'DM Sans, sans-serif',fontSize:14,margin:0}}>Create math papers for junior level abacus training: Direct Add/Sub, Small Friends, and Big Friends</p>
+                <p style={{color:'#525870',fontFamily:'DM Sans, sans-serif',fontSize:14,margin:0}}>Create math papers for junior level abacus training: Direct Add/Sub, Small Friends, Big Friends, and Mix Friends</p>
               </div>
             )}
             {isAdvancedPage && (
@@ -1490,8 +1742,17 @@ export default function PaperCreate() {
               <div>
                 <label className="pc-label">Level</label>
                 <select
-                  value={level}
-                  onChange={(e) => setLevel(e.target.value as PaperConfig["level"])}
+                  value={activeTemplateId ? `__tpl__${activeTemplateId}` : level}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val.startsWith("__tpl__")) {
+                      const tplId = parseInt(val.replace("__tpl__", ""), 10);
+                      handleLoadTemplate(tplId);
+                    } else {
+                      setActiveTemplateId(null);
+                      setLevel(val as PaperConfig["level"]);
+                    }
+                  }}
                   className="pc-input"
                 >
                   <option value="Custom">Custom</option>
@@ -1521,9 +1782,147 @@ export default function PaperCreate() {
                       <option value="Vedic-Level-4">Vedic Maths-4</option>
                     </>
                   )}
+                  {templates.length > 0 && (
+                    <optgroup label="─── My Templates ───">
+                      {templates.map((tpl) => (
+                        <option key={tpl.id} value={`__tpl__${tpl.id}`}>
+                          ⭐ {tpl.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
             </div>
+
+            {/* ── My Templates panel ─────────────────────────────────────── */}
+            {templates.length > 0 && (
+              <div style={{marginBottom:24,padding:'16px 18px',background:'rgba(123,92,229,0.05)',border:'1px solid rgba(123,92,229,0.18)',borderRadius:14}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                  <BookmarkPlus style={{width:14,height:14,color:'#9D7FF0'}} />
+                  <span style={{fontSize:12,fontWeight:700,color:'#9D7FF0',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.08em',textTransform:'uppercase'}}>
+                    My Templates
+                  </span>
+                  <span style={{fontSize:11,color:'#525870',fontFamily:'DM Sans, sans-serif'}}>
+                    {templates.length}/{MAX_TEMPLATES}
+                  </span>
+                  {atTemplateLimit && (
+                    <span style={{fontSize:11,color:'rgba(239,68,68,0.7)',fontFamily:'DM Sans, sans-serif'}}>
+                      · max reached
+                    </span>
+                  )}
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {templates.map((tpl) => {
+                    const isActive = activeTemplateId === tpl.id;
+                    const isRenaming = renamingTemplateId === tpl.id;
+                    const tplTotalQ = (tpl.blocks as any[]).reduce((s: number, b: any) => s + (b.count ?? 0), 0);
+                    return (
+                      <div
+                        key={tpl.id}
+                        style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:isActive?'rgba(123,92,229,0.12)':'rgba(15,17,32,0.6)',border:`1px solid ${isActive?'rgba(123,92,229,0.4)':'rgba(255,255,255,0.06)'}`,borderRadius:10,transition:'all 0.18s'}}
+                      >
+                        {/* Active indicator */}
+                        <div style={{width:6,height:6,borderRadius:'50%',background:isActive?'#9D7FF0':'rgba(255,255,255,0.12)',flexShrink:0}} />
+
+                        {/* Name / rename input */}
+                        <div style={{flex:1,minWidth:0}}>
+                          {isRenaming ? (
+                            <div style={{display:'flex',alignItems:'center',gap:6}}>
+                              <input
+                                autoFocus
+                                value={renameValue}
+                                onChange={(e) => { setRenameValue(e.target.value); setRenameError(""); }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    if (!renameValue.trim()) { setRenameError("Name cannot be empty."); return; }
+                                    if (renameValue.trim().length > 60) { setRenameError("Max 60 characters."); return; }
+                                    updateTemplateMutation.mutate({ id: tpl.id, data: { name: renameValue.trim() } });
+                                  }
+                                  if (e.key === "Escape") { setRenamingTemplateId(null); setRenameError(""); }
+                                }}
+                                maxLength={60}
+                                style={{flex:1,background:'#141729',border:`1.5px solid ${renameError?'#EF4444':'rgba(123,92,229,0.4)'}`,borderRadius:6,color:'#F0F2FF',fontFamily:'DM Sans, sans-serif',fontSize:13,padding:'4px 8px',outline:'none'}}
+                              />
+                              <button
+                                onClick={() => {
+                                  if (!renameValue.trim()) { setRenameError("Name cannot be empty."); return; }
+                                  updateTemplateMutation.mutate({ id: tpl.id, data: { name: renameValue.trim() } });
+                                }}
+                                style={{width:24,height:24,borderRadius:6,background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.3)',color:'#10B981',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+                              >
+                                <Check style={{width:12,height:12}} />
+                              </button>
+                              <button
+                                onClick={() => { setRenamingTemplateId(null); setRenameError(""); }}
+                                style={{width:24,height:24,borderRadius:6,background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.25)',color:'#EF4444',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+                              >
+                                <XCircle style={{width:12,height:12}} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div>
+                              <span style={{fontSize:13,fontWeight:600,color:isActive?'#E0D4FF':'#D4D8F0',fontFamily:'DM Sans, sans-serif',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tpl.name}</span>
+                              <span style={{fontSize:11,color:'#525870',fontFamily:'JetBrains Mono, monospace'}}>
+                                {(tpl.blocks as any[]).length} blocks · {tplTotalQ} questions
+                                {tpl.level ? ` · ${tpl.level}` : ""}
+                              </span>
+                            </div>
+                          )}
+                          {renameError && renamingTemplateId === tpl.id && (
+                            <p style={{fontSize:11,color:'#EF4444',margin:'2px 0 0',fontFamily:'DM Sans, sans-serif'}}>{renameError}</p>
+                          )}
+                        </div>
+
+                        {/* Action buttons */}
+                        {!isRenaming && (
+                          <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                            {/* Load */}
+                            <button
+                              onClick={() => handleLoadTemplate(tpl.id)}
+                              title="Load this template"
+                              style={{padding:'4px 10px',background:isActive?'rgba(123,92,229,0.25)':'rgba(123,92,229,0.1)',border:`1px solid ${isActive?'rgba(123,92,229,0.5)':'rgba(123,92,229,0.2)'}`,borderRadius:6,color:'#C4A8FF',fontFamily:'DM Sans, sans-serif',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.15s'}}
+                            >
+                              {isActive ? "Loaded" : "Load"}
+                            </button>
+                            {/* Update (only if this is the active template) */}
+                            {isActive && (
+                              <button
+                                onClick={handleOpenUpdateModal}
+                                title="Update this template with current blocks"
+                                style={{width:26,height:26,borderRadius:6,background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.25)',color:'#10B981',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+                              >
+                                <Save style={{width:12,height:12}} />
+                              </button>
+                            )}
+                            {/* Rename */}
+                            <button
+                              onClick={() => { setRenamingTemplateId(tpl.id); setRenameValue(tpl.name); setRenameError(""); }}
+                              title="Rename template"
+                              style={{width:26,height:26,borderRadius:6,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',color:'#8A90A8',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+                            >
+                              <Pencil style={{width:11,height:11}} />
+                            </button>
+                            {/* Delete */}
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Delete template "${tpl.name}"? This cannot be undone.`)) {
+                                  deleteTemplateMutation.mutate(tpl.id);
+                                }
+                              }}
+                              title="Delete template"
+                              style={{width:26,height:26,borderRadius:6,background:'rgba(239,68,68,0.07)',border:'1px solid rgba(239,68,68,0.2)',color:'#EF4444',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+                            >
+                              <Trash2 style={{width:11,height:11}} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Blocks Section */}
             <div>
@@ -1654,6 +2053,7 @@ export default function PaperCreate() {
                                   <option value="direct_add_sub">Direct Add/Sub</option>
                                   <option value="small_friends_add_sub">Small Friends Add/Sub</option>
                                   <option value="big_friends_add_sub">Big Friends Add/Sub</option>
+                                  <option value="mix_friends_add_sub">Mix Friends Add/Sub</option>
                                 </optgroup>
                               ) : isAdvancedPage ? (
                                 <>
@@ -2051,11 +2451,11 @@ export default function PaperCreate() {
                         )}
                       </div>
 
-                      {(block.type === "addition" || block.type === "subtraction" || block.type === "add_sub" || block.type === "integer_add_sub" || block.type === "decimal_add_sub" || block.type === "direct_add_sub" || block.type === "small_friends_add_sub" || block.type === "big_friends_add_sub") && (
+                      {(block.type === "addition" || block.type === "subtraction" || block.type === "add_sub" || block.type === "integer_add_sub" || block.type === "decimal_add_sub" || block.type === "direct_add_sub" || block.type === "small_friends_add_sub" || block.type === "big_friends_add_sub" || block.type === "mix_friends_add_sub") && (
                         <>
                           <div>
                             <label className="block text-sm font-medium  text-white mb-1">
-                              {block.type === "decimal_add_sub" ? "Digits (Before Decimal) (1-10)" : "Digits (1-10)"}
+                              {block.type === "decimal_add_sub" ? "Digits (Before Decimal) (1-10)" : (block.type === "direct_add_sub" || block.type === "small_friends_add_sub" || block.type === "big_friends_add_sub" || block.type === "mix_friends_add_sub") ? "Digits (1-4)" : "Digits (1-10)"}
                             </label>
                             <input
                               type="text"
@@ -2077,10 +2477,11 @@ export default function PaperCreate() {
                                       constraints: { ...block.constraints, digits: numVal },
                                     });
                                   // Real-time validation - show error if outside range
+                                    const _maxD = (block.type === "direct_add_sub" || block.type === "small_friends_add_sub" || block.type === "big_friends_add_sub" || block.type === "mix_friends_add_sub") ? 4 : 10;
                                     if (numVal < 1) {
                                       setFieldError(index, "digits", "Minimum value for Digits is 1");
-                                    } else if (numVal > 10) {
-                                      setFieldError(index, "digits", "Maximum value for Digits is 10");
+                                    } else if (numVal > _maxD) {
+                                      setFieldError(index, "digits", `Maximum value for Digits is ${_maxD}`);
                                     } else {
                                       setFieldError(index, "digits", null);
                                     }
@@ -2098,7 +2499,7 @@ export default function PaperCreate() {
                             )}
                           </div>
                           <div>
-                            <label className="block text-sm font-medium  text-white mb-1">Rows (3-30)</label>
+                            <label className="block text-sm font-medium  text-white mb-1">{(block.type === "direct_add_sub" || block.type === "small_friends_add_sub" || block.type === "big_friends_add_sub" || block.type === "mix_friends_add_sub") ? "Rows (3-10)" : "Rows (3-30)"}</label>
                             <input
                               type="text"
                               maxLength={10}
@@ -2119,10 +2520,11 @@ export default function PaperCreate() {
                                       constraints: { ...block.constraints, rows: numVal },
                                     });
                                   // Real-time validation - show error if outside range
+                                    const _maxR = (block.type === "direct_add_sub" || block.type === "small_friends_add_sub" || block.type === "big_friends_add_sub" || block.type === "mix_friends_add_sub") ? 10 : 30;
                                     if (numVal < 3) {
                                       setFieldError(index, "rows", "Minimum value for Rows is 3");
-                                    } else if (numVal > 30) {
-                                      setFieldError(index, "rows", "Maximum value for Rows is 30");
+                                    } else if (numVal > _maxR) {
+                                      setFieldError(index, "rows", `Maximum value for Rows is ${_maxR}`);
                                     } else {
                                       setFieldError(index, "rows", null);
                                     }
@@ -4190,8 +4592,40 @@ export default function PaperCreate() {
               )}
             </div>
 
-            {/* Generate Button */}
+            {/* Generate Button + Save Template */}
             <div style={{paddingTop:24,borderTop:'1px solid rgba(255,255,255,0.06)',marginTop:8}}>
+              {/* Save-as-template row */}
+              <div style={{display:'flex',gap:10,marginBottom:12,flexWrap:'wrap'}}>
+                {/* Save as NEW template */}
+                <button
+                  onClick={handleOpenSaveModal}
+                  disabled={blocks.length === 0 || atTemplateLimit}
+                  title={
+                    blocks.length === 0
+                      ? "Add at least one block to save a template"
+                      : atTemplateLimit
+                      ? `Max ${MAX_TEMPLATES} templates reached — delete one first`
+                      : "Save current blocks as a new template"
+                  }
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'10px 18px',background:blocks.length===0||atTemplateLimit?'rgba(255,255,255,0.04)':'rgba(123,92,229,0.1)',border:`1px solid ${blocks.length===0||atTemplateLimit?'rgba(255,255,255,0.07)':'rgba(123,92,229,0.3)'}`,borderRadius:10,color:blocks.length===0||atTemplateLimit?'#525870':'#C4A8FF',fontFamily:'DM Sans, sans-serif',fontWeight:600,fontSize:13,cursor:blocks.length===0||atTemplateLimit?'not-allowed':'pointer',transition:'all 0.2s',flex:'0 0 auto'}}
+                >
+                  <BookmarkPlus style={{width:15,height:15}} />
+                  Save as Template
+                </button>
+                {/* Update active template button */}
+                {activeTemplateId !== null && (
+                  <button
+                    onClick={handleOpenUpdateModal}
+                    disabled={blocks.length === 0}
+                    title="Update loaded template with current blocks"
+                    style={{display:'flex',alignItems:'center',gap:7,padding:'10px 18px',background:blocks.length===0?'rgba(255,255,255,0.04)':'rgba(16,185,129,0.1)',border:`1px solid ${blocks.length===0?'rgba(255,255,255,0.07)':'rgba(16,185,129,0.3)'}`,borderRadius:10,color:blocks.length===0?'#525870':'#10B981',fontFamily:'DM Sans, sans-serif',fontWeight:600,fontSize:13,cursor:blocks.length===0?'not-allowed':'pointer',transition:'all 0.2s',flex:'0 0 auto'}}
+                  >
+                    <Save style={{width:15,height:15}} />
+                    Update Template
+                  </button>
+                )}
+              </div>
+
               <button
                 onClick={handlePreview}
                 disabled={previewMutation.isPending || loadingPresets}
@@ -4366,7 +4800,8 @@ export default function PaperCreate() {
                       //  block.config.type === "decimal_add_sub" ||
                        block.config.type === "direct_add_sub" ||
                        block.config.type === "small_friends_add_sub" ||
-                       block.config.type === "big_friends_add_sub");
+                       block.config.type === "big_friends_add_sub" ||
+                       block.config.type === "mix_friends_add_sub");
                     
                     return (
                       <div key={originalIndex} style={{background:'#141729',border:'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'16px 18px',transition:'all 0.2s',marginBottom:12}}>
@@ -4495,7 +4930,7 @@ export default function PaperCreate() {
               });
             })()}
 
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,paddingTop:24,borderTop:'1px solid rgba(255,255,255,0.08)',marginTop:24}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,paddingTop:24,borderTop:'1px solid rgba(255,255,255,0.08)',marginTop:24}}>
               {(() => {
                 const totalQ = blocks.reduce((s, b) => s + b.count, 0);
                 const tooFew = totalQ < 15;
@@ -4504,14 +4939,14 @@ export default function PaperCreate() {
                     <button
                       onClick={handleAttemptPaper}
                       disabled={tooFew}
-                      style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10,padding:'14px 24px',background: tooFew ? 'rgba(239,68,68,.25)' : 'linear-gradient(135deg,#EF4444,#DC2626)',border:'none',borderRadius:12,color:'white',fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:14,cursor: tooFew ? 'not-allowed' : 'pointer',boxShadow: tooFew ? 'none' : '0 4px 20px rgba(239,68,68,0.35)',transition:'all 0.2s',opacity: tooFew ? 0.55 : 1}}
+                      style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px 16px',background: tooFew ? 'rgba(239,68,68,.25)' : 'linear-gradient(135deg,#EF4444,#DC2626)',border:'none',borderRadius:12,color:'white',fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:13,cursor: tooFew ? 'not-allowed' : 'pointer',boxShadow: tooFew ? 'none' : '0 4px 20px rgba(239,68,68,0.35)',transition:'all 0.2s',opacity: tooFew ? 0.55 : 1}}
                     >
-                      <Play style={{width:18,height:18}} />
-                      Attempt Paper
+                      <Play style={{width:16,height:16}} />
+                      Attempt
                     </button>
                     {tooFew && (
-                      <p style={{margin:0,fontSize:11,fontFamily:'DM Sans, sans-serif',color:'#F87171',textAlign:'center'}}>
-                        Minimum 15 questions required ({totalQ} added)
+                      <p style={{margin:0,fontSize:10,fontFamily:'DM Sans, sans-serif',color:'#F87171',textAlign:'center'}}>
+                        Min 15 questions ({totalQ})
                       </p>
                     )}
                   </div>
@@ -4521,11 +4956,19 @@ export default function PaperCreate() {
               <button
                 onClick={() => setDownloadDropdownOpen(!downloadDropdownOpen)}
                 disabled={downloadMutation.isPending}
-                style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10,padding:'14px 24px',background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',border:'none',borderRadius:12,color:'white',fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:14,cursor:'pointer',boxShadow:'0 4px 20px rgba(123,92,229,0.35)',transition:'all 0.2s',opacity:downloadMutation.isPending?0.6:1}}
+                style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px 16px',background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',border:'none',borderRadius:12,color:'white',fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:13,cursor:'pointer',boxShadow:'0 4px 20px rgba(123,92,229,0.35)',transition:'all 0.2s',opacity:downloadMutation.isPending?0.6:1}}
               >
-                <FileDown style={{width:18,height:18}} />
+                <FileDown style={{width:16,height:16}} />
                 {downloadMutation.isPending ? 'Generating...' : 'Download'}
-                <ChevronDownIcon style={{width:15,height:15,transition:'transform 0.2s',transform:downloadDropdownOpen?'rotate(180deg)':'rotate(0deg)'}} />
+              </button>
+
+              <button
+                onClick={handleSharePaper}
+                disabled={shareMutation.isPending}
+                style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px 16px',background:'linear-gradient(135deg,#3B82F6,#2563EB)',border:'none',borderRadius:12,color:'white',fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:13,cursor:'pointer',boxShadow:'0 4px 20px rgba(59,130,246,0.35)',transition:'all 0.2s',opacity:shareMutation.isPending?0.6:1}}
+              >
+                <Share2 style={{width:16,height:16}} />
+                {shareMutation.isPending ? 'Sharing...' : 'Share'}
               </button>
             </div>
 
@@ -4616,6 +5059,112 @@ export default function PaperCreate() {
                       style={{width:'100%',padding:'10px',fontSize:13,fontWeight:600,color:'#525870',background:'transparent',border:'1px solid rgba(255,255,255,0.07)',borderRadius:10,cursor:'pointer',fontFamily:'DM Sans, sans-serif',transition:'all 0.15s'}}
                     >
                       Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Share Paper Modal ─────────────────────────────────────── */}
+            {showShareModal && (
+              <div style={{position:'fixed',inset:0,zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+                <div
+                  style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.72)',backdropFilter:'blur(12px)'}}
+                  onClick={() => setShowShareModal(false)}
+                />
+                <div style={{position:'relative',background:'#0F1120',borderRadius:20,boxShadow:'0 24px 80px rgba(0,0,0,0.7)',border:'1px solid rgba(59,130,246,0.25)',width:'100%',maxWidth:460,overflow:'hidden',animation:'pc-scale-in 0.25s ease'}}>
+                  {/* Header */}
+                  <div style={{padding:'24px 24px 0',display:'flex',alignItems:'center',gap:14}}>
+                    <div style={{width:46,height:46,borderRadius:14,background:'linear-gradient(135deg,#3B82F6,#2563EB)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(59,130,246,0.4)',flexShrink:0}}>
+                      <Share2 style={{width:22,height:22,color:'white'}} />
+                    </div>
+                    <div>
+                      <h3 style={{fontSize:18,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display',Georgia,serif",margin:0}}>Share Paper</h3>
+                      <p style={{fontSize:12,color:'#525870',fontFamily:'DM Sans,sans-serif',margin:0,marginTop:2}}>
+                        {shareMutation.isPending ? 'Creating share link...' : shareResult ? 'Send this to anyone to attempt the same paper!' : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Body */}
+                  <div style={{padding:'20px 24px 24px'}}>
+                    {shareMutation.isPending && (
+                      <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 0',gap:16}}>
+                        <div style={{width:36,height:36,border:'3px solid #3B82F6',borderTopColor:'transparent',borderRadius:'50%',animation:'pc-spin 0.9s linear infinite'}} />
+                        <p style={{color:'#525870',fontFamily:'DM Sans,sans-serif',fontSize:13,margin:0}}>Generating share code...</p>
+                      </div>
+                    )}
+
+                    {shareResult && (
+                      <>
+                        {/* Big code display */}
+                        <div style={{textAlign:'center',marginBottom:20}}>
+                          <p style={{margin:'0 0 8px',fontSize:11,color:'#525870',fontFamily:'DM Sans,sans-serif',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>Paper Code</p>
+                          <div style={{display:'inline-block',padding:'14px 32px',background:'rgba(59,130,246,0.1)',border:'2px solid rgba(59,130,246,0.35)',borderRadius:14}}>
+                            <span style={{fontSize:32,fontWeight:900,fontFamily:"'JetBrains Mono',monospace",color:'#60A5FA',letterSpacing:'0.25em'}}>{shareResult.code}</span>
+                          </div>
+                        </div>
+
+                        {/* Info chips */}
+                        <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:20,flexWrap:'wrap'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',background:'rgba(16,185,129,0.08)',border:'1px solid rgba(16,185,129,0.2)',borderRadius:8}}>
+                            <Clock style={{width:12,height:12,color:'#10B981'}} />
+                            <span style={{fontSize:11,color:'#10B981',fontFamily:'DM Sans,sans-serif',fontWeight:600}}>Expires in 24 hours</span>
+                          </div>
+                          <div style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',background:'rgba(123,92,229,0.08)',border:'1px solid rgba(123,92,229,0.2)',borderRadius:8}}>
+                            <span style={{fontSize:11,color:'#9D7FF0',fontFamily:'DM Sans,sans-serif',fontWeight:600}}>{shareResult.total_questions} questions</span>
+                          </div>
+                        </div>
+
+                        {/* Link field */}
+                        <div style={{display:'flex',gap:8,marginBottom:16}}>
+                          <div style={{flex:1,padding:'11px 14px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,overflow:'hidden',display:'flex',alignItems:'center'}}>
+                            <span style={{fontSize:12,color:'#B8BDD8',fontFamily:'JetBrains Mono,monospace',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block',width:'100%'}}>{getShareLink()}</span>
+                          </div>
+                          <button
+                            onClick={handleCopyShareLink}
+                            style={{display:'flex',alignItems:'center',gap:6,padding:'11px 16px',background:shareCopied?'rgba(16,185,129,0.15)':'rgba(59,130,246,0.12)',border:`1px solid ${shareCopied?'rgba(16,185,129,0.35)':'rgba(59,130,246,0.3)'}`,borderRadius:10,color:shareCopied?'#10B981':'#60A5FA',fontFamily:'DM Sans,sans-serif',fontWeight:600,fontSize:12,cursor:'pointer',flexShrink:0,transition:'all 0.2s'}}
+                          >
+                            {shareCopied ? <Check style={{width:14,height:14}} /> : <Copy style={{width:14,height:14}} />}
+                            {shareCopied ? 'Copied!' : 'Copy'}
+                          </button>
+                        </div>
+
+                        {/* Share buttons */}
+                        <div style={{display:'flex',gap:10}}>
+                          <button
+                            onClick={handleWhatsAppShare}
+                            style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'13px',background:'rgba(37,211,102,0.12)',border:'1px solid rgba(37,211,102,0.3)',borderRadius:12,color:'#25D366',fontFamily:'DM Sans,sans-serif',fontWeight:700,fontSize:13,cursor:'pointer',transition:'all 0.15s'}}
+                          >
+                            <MessageCircle style={{width:16,height:16}} />
+                            WhatsApp
+                          </button>
+                          <button
+                            onClick={handleCopyShareLink}
+                            style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'13px',background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:12,color:'#60A5FA',fontFamily:'DM Sans,sans-serif',fontWeight:700,fontSize:13,cursor:'pointer',transition:'all 0.15s'}}
+                          >
+                            <LinkIcon style={{width:16,height:16}} />
+                            Copy Link
+                          </button>
+                        </div>
+
+                        {/* Tip */}
+                        <div style={{marginTop:16,padding:'10px 14px',background:'rgba(59,130,246,0.06)',border:'1px solid rgba(59,130,246,0.15)',borderRadius:10}}>
+                          <p style={{fontSize:11,color:'rgba(96,165,250,0.8)',fontFamily:'DM Sans,sans-serif',margin:0,lineHeight:1.5}}>
+                            Anyone with this code or link can view and attempt this exact paper within 24 hours. They need to be signed in to attempt it.
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Close button */}
+                  <div style={{padding:'0 24px 20px'}}>
+                    <button
+                      onClick={() => setShowShareModal(false)}
+                      style={{width:'100%',padding:'11px',fontSize:13,fontWeight:600,color:'#525870',background:'transparent',border:'1px solid rgba(255,255,255,0.07)',borderRadius:10,cursor:'pointer',fontFamily:'DM Sans,sans-serif',transition:'all 0.15s'}}
+                    >
+                      Done
                     </button>
                   </div>
                 </div>
@@ -4731,6 +5280,124 @@ export default function PaperCreate() {
                 style={{marginTop:20,width:'100%',padding:'12px',background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',color:'white',border:'none',borderRadius:12,fontWeight:700,fontSize:14,fontFamily:'DM Sans, sans-serif',cursor:'pointer'}}
               >
                 Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Toast notification ───────────────────────────────────── */}
+      {toast && (
+        <div style={{position:'fixed',bottom:36,left:'50%',transform:'translateX(-50%)',zIndex:2000,pointerEvents:'none'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,padding:'13px 22px',background:toast.ok?'rgba(16,185,129,0.97)':'rgba(239,68,68,0.97)',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,0.45)',animation:'pc-fade-up 0.2s ease',fontFamily:'DM Sans,sans-serif',fontSize:14,fontWeight:600,color:'white',whiteSpace:'nowrap'}}>
+            {toast.ok
+              ? <Check style={{width:15,height:15,flexShrink:0}} />
+              : <XCircle style={{width:15,height:15,flexShrink:0}} />
+            }
+            {toast.msg}
+          </div>
+        </div>
+      )}
+
+      {/* ── Toast notification ──────────────────────────────────────── */}
+      {toast && (
+        <div style={{position:'fixed',bottom:36,left:'50%',transform:'translateX(-50%)',zIndex:2000,pointerEvents:'none'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,padding:'13px 22px',background:toast.ok?'rgba(16,185,129,0.97)':'rgba(239,68,68,0.97)',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,0.45)',animation:'pc-fade-up 0.2s ease',fontFamily:'DM Sans,sans-serif',fontSize:14,fontWeight:600,color:'white',whiteSpace:'nowrap'}}>
+            {toast.ok
+              ? <Check style={{width:15,height:15,flexShrink:0}} />
+              : <XCircle style={{width:15,height:15,flexShrink:0}} />
+            }
+            {toast.msg}
+          </div>
+        </div>
+      )}
+
+      {/* ── Save / Update Template Modal ──────────────────────────── */}
+      {showSaveModal && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowSaveModal(false); }}
+          style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:'20px'}}
+        >
+          <div style={{background:'#0F1120',border:'1px solid rgba(123,92,229,0.3)',borderRadius:20,padding:'28px 32px',width:'100%',maxWidth:440,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
+            {/* Header */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <div style={{width:38,height:38,borderRadius:10,background:'rgba(123,92,229,0.18)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  <BookmarkPlus style={{width:18,height:18,color:'#9D7FF0'}} />
+                </div>
+                <div>
+                  <h3 style={{fontSize:16,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display',Georgia,serif",margin:0}}>
+                    {saveModalMode === 'update' ? 'Update Template' : 'Save as Template'}
+                  </h3>
+                  <p style={{fontSize:12,color:'#525870',fontFamily:'DM Sans,sans-serif',margin:0,marginTop:2}}>
+                    {saveModalMode === 'update'
+                      ? 'Overwrites the loaded template with current blocks'
+                      : `${templates.length} / ${MAX_TEMPLATES} templates used`
+                    }
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSaveModal(false)}
+                style={{width:32,height:32,borderRadius:8,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',color:'#B8BDD8',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}
+              >
+                <XCircle style={{width:16,height:16}} />
+              </button>
+            </div>
+
+            {/* Name Input */}
+            <div style={{marginBottom:16}}>
+              <label className="pc-label" style={{display:'block',marginBottom:6,fontSize:12,fontWeight:700,color:'#9DA5C9',fontFamily:'DM Sans,sans-serif',textTransform:'uppercase',letterSpacing:'0.06em'}}>
+                Template Name
+              </label>
+              <input
+                autoFocus
+                type="text"
+                value={saveModalName}
+                onChange={(e) => { setSaveModalName(e.target.value); setSaveModalError(""); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveModalSubmit();
+                  if (e.key === 'Escape') setShowSaveModal(false);
+                }}
+                maxLength={60}
+                placeholder="e.g. My Custom AB-3 Mix"
+                style={{width:'100%',boxSizing:'border-box',padding:'12px 14px',background:'rgba(255,255,255,0.05)',border:`1px solid ${saveModalError?'rgba(239,68,68,0.5)':'rgba(255,255,255,0.1)'}`,borderRadius:10,color:'#F0F2FF',fontFamily:'DM Sans,sans-serif',fontSize:14,outline:'none',transition:'border 0.2s'}}
+              />
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:5}}>
+                <span style={{fontSize:11,color:'#EF4444',fontFamily:'DM Sans,sans-serif',minHeight:16}}>
+                  {saveModalError}
+                </span>
+                <span style={{fontSize:11,color:'#525870',fontFamily:'JetBrains Mono,monospace',letterSpacing:'0.02em'}}>
+                  {saveModalName.length}/60
+                </span>
+              </div>
+            </div>
+
+            {/* Summary chip */}
+            <div style={{padding:'10px 14px',background:'rgba(123,92,229,0.07)',border:'1px solid rgba(123,92,229,0.18)',borderRadius:10,marginBottom:22}}>
+              <span style={{fontSize:12,color:'#9D7FF0',fontFamily:'DM Sans,sans-serif',fontWeight:600}}>
+                {blocks.length} block{blocks.length !== 1 ? 's' : ''} · {blocks.reduce((s, b) => s + (b.count || 0), 0)} questions
+                {level && level !== 'Custom' ? ` · ${level}` : ''}
+              </span>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{display:'flex',gap:10}}>
+              <button
+                onClick={() => setShowSaveModal(false)}
+                style={{flex:1,padding:'12px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,color:'#B8BDD8',fontWeight:600,fontFamily:'DM Sans,sans-serif',fontSize:14,cursor:'pointer'}}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveModalSubmit}
+                disabled={createTemplateMutation.isPending || updateTemplateMutation.isPending}
+                style={{flex:2,padding:'12px',background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',border:'none',borderRadius:10,color:'white',fontWeight:700,fontFamily:'DM Sans,sans-serif',fontSize:14,cursor:createTemplateMutation.isPending||updateTemplateMutation.isPending?'not-allowed':'pointer',opacity:createTemplateMutation.isPending||updateTemplateMutation.isPending?0.6:1,transition:'opacity 0.2s'}}
+              >
+                {createTemplateMutation.isPending || updateTemplateMutation.isPending
+                  ? 'Saving…'
+                  : saveModalMode === 'update' ? 'Update Template' : 'Save Template'
+                }
               </button>
             </div>
           </div>

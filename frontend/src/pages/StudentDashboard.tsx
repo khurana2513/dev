@@ -81,7 +81,7 @@ export default function StudentDashboard() {
   });
 
   // ─── Combined Dashboard Query (replaces 5+ separate API calls) ────────────
-  const { data: dashboardData, isLoading: dashboardLoading } = useQuery<StudentDashboardData>({
+  const { data: dashboardData, isLoading: dashboardLoading, isError: dashboardError } = useQuery<StudentDashboardData>({
     queryKey: ["studentDashboard"],
     queryFn: getStudentDashboardData,
     staleTime: 0,          // Always re-fetch — sessions recorded elsewhere must appear immediately
@@ -142,10 +142,14 @@ export default function StudentDashboard() {
 
   // Handle loading state from React Query
   useEffect(() => {
-    if (dashboardLoading) {
-      setLoading(true);
-    }
+    setLoading(dashboardLoading);
   }, [dashboardLoading]);
+
+  useEffect(() => {
+    if (dashboardError) {
+      setLoading(false);
+    }
+  }, [dashboardError]);
 
   const getOperationName = (op: string) => {
     const names: Record<string, string> = {

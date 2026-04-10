@@ -32,7 +32,7 @@ export function PWAUpdatePrompt() {
                  text-sm text-slate-200"
     >
       <RefreshCw size={18} className="text-violet-400 flex-shrink-0" />
-      <span className="flex-1">A new version of Talent Hub is available.</span>
+      <span className="flex-1">A new version of BlackMonkey is available.</span>
       <button
         onClick={() => updateSW()}
         className="px-3 py-1 rounded-lg bg-violet-600 hover:bg-violet-500 text-white

@@ -48,7 +48,7 @@ export default function AdminDashboard() {
   });
 
   // ─── Combined Admin Dashboard Query (replaces 3 separate API calls) ────────
-  const { data: dashboardData, isLoading: dashboardLoading } = useQuery<AdminDashboardData>({
+  const { data: dashboardData, isLoading: dashboardLoading, isError: dashboardError } = useQuery<AdminDashboardData>({
     queryKey: ["adminDashboard"],
     queryFn: getAdminDashboardData,
     staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh, no refetch
@@ -80,10 +80,14 @@ export default function AdminDashboard() {
   }, [dashboardData]);
 
   useEffect(() => {
-    if (dashboardLoading) {
-      setLoading(true);
-    }
+    setLoading(dashboardLoading);
   }, [dashboardLoading]);
+
+  useEffect(() => {
+    if (dashboardError) {
+      setLoading(false);
+    }
+  }, [dashboardError]);
 
   const handleStudentClick = async (student: User) => {
     setSelectedStudent(student);

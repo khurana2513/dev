@@ -267,11 +267,19 @@ def get_current_user(
     # Keep admin role aligned with ADMIN_EMAILS even for existing sessions/users.
     normalized_email = normalize_email(user.email)
     admin_emails = get_admin_email_set()
-    if normalized_email in admin_emails and user.role != "admin":
-        logger.info("Promoting %s to admin from ADMIN_EMAILS", user.email)
-        user.role = "admin"
-        db.commit()
-        db.refresh(user)
+    if normalized_email in admin_emails:
+        changed = False
+        if user.role != "admin":
+            logger.info("Promoting %s to admin from ADMIN_EMAILS", user.email)
+            user.role = "admin"
+            changed = True
+        if user.system_role != "platform_admin":
+            logger.info("Setting system_role=platform_admin for %s", user.email)
+            user.system_role = "platform_admin"
+            changed = True
+        if changed:
+            db.commit()
+            db.refresh(user)
 
     return user
 
@@ -279,11 +287,41 @@ def get_current_user(
 def get_current_admin(
     current_user: User = Depends(get_current_user)
 ) -> User:
-    """Get current user and verify admin role."""
-    if current_user.role != "admin":
+    """Get current user and verify admin role.
+
+    Accepts either legacy role=="admin" OR the new system_role=="platform_admin".
+    Both are set for ADMIN_EMAILS users for backward compatibility.
+    """
+    is_platform_admin = getattr(current_user, 'system_role', None) == 'platform_admin'
+    is_legacy_admin = current_user.role == 'admin'
+    if not (is_platform_admin or is_legacy_admin):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
+        )
+    return current_user
+
+
+def get_current_org_admin(
+    org_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Verify that current_user is a platform_admin OR the owner of `org_id`."""
+    from models import Organization  # local import to avoid circular
+    is_platform_admin = (
+        getattr(current_user, 'system_role', None) == 'platform_admin'
+        or current_user.role == 'admin'
+    )
+    if is_platform_admin:
+        return current_user
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    if org.owner_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not the admin of this organization",
         )
     return current_user
 

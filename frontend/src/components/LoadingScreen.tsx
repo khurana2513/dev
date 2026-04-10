@@ -22,7 +22,7 @@ export function LoadingScreen({
         transparent ? 'th-loading--transparent' : '',
       ].filter(Boolean).join(' ')}
       role="status"
-      aria-label={context ? `Loading ${context}` : 'Loading Talent Hub'}
+      aria-label={context ? `Loading ${context}` : 'Loading BlackMonkey'}
       aria-live="polite"
     >
       {/* Atmospheric glow */}
@@ -34,7 +34,7 @@ export function LoadingScreen({
         <div className="th-loading__brand" aria-hidden="true">
           <img
             src="/imagesproject/logo.ico.jpg"
-            alt="Talent Hub"
+            alt="BlackMonkey"
             style={{ width: 64, height: 64, borderRadius: 16, objectFit: 'cover', animation: 'th-logo-float 3s ease-in-out infinite' }}
           />
         </div>

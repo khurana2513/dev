@@ -79,6 +79,10 @@ function getStoredApiBase(): string | null {
   if (typeof window === "undefined") {
     return null;
   }
+  if (import.meta.env.DEV && !Capacitor.isNativePlatform()) {
+    window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+    return null;
+  }
   const value = window.localStorage.getItem(API_BASE_STORAGE_KEY);
   if (!value) {
     return null;
@@ -93,6 +97,10 @@ function getStoredApiBase(): string | null {
 
 export function setActiveApiBase(apiBase: string | null): void {
   if (typeof window === "undefined") {
+    return;
+  }
+  if (import.meta.env.DEV && !Capacitor.isNativePlatform()) {
+    window.localStorage.removeItem(API_BASE_STORAGE_KEY);
     return;
   }
   if (!apiBase) {

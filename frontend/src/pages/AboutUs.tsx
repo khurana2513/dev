@@ -14,11 +14,11 @@ export default function AboutUs() {
         <h1 style={{ fontSize: "clamp(38px, 5.5vw, 72px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.05, marginBottom: 22 }}>
           About{" "}
           <span style={{ background: "linear-gradient(135deg, #7c3aed, #a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            Talent Hub
+            BlackMonkey
           </span>
         </h1>
         <p style={{ fontSize: 18, lineHeight: 1.75, color: "rgba(255,255,255,0.55)", maxWidth: 620, margin: "0 auto" }}>
-          For nearly two decades, Talent Hub has been shaping young minds through structured, skill-based learning in Abacus, Vedic Maths, Handwriting, and STEM — nurturing thinkers, problem-solvers, and confident learners.
+          BlackMonkey is a next-generation math education platform — shaping young minds through structured, skill-based learning in Abacus and Mental Maths, nurturing thinkers, problem-solvers, and confident learners.
         </p>
       </section>
 
@@ -75,9 +75,9 @@ export default function AboutUs() {
         </h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {[
-            "Talent Hub was founded with a simple belief: every child has latent potential waiting to be structured and expressed. The founders — passionate educators with backgrounds in cognitive skill development — launched the first centre in 2006, offering Abacus training when the subject was barely known outside specialist circles.",
-            "Over the years, Talent Hub expanded its curriculum to include Vedic Maths, Handwriting improvement, and a forward-looking STEM programme powered by AI/ML concepts — all designed around what children genuinely need to succeed in a fast-changing world.",
-            "Today, Talent Hub serves thousands of students across multiple branches, and our digital platform allows learners to practice, track progress, and celebrate achievements from anywhere — while our in-person centres remain the heartbeat of everything we do.",
+            "BlackMonkey was built on a simple belief: every child has latent potential waiting to be structured and expressed. We combine cognitive skill development with modern technology — starting with Abacus training, the foundation of mental math mastery.",
+            "Our platform brings gamification, live attendance, AI-driven practice sheets, and exciting learning modes together — all designed around what children genuinely need to build lasting numeracy skills in a fast-changing world.",
+            "Today, BlackMonkey serves students and institutes across India. Our digital platform allows learners to practice, track progress, and celebrate achievements from anywhere — giving institutes powerful tools to manage students and deliver better outcomes.",
           ].map((para, i) => (
             <p key={i} style={{ fontSize: 16, lineHeight: 1.8, color: "rgba(255,255,255,0.52)" }}>{para}</p>
           ))}
@@ -87,10 +87,10 @@ export default function AboutUs() {
       {/* CTA */}
       <section style={{ padding: "0 24px 120px", textAlign: "center" }}>
         <div style={{ maxWidth: 600, margin: "0 auto", background: "rgba(124,58,237,0.07)", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 24, padding: "52px 40px" }}>
-          <h2 style={{ fontSize: "clamp(24px, 3.5vw, 38px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 14 }}>Ready to join Talent Hub?</h2>
-          <p style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", marginBottom: 28 }}>Explore our courses and enrol your child today.</p>
-          <a href="/courses/abacus" style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#fff", padding: "14px 28px", borderRadius: 14, fontSize: 15, fontWeight: 600, textDecoration: "none", letterSpacing: "-0.01em" }}>
-            Explore Courses →
+          <h2 style={{ fontSize: "clamp(24px, 3.5vw, 38px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 14 }}>Ready to join BlackMonkey?</h2>
+          <p style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", marginBottom: 28 }}>Start practising today — free for students, powerful for institutes.</p>
+          <a href="/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#fff", padding: "14px 28px", borderRadius: 14, fontSize: 15, fontWeight: 600, textDecoration: "none", letterSpacing: "-0.01em" }}>
+            Get Started →
           </a>
         </div>
       </section>

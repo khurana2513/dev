@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Request, Query, Res
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from sqlalchemy import text
 from typing import List, Callable, Awaitable, Dict, Any, Optional
 from datetime import datetime, timezone
@@ -103,6 +103,30 @@ try:
 except Exception as e:
     import traceback
     logger.exception("[IMPORT] admin_reward_routes failed: %s", str(e))
+
+org_router = None
+try:
+    from org_routes import router as org_router
+    logger.info("[IMPORT] org_routes loaded")
+except Exception as e:
+    import traceback
+    logger.exception("[IMPORT] org_routes failed: %s", str(e))
+
+template_router = None
+try:
+    from template_routes import router as template_router
+    logger.info("[IMPORT] template_routes loaded")
+except Exception as e:
+    import traceback
+    logger.exception("[IMPORT] template_routes failed: %s", str(e))
+
+shared_paper_router = None
+try:
+    from shared_paper_routes import router as shared_paper_router
+    logger.info("[IMPORT] shared_paper_routes loaded")
+except Exception as e:
+    import traceback
+    logger.exception("[IMPORT] shared_paper_routes failed: %s", str(e))
 
 app = FastAPI(title="Abacus Paper Generator", version="3.0.0")
 app_start_time = time.monotonic()
@@ -246,6 +270,9 @@ for _name, _rtr in [
     ("admin_access_router", admin_access_router),
     ("reward_router", reward_router),
     ("admin_reward_router", admin_reward_router),
+    ("org_router", org_router),
+    ("template_router", template_router),
+    ("shared_paper_router", shared_paper_router),
 ]:
     if _rtr:
         try:
@@ -265,6 +292,9 @@ async def startup_event() -> None:
         import subscription_models  # noqa: F401  — ensures tables are created
         import point_rule_engine as _pre  # noqa: F401  — register PointRule model
         import reward_models as _rm  # noqa: F401  — register reward system tables
+        import org_routes as _org_mod  # noqa: F401  — ensures Organization/OrgInviteLink registered
+        import template_routes as _tpl_mod  # noqa: F401  — ensures UserPaperTemplate table is created
+        import shared_paper_routes as _sp_mod  # noqa: F401  — ensures SharedPaper table is created
         init_db()
         logger.info("[STARTUP] database initialized")
 
@@ -522,7 +552,16 @@ async def get_paper_attempts(
         # Clean up stale incomplete attempts for this user
         cleanup_stale_incomplete_attempts(db, user_id=current_user.id)
         
-        attempts = db.query(PaperAttempt).filter(
+        # load_only: skip TOAST JSON columns not needed by PaperAttemptResponse
+        attempts = db.query(PaperAttempt).options(
+            load_only(
+                PaperAttempt.id, PaperAttempt.paper_title, PaperAttempt.paper_level,
+                PaperAttempt.total_questions, PaperAttempt.correct_answers,
+                PaperAttempt.wrong_answers, PaperAttempt.accuracy, PaperAttempt.score,
+                PaperAttempt.time_taken, PaperAttempt.points_earned,
+                PaperAttempt.started_at, PaperAttempt.completed_at, PaperAttempt.seed,
+            )
+        ).filter(
             PaperAttempt.user_id == current_user.id
         ).order_by(PaperAttempt.started_at.desc()).limit(limit).all()
         

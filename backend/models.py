@@ -22,6 +22,11 @@ class Paper(Base):
     level = Column(String, nullable=False)
     config = Column(JSON, nullable=False)  # Stores the full paper configuration
     created_at = Column(DateTime, default=get_utc_now)
+    # Multi-tenant fields (Phase 1)
+    org_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    is_public = Column(Boolean, default=False, nullable=True)
+    share_code = Column(String(12), unique=True, nullable=True, index=True)
 
 
 class User(Base):
@@ -35,6 +40,7 @@ class User(Base):
     display_name = Column(String, nullable=True)  # Custom display name for practice sessions
     avatar_url = Column(String, nullable=True)
     role = Column(String, default="student", nullable=False)  # "student" or "admin"
+    system_role = Column(String, default="user", nullable=True)  # "user" | "platform_admin" — set on login via ADMIN_EMAILS
     total_points = Column(Integer, default=0, nullable=False)
     current_streak = Column(Integer, default=0, nullable=False)
     longest_streak = Column(Integer, default=0, nullable=False)
@@ -52,6 +58,7 @@ class User(Base):
     paper_attempts = relationship("PaperAttempt", back_populates="user", cascade="all, delete-orphan")
     student_profile = relationship("StudentProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     points_logs = relationship("PointsLog", back_populates="user", cascade="all, delete-orphan")
+    paper_templates = relationship("UserPaperTemplate", back_populates="user", cascade="all, delete-orphan")
 
 
 class PracticeSession(Base):
@@ -147,6 +154,30 @@ class PaperAttempt(Base):
     )
 
 
+class SharedPaper(Base):
+    """A frozen snapshot of a generated paper, shareable via a short code.
+
+    Anyone with the code can view / attempt the paper within a 24-hour window.
+    """
+    __tablename__ = "shared_papers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(8), unique=True, nullable=False, index=True)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    paper_title = Column(String, nullable=False)
+    paper_level = Column(String, nullable=False)
+    paper_config = Column(JSON, nullable=False)       # Full PaperConfig dict
+    generated_blocks = Column(JSON, nullable=False)    # Frozen GeneratedBlock[] list
+    seed = Column(Integer, nullable=False)
+    total_questions = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.utcnow().replace(tzinfo=timezone.utc))
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    view_count = Column(Integer, default=0, nullable=False)
+    attempt_count = Column(Integer, default=0, nullable=False)
+
+    creator = relationship("User", foreign_keys=[created_by])
+
+
 class PointsLog(Base):
     """Points transaction log - tracks all point changes for audit and checksum."""
     __tablename__ = "points_logs"
@@ -179,6 +210,62 @@ class PointsLog(Base):
     )
 
 
+class Organization(Base):
+    """Organization (tenant) — one per school / coaching institute."""
+    __tablename__ = "organizations"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    slug = Column(String, unique=True, nullable=False, index=True)          # URL-safe identifier
+    id_prefix = Column(String(3), unique=True, nullable=False, index=True)  # e.g. "TH", "SM"
+    owner_user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+
+    contact_email = Column(String, nullable=True)
+    contact_phone = Column(String, nullable=True)
+    city = Column(String, nullable=True)
+    address = Column(Text, nullable=True)
+    logo_url = Column(String, nullable=True)
+    website_url = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
+
+    subscription_tier = Column(String, default="free", nullable=False)
+    max_students = Column(Integer, default=10, nullable=False)
+
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
+    verified_at = Column(DateTime, nullable=True)
+    verified_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    onboarding_complete = Column(Boolean, default=False, nullable=False)
+
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    # Relationships
+    owner = relationship("User", foreign_keys=[owner_user_id])
+    invite_links = relationship("OrgInviteLink", back_populates="org", cascade="all, delete-orphan")
+
+
+class OrgInviteLink(Base):
+    """Invite link that allows students to join an organization."""
+    __tablename__ = "org_invite_links"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    org_id = Column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    code = Column(String(12), unique=True, nullable=False, index=True)
+    role = Column(String, default="student", nullable=False)
+    max_uses = Column(Integer, default=100, nullable=False)
+    uses_count = Column(Integer, default=0, nullable=False)
+    expires_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=get_utc_now)
+
+    # Relationships
+    org = relationship("Organization", back_populates="invite_links")
+    created_by = relationship("User")
+
+
 class StudentProfile(Base):
     """Student profile model with comprehensive student information."""
     __tablename__ = "student_profiles"
@@ -202,7 +289,8 @@ class StudentProfile(Base):
     
     # Branch Information
     branch = Column(String, nullable=True)  # "Rohini-16", "Rohini-11", "Gurgaon", "Online"
-    
+    org_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Status and Dates
     status = Column(String, default="active", nullable=False)  # "active", "inactive", "closed"
     join_date = Column(DateTime, nullable=True)
@@ -275,7 +363,8 @@ class ClassSchedule(Base):
     
     # Active status
     is_active = Column(Boolean, default=True, nullable=False)
-    
+    org_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Metadata
     created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=get_utc_now)
@@ -303,7 +392,8 @@ class ClassSession(Base):
     course = Column(String, nullable=True)
     level = Column(String, nullable=True)
     batch_name = Column(String, nullable=True)
-    
+    org_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Session metadata
     topic = Column(String, nullable=True)  # Optional topic/lesson name
     teacher_remarks = Column(Text, nullable=True)  # General remarks for the session
@@ -374,7 +464,8 @@ class Certificate(Base):
     title = Column(String, nullable=False)  # e.g., "Level 1 Completion", "Best Performer"
     marks = Column(Float, nullable=True)  # Optional marks/score
     date_issued = Column(DateTime, nullable=False, index=True)
-    
+    org_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Additional details
     description = Column(Text, nullable=True)
     issued_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
@@ -439,7 +530,8 @@ class FeePlan(Base):
     
     # Status
     is_active = Column(Boolean, default=True, nullable=False, index=True)
-    
+    org_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Metadata
     created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=get_utc_now)
@@ -538,6 +630,27 @@ class FeeTransaction(Base):
     )
 
 
+class UserPaperTemplate(Base):
+    """User-saved paper templates — max 5 per account."""
+    __tablename__ = "user_paper_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(60), nullable=False)
+    # Store the paper level (e.g. "AB-1", "Vedic-Level-2", "Custom") or null for custom
+    level = Column(String(30), nullable=True)
+    # Full serialised list of BlockConfig dicts
+    blocks = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+    user = relationship("User", back_populates="paper_templates")
+
+    __table_args__ = (
+        Index("idx_upt_user_name", "user_id", "name", unique=True),
+    )
+
+
 # Add relationships to StudentProfile
 # Note: We need to update the StudentProfile model to include these relationships
 # This will be done by adding the relationships after the Certificate model definition
@@ -560,12 +673,21 @@ if DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgres
     # Create engine with connection pooling for PostgreSQL
     engine = create_engine(
         DATABASE_URL,
-        pool_size=20,  # Increased from 5 for production load
-        max_overflow=30,  # Increased from 10 for burst traffic
-        pool_pre_ping=True,  # Verify connections before using
-        pool_recycle=3600,  # Recycle connections after 1 hour to prevent stale connections
-        pool_timeout=30,  # Timeout for getting connection from pool
-        echo=False  # Set to True for SQL query logging
+        pool_size=20,
+        max_overflow=30,
+        # pool_pre_ping=True costs ~1s RTT per request over remote Railway (SELECT 1 health check).
+        # Instead, recycle connections every 5 minutes to discard stale ones before Railway kills them.
+        pool_pre_ping=False,
+        pool_recycle=300,   # 5 minutes: proactively recycle before Railway's idle timeout
+        pool_timeout=30,
+        connect_args={
+            "keepalives": 1,           # Enable TCP keepalives
+            "keepalives_idle": 30,     # Send keepalive after 30s idle
+            "keepalives_interval": 5,  # Retry every 5s
+            "keepalives_count": 5,     # Drop after 5 failures
+            "connect_timeout": 10,     # Fail fast on new connection (not 30s default)
+        },
+        echo=False
     )
 else:
     # SQLite doesn't need special configuration

@@ -7,7 +7,7 @@ Point values are read from the `point_rules` table — never hardcoded.
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from typing import Optional, Tuple, List
-from models import Base, Column, Integer, String, Boolean, DateTime, Index, get_db
+from models import Base, Column, Integer, String, Boolean, DateTime, Index, get_db, ForeignKey
 from datetime import datetime
 from timezone_utils import get_utc_now
 
@@ -49,6 +49,8 @@ class PointRule(Base):
 
     # Display order within operation group
     display_order = Column(Integer, nullable=False, default=0)
+
+    org_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
 
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)

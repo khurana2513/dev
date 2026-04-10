@@ -77,7 +77,7 @@ export default function PrivacyPolicy() {
           },
           {
             title: "Contact Us",
-            body: "If you have any questions about this Privacy Policy, please contact us at: Talent Hub, New Delhi. Phone: +91 92661 17055.",
+            body: "If you have any questions about this Privacy Policy, please contact us at: BlackMonkey. Email: support@blackmonkey.in.",
           },
         ].map(({ title, body }) => (
           <div key={title} style={{ marginBottom: 40 }}>

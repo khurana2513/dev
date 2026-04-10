@@ -18,10 +18,10 @@ export default defineConfig({
       ],
       // Web App Manifest
       manifest: {
-        name: "Talent Hub – Abacus, Vedic Maths & STEM",
-        short_name: "Talent Hub",
+        name: "BlackMonkey – Math Education",
+        short_name: "BlackMonkey",
         description:
-          "India's premier online learning platform for Abacus, Vedic Maths, Handwriting and STEM education for kids.",
+          "The next-gen platform for Abacus and Mental Maths education — gamification, practice, and live attendance for students and institutes.",
         theme_color: "#7C3AED",
         background_color: "#07070F",
         display: "standalone",
@@ -114,7 +114,7 @@ export default defineConfig({
             sizes: "1200x630",
             type: "image/png",
             form_factor: "wide",
-            label: "Talent Hub – Online Learning Platform",
+            label: "BlackMonkey – Math Education Platform",
           },
         ],
       },
@@ -207,8 +207,8 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        // Enable service worker in dev so you can test offline behaviour locally
-        enabled: true,
+        // SW disabled in dev — intercepting API calls in dev causes stale-data loading issues
+        enabled: false,
         type: "module",
       },
     }),
@@ -229,8 +229,8 @@ export default defineConfig({
   },
 
   server: {
-    host: "localhost",
-    port: 5173,
+    host: "0.0.0.0",
+    port: 3000,
 
     headers: {
       // Required for Google OAuth popup

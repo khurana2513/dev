@@ -1,904 +1,472 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "../contexts/AuthContext";
 import {
   ArrowRight, Trophy, Zap, BarChart3, Flame, FileText,
-  Target, Brain, Medal, Globe, Calendar, Heart,
-  Calculator, BookOpen, PenTool, Rocket, Phone
+  Target, Brain, Medal, Calendar, Star,
+  TrendingUp, ChevronRight, Play, Shield, Users
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, useInView as framerInView } from "framer-motion";
 
-// ─────────────────────────────────────────────────────────────
-// HOOKS
-// ─────────────────────────────────────────────────────────────
-function useInView(threshold = 0.15) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [inView, setInView] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setInView(true); observer.disconnect(); } },
-      { threshold }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [threshold]);
-  return { ref, inView };
-}
-
-
-// ─────────────────────────────────────────────────────────────
-// ANIMATED COUNTER
-// ─────────────────────────────────────────────────────────────
-function AnimatedCounter({ end, suffix = "", duration = 2000 }: { end: number; suffix?: string; duration?: number }) {
-  const [count, setCount] = useState(0);
-  const { ref, inView } = useInView(0.3);
+// ─── Animated number counter ──────────────────────────────────
+function Counter({ to, suffix = "", duration = 1800 }: { to: number; suffix?: string; duration?: number }) {
+  const [val, setVal] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = framerInView(ref, { once: true, margin: "-60px" });
   useEffect(() => {
     if (!inView) return;
-    let start = 0;
-    const step = end / (duration / 16);
-    const timer = setInterval(() => {
-      start += step;
-      if (start >= end) { setCount(end); clearInterval(timer); }
-      else setCount(Math.floor(start));
-    }, 16);
-    return () => clearInterval(timer);
-  }, [inView, end, duration]);
-  return <span ref={ref}>{count}{suffix}</span>;
+    let frame = 0;
+    const totalFrames = Math.round((duration / 1000) * 60);
+    const tick = () => {
+      frame++;
+      const progress = frame / totalFrames;
+      const ease = 1 - Math.pow(1 - progress, 3);
+      setVal(Math.round(ease * to));
+      if (frame < totalFrames) requestAnimationFrame(tick);
+      else setVal(to);
+    };
+    requestAnimationFrame(tick);
+  }, [inView, to, duration]);
+  return <span ref={ref}>{val}{suffix}</span>;
 }
 
-// ─────────────────────────────────────────────────────────────
-// IN-VIEW WRAPPER
-// ─────────────────────────────────────────────────────────────
-function InView({ children, className = "", delay = 0, direction = "up" }: {
-  children: React.ReactNode; className?: string; delay?: number; direction?: "up" | "left" | "right" | "none";
-}) {
-  const { ref, inView } = useInView();
-  const transforms: Record<string, string> = {
-    up: "translateY(28px)", left: "translateX(-28px)", right: "translateX(28px)", none: "none",
-  };
+// ─── Section fade-up wrapper ───────────────────────────────────
+function FadeUp({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = framerInView(ref, { once: true, margin: "-40px" });
   return (
-    <div ref={ref} className={className} style={{
-      opacity: inView ? 1 : 0,
-      transform: inView ? "none" : transforms[direction],
-      transition: `opacity 0.7s cubic-bezier(.4,0,.2,1) ${delay}s, transform 0.7s cubic-bezier(.4,0,.2,1) ${delay}s`,
-    }}>
+    <motion.div
+      ref={ref}
+      className={className}
+      initial={{ opacity: 0, y: 32 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.65, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
       {children}
+    </motion.div>
+  );
+}
+
+// ─── Floating particle ────────────────────────────────────────
+function Particle({ style }: { style: React.CSSProperties }) {
+  return (
+    <motion.div
+      style={{ position: "absolute", borderRadius: "50%", ...style }}
+      animate={{ y: [0, -20, 0], opacity: [0.3, 0.7, 0.3] }}
+      transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+    />
+  );
+}
+
+// ─── Gradient text ────────────────────────────────────────────
+function GText({ children, gradient = "linear-gradient(135deg, #7c3aed, #a78bfa 60%, #06b6d4)" }: { children: React.ReactNode; gradient?: string }) {
+  return (
+    <span style={{ background: gradient, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+      {children}
+    </span>
+  );
+}
+
+// ─── Pill badge ───────────────────────────────────────────────
+function Pill({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      display: "inline-flex", alignItems: "center", gap: 8,
+      background: "rgba(124,58,237,0.10)", border: "1px solid rgba(124,58,237,0.25)",
+      borderRadius: 100, padding: "7px 18px", marginBottom: 28,
+    }}>
+      <span style={{ color: "#a78bfa", fontSize: 10 }}>✦</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: "#a78bfa", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>
+        {children}
+      </span>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// GLOBAL STYLES
-// ─────────────────────────────────────────────────────────────
-const GlobalStyles = () => (
-  <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700;1,800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
-
-    :root {
-      --th-bg: #07080F;
-      --th-bg2: #0D0F1C;
-      --th-bg3: #131629;
-      --th-surface: #0F1120;
-      --th-surface2: #151829;
-      --th-border: rgba(255,255,255,0.06);
-      --th-border2: rgba(255,255,255,0.1);
-      --th-purple: #7C3AED;
-      --th-purple2: #A855F7;
-      --th-purple-mid: #9D7FF0;
-      --th-purple-dim: rgba(124,58,237,0.12);
-      --th-purple-glow: rgba(124,58,237,0.25);
-      --th-gold: #F59E0B;
-      --th-gold-dim: rgba(245,158,11,0.12);
-      --th-teal: #0FB8A0;
-      --th-orange: #EA580C;
-      --th-white: #F8FAFC;
-      --th-white2: #94A3B8;
-      --th-muted: #475569;
-      --th-muted2: #636888;
-      --th-font-display: 'Playfair Display', Georgia, serif;
-      --th-font-body: 'Inter', system-ui, sans-serif;
-      --th-font-mono: 'Space Grotesk', monospace;
-    }
-
-    .th-gradient-text {
-      background: linear-gradient(135deg, var(--th-purple2) 0%, #C084FC 50%, var(--th-purple) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    }
-    .th-gold-text {
-      background: linear-gradient(135deg, var(--th-gold) 0%, #FCD34D 50%, var(--th-gold) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    }
-    .th-shimmer-text {
-      background: linear-gradient(90deg, var(--th-white2) 0%, var(--th-white) 25%, var(--th-purple2) 50%, var(--th-white) 75%, var(--th-white2) 100%);
-      background-size: 200% auto;
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-      animation: th-shimmer 4s linear infinite;
-    }
-    .th-section-label {
-      font-family: var(--th-font-mono);
-      font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
-      color: var(--th-purple2);
-      display: inline-flex; align-items: center; gap: 8px;
-    }
-    .th-section-label::before {
-      content: ''; display: block; width: 18px; height: 1px; background: var(--th-purple2);
-    }
-    .th-card-hover {
-      transition: all 0.35s cubic-bezier(.4,0,.2,1);
-    }
-    .th-card-hover:hover {
-      transform: translateY(-5px);
-      border-color: rgba(124,58,237,0.4) !important;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 48px rgba(124,58,237,0.08) !important;
-    }
-    .th-btn-primary {
-      background: linear-gradient(135deg, var(--th-purple) 0%, #5b21b6 100%);
-      color: white; border: none; padding: 14px 28px; border-radius: 14px;
-      font-family: var(--th-font-body); font-size: 15px; font-weight: 600;
-      cursor: pointer; transition: all 0.25s ease;
-      display: inline-flex; align-items: center; gap: 8px;
-      white-space: nowrap; position: relative; overflow: hidden;
-    }
-    .th-btn-primary:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 16px 40px rgba(124,58,237,0.5); }
-    .th-btn-primary:active { transform: scale(0.98); }
-    .th-btn-secondary {
-      background: transparent; color: var(--th-white2);
-      border: 1px solid var(--th-border2); padding: 14px 28px; border-radius: 14px;
-      font-family: var(--th-font-body); font-size: 15px; font-weight: 500;
-      cursor: pointer; transition: all 0.25s ease;
-      display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
-    }
-    .th-btn-secondary:hover {
-      border-color: rgba(124,58,237,0.5); background: rgba(124,58,237,0.08);
-      color: var(--th-white); transform: translateY(-2px);
-    }
-    .th-noise {
-      position: fixed; inset: 0; pointer-events: none; z-index: 9999; opacity: 0.02;
-    }
-    .th-noise::after {
-      content: ''; position: absolute; inset: -50%;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-      animation: th-grain 0.5s steps(1) infinite;
-    }
-    .th-glow-line {
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--th-purple-glow), transparent);
-    }
-
-    @keyframes th-shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
-    @keyframes th-float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
-    @keyframes th-marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-    @keyframes th-grain {
-      0%, 100% { transform: translate(0,0); } 10% { transform: translate(-2%,-3%); }
-      20% { transform: translate(3%,2%); } 30% { transform: translate(-1%,4%); }
-      40% { transform: translate(2%,-1%); } 50% { transform: translate(-3%,2%); }
-    }
-    @keyframes th-burst-pulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(234,88,12,0.4); }
-      50% { box-shadow: 0 0 0 10px rgba(234,88,12,0); }
-    }
-    @keyframes th-spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-    @media (max-width: 768px) {
-      .th-hide-mobile { display: none !important; }
-    }
-    @media (min-width: 769px) {
-      .th-hide-desktop { display: none !important; }
-    }
-  `}</style>
-);
-
-// ─────────────────────────────────────────────────────────────
-// DATA
-// ─────────────────────────────────────────────────────────────
-const MARQUEE_ITEMS = [
-  "National Olympiad Winners", "Mental Calculation Champions",
-  "18+ Years of Excellence", "900+ Students Shaped",
-  "Abacus · Vedic Maths · Handwriting · STEM",
-  "Certificates & Medals at Every Level", "Monthly Assessments",
-  "Institute Leaderboard · Real-Time Rankings",
-];
-
-const STATS = [
-  { value: 18, suffix: "+", label: "Years of Excellence" },
-  { value: 900, suffix: "+", label: "Students Guided" },
-  { value: 4, suffix: "", label: "Programs Offered" },
-  { value: 3, suffix: "", label: "Branches in Delhi NCR" },
-];
-
-const COURSES = [
-  {
-    id: "abacus", name: "Study Abacus", tag: "Ages 5–15 · 10 Levels",
-    tagline: "Mental Visualization Engine",
-    desc: "From counting beads to performing complex multi-digit calculations entirely in the mind. Abacus rewires how children think — permanently.",
-    color: "#7C3AED", dimColor: "rgba(124,58,237,0.10)", glowColor: "rgba(124,58,237,0.20)", borderColor: "rgba(124,58,237,0.25)",
-    icon: Calculator,
-    outcomes: ["Mental calculation speed", "Focus & concentration", "Visual memory", "Math confidence"],
-    stat: "10 Levels · 4 Months Each",
-    image: "/imagesproject/homepage/abacus.png", path: "/courses/abacus",
-  },
-  {
-    id: "vedic", name: "Vedic Maths", tag: "Ages 10+ · 4 Levels",
-    tagline: "Ancient Speed. Modern Edge.",
-    desc: "16 sacred sutras from ancient Indian mathematics. Solve 997 × 998 in seconds. Competitive exam prep unlike anything taught in school.",
-    color: "#F59E0B", dimColor: "rgba(245,158,11,0.10)", glowColor: "rgba(245,158,11,0.20)", borderColor: "rgba(245,158,11,0.25)",
-    icon: BookOpen,
-    outcomes: ["Exam speed tactics", "Complex mental arithmetic", "LCM, GCD, roots", "Competitive edge"],
-    stat: "4 Levels · 4 Months Each",
-    image: "/imagesproject/homepage/Vedic-Maths.png", path: "/courses/vedic-maths",
-  },
-  {
-    id: "handwriting", name: "Handwriting", tag: "All Ages · 3 Months",
-    tagline: "Precision. Clarity. Confidence.",
-    desc: "English and Hindi tracks. Fine motor control meets cognitive rhythm. Students see measurable improvement within weeks.",
-    color: "#0FB8A0", dimColor: "rgba(15,184,160,0.10)", glowColor: "rgba(15,184,160,0.20)", borderColor: "rgba(15,184,160,0.25)",
-    icon: PenTool,
-    outcomes: ["Legibility & speed", "English & Hindi tracks", "Creative calligraphy", "Exam handwriting"],
-    stat: "1 Level · 3 Months",
-    image: "/imagesproject/homepage/handwriting.png", path: "/courses/handwriting",
-  },
-  {
-    id: "stem", name: "STEM", tag: "Ages 4–18 · 5 Courses",
-    tagline: "Engineers Start Here.",
-    desc: "From paper circuits at age 4 to drone engineering at 18. Five progressive courses under the Black Monkey umbrella. Hands-on, project-based, real.",
-    color: "#EA580C", dimColor: "rgba(234,88,12,0.10)", glowColor: "rgba(234,88,12,0.20)", borderColor: "rgba(234,88,12,0.25)",
-    icon: Rocket,
-    outcomes: ["Robotics & IoT", "Drone engineering", "AI & Machine learning", "Real-world projects"],
-    stat: "5 Courses · 8–12 Weeks Each",
-    image: "/imagesproject/homepage/stem.png", path: "/courses/stem",
-    external: true, externalLabel: "Powered by Black Monkey ↗",
-  },
-];
-
-const WHY_ITEMS = [
-  {
-    icon: Brain, label: "COGNITIVE REWIRING",
-    title: "Not just math — it's brain training.",
-    desc: "Abacus and Vedic Maths develop the visualization, focus, and working memory that improve performance across every subject — permanently. Not a shortcut. A rewire.",
-    color: "#7C3AED", stat: "2× Faster", statLabel: "average mental calculation speed after Level 3",
-  },
-  {
-    icon: Trophy, label: "PROVEN RESULTS",
-    title: "18 years. 900+ students. Medals to prove it.",
-    desc: "Every year, our students compete in national and international olympiads — and win. Tablets, cycles, cash prizes, and the confidence that comes from beating your best self.",
-    color: "#F59E0B", stat: "900+", statLabel: "students guided across 18 years",
-  },
-  {
-    icon: Target, label: "STRUCTURED PROGRESSION",
-    title: "Every level earned, never given.",
-    desc: "Monthly tests, level completions with certificates and medals, and regular activities that make practice genuinely engaging — not the rote drilling found elsewhere.",
-    color: "#0FB8A0", stat: "100%", statLabel: "structured curriculum with monthly assessment",
-  },
-];
-
-const TOOLKIT_ITEMS = [
-  {
-    icon: FileText, title: "Live Paper Attempt",
-    desc: "Exam practice with Abacus and Vedic Maths papers. Timed, scored, and reviewed instantly.",
-    color: "#7C3AED", cta: "Attempt Now", path: "/create", featured: true,
-  },
-  {
-    icon: Brain, title: "Mental Math Practice",
-    desc: "Targeted drills by operation, level, and difficulty. Track accuracy and speed across sessions.",
-    color: "#7C3AED", cta: "Practice", path: "/mental", featured: true,
-  },
-  {
-    icon: Zap, title: "Burst Mode",
-    desc: "60 seconds. Maximum questions. Compete against yourself and the institute leaderboard.",
-    color: "#EA580C", cta: "Start Burst", path: "/burst", featured: true, pulse: true,
-  },
-  {
-    icon: BarChart3, title: "Progress Dashboard",
-    desc: "Detailed analytics on accuracy, speed, and consistency. See exactly where to improve.",
-    color: "#0FB8A0", cta: "View Dashboard", path: "/dashboard", featured: false,
-  },
-  {
-    icon: Trophy, title: "Leaderboard",
-    desc: "Institute-wide rankings updated in real time. Compete for the top spot every week.",
-    color: "#F59E0B", cta: "See Rankings", path: "/leaderboard", featured: false, comingSoon: true,
-  },
-  {
-    icon: Flame, title: "Streaks & Rewards",
-    desc: "Daily streaks, badges, and milestone rewards. Consistency becomes its own motivation.",
-    color: "#7C3AED", cta: "View Badges", path: "/rewards", featured: false,
-  },
-];
-
-const TESTIMONIALS = [
-  {
-    quote: "Abacus is a very good and effective technique to speed up calculations. It has great advantages as it helps in perfecting the brain as a whole. The brain is sharpened which is not only useful for maths but other subjects as well.",
-    name: "Neha Khanna", role: "Parent · Rohini Sector 16", initials: "NK", course: "Abacus", courseColor: "#7C3AED", stars: 5,
-  },
-  {
-    quote: "Very good institute for Abacus and vedic maths. My son's numeracy skills have considerably developed under the guidance of Ms. Sunita Khurana. Personal attention is given to each kid and visible difference can be seen in the performance level at school.",
-    name: "Shikha Khandelwal", role: "Parent · Rohini Sector 16", initials: "SK", course: "Abacus", courseColor: "#7C3AED", stars: 5,
-  },
-  {
-    quote: "My child has learnt a lot from Sunita ma'am. She is one of the finest teachers at Talent Hub. Now Lavya can calculate orally bigger numbers too. Thanks ma'am for your support and dedication towards kids.",
-    name: "Lavya Singal", role: "Parent · Rohini Sector 16", initials: "LS", course: "Abacus", courseColor: "#0FB8A0", stars: 5,
-  },
-  {
-    quote: "I really want to thank Sunita ma'am for her efforts and guidance. Due to her hard work and support my son has developed a good understanding of the concepts and he has shown remarkable progress over the course.",
-    name: "Neha Sachdeva", role: "Parent · Rohini Sector 16", initials: "NS", course: "Vedic Maths", courseColor: "#F59E0B", stars: 5,
-  },
-  {
-    quote: "Children are being nurtured well, thanks for that. I hope that Talent Hub and parents continuously make sure that the children do not get prize-oriented alone, and are continually made aware of the need for practising human values.",
-    name: "Yash", role: "Student · Rohini Sector 16", initials: "Y", course: "Abacus", courseColor: "#7C3AED", stars: 5,
-  },
-  {
-    quote: "My Class 2 child enjoys attending abacus classes and has shown clear improvement in calculation speed, focus, and confidence in maths. The teacher is patient and explains concepts in a simple, engaging way. Highly recommend.",
-    name: "Mehak Garg", role: "Parent · Rohini Sector 16", initials: "MG", course: "Abacus", courseColor: "#EA580C", stars: 5,
-  },
-];
-
-const ACHIEVEMENTS = [
-  { title: "National & International Olympiads", desc: "Compete and win at prestigious math olympiads every year", icon: Globe, image: "/imagesproject/homepage/olympiads.jpeg" },
-  { title: "Medals & Certificates", desc: "Earn recognition for achievements and milestones at every level", icon: Medal, image: "/imagesproject/homepage/medals_certificates.jpeg" },
-  { title: "Monthly Tests", desc: "Regular assessments every last Sunday to track precise progress", icon: Calendar, image: "/imagesproject/homepage/monthly_tests.jpeg" },
-  { title: "Fun & Co-curricular Activities", desc: "Engaging activities that make the learning journey enjoyable", icon: Heart, image: "/imagesproject/homepage/fun_activities.jpeg" },
-];
-
-// ─────────────────────────────────────────────────────────────
-// MARQUEE BAR
-// ─────────────────────────────────────────────────────────────
-function MarqueeBar() {
-  const items = [...MARQUEE_ITEMS, ...MARQUEE_ITEMS];
-  return (
-    <div style={{ overflow: "hidden", borderTop: "1px solid var(--th-border)", borderBottom: "1px solid var(--th-border)", background: "var(--th-bg2)", padding: "13px 0" }}>
-      <div style={{ display: "flex", animation: "th-marquee 30s linear infinite", width: "max-content" }}>
-        {items.map((item, i) => (
-          <span key={i} style={{ display: "flex", alignItems: "center", gap: 20, padding: "0 20px", fontFamily: "var(--th-font-mono)", fontSize: 12, color: "var(--th-muted)", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
-            <span style={{ color: "var(--th-purple)", opacity: 0.7 }}>✦</span>
-            {item}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// STATS BAR
-// ─────────────────────────────────────────────────────────────
-function StatsBar() {
-  return (
-    <section style={{ padding: "72px 24px", background: "var(--th-bg)" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div className="rsp-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, borderRadius: 20, overflow: "hidden", border: "1px solid var(--th-border)" }}>
-          {STATS.map((stat, i) => (
-            <InView key={i} delay={i * 0.1}>
-              <div style={{ background: "var(--th-surface)", padding: "36px 28px", borderRight: i < 3 ? "1px solid var(--th-border)" : "none", textAlign: "center" }}>
-                <div style={{ fontFamily: "var(--th-font-display)", fontSize: "clamp(36px, 4vw, 52px)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.15, marginBottom: 8, paddingBottom: "0.1em", overflow: "visible" }} className="th-gradient-text">
-                  <AnimatedCounter end={stat.value} suffix={stat.suffix} />
-                </div>
-                <div style={{ fontFamily: "var(--th-font-mono)", fontSize: 11, color: "var(--th-muted)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{stat.label}</div>
-              </div>
-            </InView>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// PROGRAMS SECTION
-// ─────────────────────────────────────────────────────────────
-function Programs() {
-  const [hovered, setHovered] = useState<number | null>(null);
-  const [, setLocation] = useLocation();
-
-  return (
-    <section style={{ padding: "96px 24px", background: "var(--th-bg)", position: "relative" }}>
-      <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: "50%", height: 1, background: "linear-gradient(90deg, transparent, var(--th-purple-glow), transparent)" }} />
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <InView>
-          <div style={{ marginBottom: 56 }}>
-            <div className="th-section-label" style={{ marginBottom: 14 }}>What We Teach</div>
-            <h2 style={{ fontFamily: "var(--th-font-display)", fontSize: "clamp(32px, 4vw, 52px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, maxWidth: 520, color: "var(--th-white)" }}>
-              Four Pathways to{" "}
-              <span className="th-gradient-text">Sharper Thinking</span>
-            </h2>
-            <p style={{ color: "var(--th-white2)", fontSize: 17, lineHeight: 1.7, maxWidth: 500, marginTop: 14 }}>
-              Structured, progressive, and built for real cognitive growth — not shortcuts.
-            </p>
-          </div>
-        </InView>
-
-        <div className="rsp-2col" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 18 }}>
-          {COURSES.map((course, i) => (
-            <InView key={course.id} delay={i * 0.1} direction={i % 2 === 0 ? "left" : "right"}>
-              <div
-                className="th-card-hover"
-                onMouseEnter={() => setHovered(i)}
-                onMouseLeave={() => setHovered(null)}
-                onClick={() => setLocation(course.path)}
-                style={{
-                  background: hovered === i ? `linear-gradient(135deg, ${course.dimColor.replace("0.10","0.18")}, var(--th-surface))` : "var(--th-surface)",
-                  border: `1px solid ${hovered === i ? course.borderColor : "var(--th-border)"}`,
-                  borderRadius: 22, padding: "32px",
-                  boxShadow: hovered === i ? `0 24px 60px rgba(0,0,0,0.45), 0 0 48px ${course.glowColor}` : "none",
-                  position: "relative", overflow: "hidden", cursor: "pointer",
-                  transition: "all 0.35s cubic-bezier(.4,0,.2,1)",
-                }}
-              >
-                <div style={{ position: "absolute", top: -48, right: -48, width: 180, height: 180, borderRadius: "50%", background: `radial-gradient(circle, ${course.glowColor} 0%, transparent 70%)`, opacity: hovered === i ? 1 : 0, transition: "opacity 0.35s ease", pointerEvents: "none" }} />
-
-                {course.external && (
-                  <div style={{ position: "absolute", top: 18, right: 18, background: "rgba(234,88,12,0.1)", border: "1px solid rgba(234,88,12,0.25)", borderRadius: 8, padding: "4px 10px", fontFamily: "var(--th-font-mono)", fontSize: 10, color: "#EA580C", letterSpacing: "0.04em" }}>STEM · 5 Courses</div>
-                )}
-
-                <div style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 18, border: `1px solid ${course.borderColor}`, overflow: "hidden", flexShrink: 0, background: course.dimColor }}>
-                  {course.image
-                    ? <img src={course.image} alt={course.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><course.icon size={28} style={{ color: course.color }} /></div>
-                  }
-                </div>
-
-                <div style={{ fontFamily: "var(--th-font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", color: course.color, textTransform: "uppercase", marginBottom: 6 }}>{course.tag}</div>
-                <h3 style={{ fontFamily: "var(--th-font-display)", fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4, color: "var(--th-white)" }}>{course.name}</h3>
-                <div style={{ fontFamily: "var(--th-font-body)", fontSize: 13, fontWeight: 500, color: course.color, marginBottom: 14, opacity: 0.85 }}>{course.tagline}</div>
-                <p style={{ color: "var(--th-white2)", fontSize: 14, lineHeight: 1.65, marginBottom: 16 }}>{course.desc}</p>
-
-
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 18, borderTop: "1px solid var(--th-border)" }}>
-                  <span style={{ fontFamily: "var(--th-font-mono)", fontSize: 11, color: "var(--th-muted)", letterSpacing: "0.05em" }}>{course.stat}</span>
-                  <button style={{ background: "none", border: "none", cursor: "pointer", color: course.color, fontFamily: "var(--th-font-body)", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, padding: 0, transition: "gap 0.2s ease" }}
-                    onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.gap = "10px"}
-                    onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.gap = "6px"}
-                  >
-                    {course.external ? "Explore STEM" : "Learn More"}
-                    <ArrowRight size={14} />
-                  </button>
-                </div>
-              </div>
-            </InView>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// WHY TALENT HUB
-// ─────────────────────────────────────────────────────────────
-function WhySection() {
-  return (
-    <section style={{ padding: "96px 24px", background: "var(--th-bg)" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <InView>
-          <div style={{ marginBottom: 56, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 20 }}>
-            <div>
-              <div className="th-section-label" style={{ marginBottom: 14 }}>Why Choose Us</div>
-              <h2 style={{ fontFamily: "var(--th-font-display)", fontSize: "clamp(30px, 3.5vw, 48px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, color: "var(--th-white)" }}>
-                The Talent Hub <span className="th-gradient-text">Difference</span>
-              </h2>
-            </div>
-            <p style={{ color: "var(--th-white2)", fontSize: 15, maxWidth: 300, lineHeight: 1.65 }}>
-              18 years of refining our methods — here's what makes our students stand apart.
-            </p>
-          </div>
-        </InView>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {WHY_ITEMS.map((item, i) => (
-            <InView key={i} delay={i * 0.12}>
-              <div className="rsp-why-row" style={{
-                display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 40, alignItems: "center",
-                padding: "36px 36px", background: "var(--th-surface)", borderRadius: 20, border: "1px solid var(--th-border)", cursor: "default",
-                transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
-              }}
-              onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = `${item.color}50`; el.style.transform = "translateX(5px)"; el.style.background = "var(--th-surface2)"; }}
-              onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = "var(--th-border)"; el.style.transform = "none"; el.style.background = "var(--th-surface)"; }}
-              >
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div style={{ width: 50, height: 50, borderRadius: 15, background: `linear-gradient(135deg, ${item.color}30, ${item.color}12)`, border: `1px solid ${item.color}35`, display: "flex", alignItems: "center", justifyContent: "center", color: item.color, flexShrink: 0 }}>
-                    <item.icon size={22} strokeWidth={1.5} />
-                  </div>
-                  <div style={{ fontFamily: "var(--th-font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: item.color }}>{item.label}</div>
-                </div>
-                <div>
-                  <h3 style={{ fontFamily: "var(--th-font-display)", fontSize: "clamp(18px, 2vw, 24px)", fontWeight: 800, letterSpacing: "-0.025em", marginBottom: 12, color: "var(--th-white)", lineHeight: 1.2 }}>{item.title}</h3>
-                  <p style={{ color: "var(--th-white2)", fontSize: 15, lineHeight: 1.75 }}>{item.desc}</p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontFamily: "var(--th-font-display)", fontSize: "clamp(30px, 3vw, 44px)", fontWeight: 800, letterSpacing: "-0.04em", color: item.color, lineHeight: 1.15, paddingBottom: "0.1em", overflow: "visible" }}>{item.stat}</div>
-                  <div style={{ fontFamily: "var(--th-font-mono)", fontSize: 11, color: "var(--th-white2)", letterSpacing: "0.04em", marginTop: 6, lineHeight: 1.5 }}>{item.statLabel}</div>
-                </div>
-              </div>
-            </InView>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// TOOLKIT SECTION
-// ─────────────────────────────────────────────────────────────
-function Toolkit() {
-  const [, setLocation] = useLocation();
-  return (
-    <section style={{ padding: "96px 24px", background: "var(--th-bg)", position: "relative" }}>
-      <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: "50%", height: 1, background: "linear-gradient(90deg, transparent, var(--th-purple-glow), transparent)" }} />
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <InView>
-          <div style={{ textAlign: "center", marginBottom: 56 }}>
-            <div className="th-section-label" style={{ justifyContent: "center", marginBottom: 14 }}>The Platform</div>
-            <h2 style={{ fontFamily: "var(--th-font-display)", fontSize: "clamp(30px, 4vw, 52px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, marginBottom: 14, color: "var(--th-white)" }}>
-              Practice That <span className="th-gradient-text">Actually Works</span>
-            </h2>
-            <p style={{ color: "var(--th-white2)", fontSize: 17, maxWidth: 480, margin: "0 auto", lineHeight: 1.7 }}>
-              Every tool is engineered to reinforce real learning — not just keep students busy.
-            </p>
-          </div>
-        </InView>
-
-        <div className="rsp-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-          {TOOLKIT_ITEMS.map((item, i) => (
-            <InView key={i} delay={i * 0.08}>
-              <div
-                onClick={() => setLocation(item.path)}
-                style={{
-                  background: item.featured ? "linear-gradient(145deg, rgba(124,58,237,0.13), rgba(124,58,237,0.04))" : "var(--th-surface)",
-                  border: item.featured ? "1px solid rgba(124,58,237,0.35)" : "1px solid var(--th-border)",
-                  borderRadius: 20, padding: "26px",
-                  cursor: "pointer", position: "relative", overflow: "hidden",
-                  boxShadow: item.featured ? "0 0 48px rgba(124,58,237,0.1)" : "none",
-                  transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
-                }}
-                onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = "translateY(-5px)"; el.style.borderColor = item.featured ? "rgba(124,58,237,0.6)" : "rgba(124,58,237,0.3)"; }}
-                onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = "none"; el.style.borderColor = item.featured ? "rgba(124,58,237,0.35)" : "var(--th-border)"; }}
-              >
-                {item.featured && (
-                  <div style={{ position: "absolute", top: 14, right: 14, width: 8, height: 8, borderRadius: "50%", background: item.color, boxShadow: `0 0 8px ${item.color}` }} />
-                )}
-                <div style={{
-                  width: 46, height: 46, borderRadius: 13, marginBottom: 16,
-                  background: `linear-gradient(135deg, ${item.color}25, ${item.color}10)`,
-                  border: `1px solid ${item.color}30`,
-                  display: "flex", alignItems: "center", justifyContent: "center", color: item.color,
-                  animation: (item as any).pulse ? "th-burst-pulse 2s ease-in-out infinite" : "none",
-                }}>
-                  <item.icon size={20} strokeWidth={1.6} />
-                </div>
-                <h3 style={{ fontFamily: "var(--th-font-display)", fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 8, color: "var(--th-white)" }}>{item.title}</h3>
-                <p style={{ color: "var(--th-white2)", fontSize: 14, lineHeight: 1.65, marginBottom: 18 }}>{item.desc}</p>
-                <button style={{ background: "none", border: "none", cursor: "pointer", color: item.color, fontFamily: "var(--th-font-body)", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, padding: 0, transition: "gap 0.2s ease" }}
-                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.gap = "10px"}
-                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.gap = "6px"}
-                >
-                  {item.cta} <ArrowRight size={13} />
-                </button>
-              </div>
-            </InView>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// ACHIEVEMENTS SECTION
-// ─────────────────────────────────────────────────────────────
-function AchievementsSection() {
-  const [hovered, setHovered] = useState<number | null>(null);
-  return (
-    <section style={{ padding: "96px 24px", background: "var(--th-bg)" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <InView>
-          <div style={{ marginBottom: 56 }}>
-            <div className="th-section-label" style={{ marginBottom: 14 }}>Compete & Win</div>
-            <h2 style={{ fontFamily: "var(--th-font-display)", fontSize: "clamp(30px, 4vw, 52px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, color: "var(--th-white)" }}>
-              Olympiads &amp; <span className="th-gradient-text">Achievements</span>
-            </h2>
-            <p style={{ color: "var(--th-white2)", fontSize: 17, lineHeight: 1.7, maxWidth: 500, marginTop: 14 }}>
-              Structured assessments and national-level competitions that recognize consistent effort and excellence.
-            </p>
-          </div>
-        </InView>
-
-        <div className="rsp-4col" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-          {ACHIEVEMENTS.map((a, i) => (
-            <InView key={i} delay={i * 0.1}>
-              <div
-                onMouseEnter={() => setHovered(i)}
-                onMouseLeave={() => setHovered(null)}
-                className="rsp-achieve-card" style={{ position: "relative", height: 360, borderRadius: 22, overflow: "hidden", border: "1px solid var(--th-border)", cursor: "pointer", transition: "all 0.35s cubic-bezier(.4,0,.2,1)", transform: hovered === i ? "translateY(-5px)" : "none", boxShadow: hovered === i ? "0 24px 64px rgba(0,0,0,0.5), 0 0 48px rgba(124,58,237,0.1)" : "none" }}
-              >
-                <img src={a.image} alt={a.title} loading="lazy" decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: hovered === i ? "scale(1.06)" : "scale(1)", transition: "transform 0.6s cubic-bezier(.4,0,.2,1)" }} />
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(7,8,15,0.95) 0%, rgba(7,8,15,0.4) 50%, transparent 100%)" }} />
-                <div style={{ position: "absolute", bottom: 22, left: 22, right: 22 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.1)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10, color: "white" }}>
-                    <a.icon size={16} strokeWidth={1.6} />
-                  </div>
-                  <h3 style={{ fontFamily: "var(--th-font-display)", fontSize: 15, fontWeight: 700, color: "white", marginBottom: 5, lineHeight: 1.3 }}>{a.title}</h3>
-                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}>{a.desc}</p>
-                </div>
-              </div>
-            </InView>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// TESTIMONIALS
-// ─────────────────────────────────────────────────────────────
-function Testimonials() {
-  const [active, setActive] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setActive(a => (a + 1) % TESTIMONIALS.length), 5000);
-    return () => clearInterval(t);
-  }, []);
-
-  const current = TESTIMONIALS[active];
-  const others = TESTIMONIALS.filter((_, i) => i !== active).slice(0, 2);
-
-  return (
-    <section style={{ padding: "96px 24px", background: "var(--th-bg)" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <InView>
-          <div style={{ textAlign: "center", marginBottom: 56 }}>
-            <div className="th-section-label" style={{ justifyContent: "center", marginBottom: 14 }}>Parent Voices</div>
-            <h2 style={{ fontFamily: "var(--th-font-display)", fontSize: "clamp(30px, 4vw, 52px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, color: "var(--th-white)" }}>
-              What Parents <span className="th-gradient-text">Actually Say</span>
-            </h2>
-          </div>
-        </InView>
-
-        <div className="rsp-test-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-          {/* Featured quote */}
-          <InView direction="left">
-            <div style={{ background: "linear-gradient(145deg, var(--th-surface), var(--th-bg3))", border: "1px solid var(--th-border2)", borderRadius: 22, padding: "36px", gridRow: "span 2", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 340, position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${current.courseColor}, transparent)` }} />
-              <div style={{ fontSize: 64, lineHeight: 1, color: "rgba(124,58,237,0.15)", fontFamily: "Georgia,serif", marginBottom: 4 }}>"</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", gap: 3, marginBottom: 16 }}>
-                  {Array.from({ length: current.stars }).map((_, i) => <svg key={i} width="14" height="14" viewBox="0 0 14 14" fill="#F59E0B"><path d="M7 1l1.8 3.6L13 5.3l-3 2.9.7 4.1L7 10.5l-3.7 1.8.7-4.1-3-2.9 4.2-.7L7 1z"/></svg>)}
-                </div>
-                <AnimatePresence mode="wait">
-                  <motion.p key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.4 }}
-                    style={{ fontSize: "clamp(15px, 1.5vw, 17px)", lineHeight: 1.75, color: "var(--th-white)", fontFamily: "var(--th-font-body)", fontWeight: 300 }}>
-                    {current.quote}
-                  </motion.p>
-                </AnimatePresence>
-              </div>
-              <div style={{ marginTop: 28, display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 13, background: `linear-gradient(135deg, ${current.courseColor}40, ${current.courseColor}20)`, border: `1px solid ${current.courseColor}40`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--th-font-display)", fontSize: 15, fontWeight: 800, color: "var(--th-white)" }}>
-                  {current.initials}
-                </div>
-                <div>
-                  <div style={{ fontFamily: "var(--th-font-display)", fontSize: 14, fontWeight: 700, color: "var(--th-white)" }}>{current.name}</div>
-                  <div style={{ fontFamily: "var(--th-font-mono)", fontSize: 11, color: "var(--th-muted)", letterSpacing: "0.04em", marginTop: 2 }}>{current.role}</div>
-                </div>
-                <div style={{ marginLeft: "auto" }}>
-                  <span style={{ background: `${current.courseColor}20`, border: `1px solid ${current.courseColor}30`, borderRadius: 7, padding: "3px 9px", fontFamily: "var(--th-font-mono)", fontSize: 10, color: current.courseColor, letterSpacing: "0.06em" }}>{current.course}</span>
-                </div>
-              </div>
-              {/* Dots */}
-              <div style={{ display: "flex", gap: 5, marginTop: 20 }}>
-                {TESTIMONIALS.map((_, i) => (
-                  <button key={i} onClick={() => setActive(i)} style={{ width: active === i ? 22 : 6, height: 6, borderRadius: 3, background: active === i ? "var(--th-purple)" : "var(--th-surface2)", border: "none", cursor: "pointer", padding: 0, transition: "all 0.3s ease" }} />
-                ))}
-              </div>
-            </div>
-          </InView>
-
-          {/* Right mini cards */}
-          {others.map((t, i) => (
-            <InView key={t.name} delay={i * 0.15} direction="right">
-              <div onClick={() => setActive(TESTIMONIALS.indexOf(t))}
-                style={{ background: "var(--th-surface)", border: "1px solid var(--th-border)", borderRadius: 20, padding: "22px", cursor: "pointer", transition: "all 0.3s ease" }}
-                onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = "rgba(124,58,237,0.3)"; el.style.transform = "translateY(-4px)"; }}
-                onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor = "var(--th-border)"; el.style.transform = "none"; }}
-              >
-                <div style={{ display: "flex", gap: 3, marginBottom: 12 }}>
-                  {Array.from({ length: t.stars }).map((_, si) => <svg key={si} width="13" height="13" viewBox="0 0 14 14" fill="#F59E0B"><path d="M7 1l1.8 3.6L13 5.3l-3 2.9.7 4.1L7 10.5l-3.7 1.8.7-4.1-3-2.9 4.2-.7L7 1z"/></svg>)}
-                </div>
-                <p style={{ fontSize: 14, lineHeight: 1.65, color: "var(--th-white2)", marginBottom: 18, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.quote}</p>
-                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 9, background: `${t.courseColor}25`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--th-font-display)", fontSize: 12, fontWeight: 800, color: "var(--th-white)" }}>{t.initials}</div>
-                  <div>
-                    <div style={{ fontFamily: "var(--th-font-display)", fontSize: 13, fontWeight: 700, color: "var(--th-white)" }}>{t.name}</div>
-                    <div style={{ fontFamily: "var(--th-font-mono)", fontSize: 10, color: "var(--th-muted)" }}>{t.role}</div>
-                  </div>
-                </div>
-              </div>
-            </InView>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// CTA BANNER
-// ─────────────────────────────────────────────────────────────
-function CTABanner() {
-  const [, setLocation] = useLocation();
-  return (
-    <section style={{ padding: "72px 24px", background: "var(--th-bg)" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <InView>
-          <div className="rsp-cta-inner" style={{ position: "relative", borderRadius: 26, overflow: "hidden", background: "linear-gradient(135deg, #2d1a6e 0%, #1a1040 40%, #0d0820 100%)", border: "1px solid rgba(124,58,237,0.25)", padding: "64px 56px", boxShadow: "0 48px 100px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
-            <div style={{ position: "absolute", top: -80, left: -80, width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.28) 0%, transparent 70%)", pointerEvents: "none" }} />
-            <div style={{ position: "absolute", bottom: -60, right: -60, width: 240, height: 240, borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
-            <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)", backgroundSize: "48px 48px", pointerEvents: "none" }} />
-
-            <div style={{ position: "relative", textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 100, padding: "5px 14px", marginBottom: 24 }}>
-                <span style={{ fontSize: 13 }}>🎯</span>
-                <span style={{ fontFamily: "var(--th-font-mono)", fontSize: 11, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>One free session. No commitment.</span>
-              </div>
-              <h2 style={{ fontFamily: "var(--th-font-display)", fontSize: "clamp(30px, 5vw, 58px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.0, marginBottom: 18, color: "white" }}>
-                Ready to Begin{" "}
-                <span className="th-shimmer-text">the Journey?</span>
-              </h2>
-              <p style={{ fontSize: 17, color: "rgba(255,255,255,0.62)", lineHeight: 1.7, marginBottom: 36 }}>
-                The first step to mathematical mastery begins with a single session. See the difference yourself — before committing to anything.
-              </p>
-              <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-                <button onClick={() => setLocation("/dashboard")} style={{ background: "white", color: "#1a1040", border: "none", padding: "14px 30px", borderRadius: 13, fontFamily: "var(--th-font-body)", fontSize: 16, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "all 0.25s ease" }}
-                  onMouseEnter={e => { const el = e.currentTarget as HTMLButtonElement; el.style.transform = "translateY(-2px) scale(1.02)"; el.style.boxShadow = "0 14px 40px rgba(255,255,255,0.2)"; }}
-                  onMouseLeave={e => { const el = e.currentTarget as HTMLButtonElement; el.style.transform = "none"; el.style.boxShadow = "none"; }}
-                >
-                  Get Started <ArrowRight size={16} />
-                </button>
-                <a href="tel:+919266117055" style={{ background: "transparent", color: "white", border: "1px solid rgba(255,255,255,0.2)", padding: "14px 26px", borderRadius: 13, fontFamily: "var(--th-font-body)", fontSize: 16, fontWeight: 500, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", transition: "all 0.25s ease" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,255,255,0.4)"; (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.06)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,255,255,0.2)"; (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; }}
-                >
-                  <Phone size={16} /> Call Us Now
-                </a>
-              </div>
-            </div>
-          </div>
-        </InView>
-      </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// FOOTER
-
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 // MAIN HOME COMPONENT
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 export default function Home() {
-  const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
-  const [loaded, setLoaded] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [shuffledImages, setShuffledImages] = useState<string[]>([]);
+  const auth = useAuth();
+  const isAuthenticated = auth?.isAuthenticated ?? false;
 
-  const carouselImages = useMemo(() => [
-    "1.jpg","4.jpg","6.jpg","7.jpg","8.jpg","9.jpg","10.jpg","11.jpg","12.jpg","13.jpg","14.jpg",
-    "0O9A8432.JPG","0O9A8434.JPG","0O9A8502.JPG","0O9A8564.JPG","0O9A8654.JPG","0O9A8660.JPG","0O9A8663.JPG",
-    "0O9A8664.JPG","0O9A8666.JPG","0O9A8670.JPG","0O9A8671.JPG","0O9A8673.JPG","2G4A0012.JPG","2G4A0026.JPG",
-    "2G4A0060.JPG","2G4A0559.JPG","2G4A0567.JPG","2G4A0742.JPG","773A1293.JPG","773A1317.JPG","773A1605.JPG","773A1606.JPG"
-  ], []);
+  useEffect(() => { window.scrollTo(0, 0); }, []);
 
-  const shuffleArray = (arr: string[]) => {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  };
+  const handleCTA = () => setLocation(isAuthenticated ? "/dashboard" : "/login");
 
-  useEffect(() => { setShuffledImages(shuffleArray(carouselImages)); }, [carouselImages]);
-  useEffect(() => { const t = setTimeout(() => setLoaded(true), 80); return () => clearTimeout(t); }, []);
+  const crisisStats = [
+    { value: 23, suffix: "%", label: "Grade 4 students can subtract correctly", note: "ASER 2024", color: "#f97316", icon: "📉" },
+    { value: 39, suffix: "%", label: "Grade 8 students can do basic division", note: "ASER 2024", color: "#ec4899", icon: "÷" },
+    { value: 56, suffix: "%", label: "Children struggle with mental arithmetic", note: "Research", color: "#eab308", icon: "🧠" },
+    { value: 3, suffix: "x", label: "better outcomes with structured practice", note: "NCERT Study", color: "#22c55e", icon: "📈" },
+  ];
 
-  useEffect(() => {
-    if (!shuffledImages.length) return;
-    const preload = (src: string) => { const img = new Image(); img.src = `/imagesproject/${src}`; };
-    preload(shuffledImages[(currentImageIndex + 1) % shuffledImages.length]);
-    preload(shuffledImages[(currentImageIndex + 2) % shuffledImages.length]);
-  }, [currentImageIndex, shuffledImages]);
+  const features = [
+    { icon: <Brain size={22} />, title: "Abacus Practice Engine", desc: "Generate unlimited custom worksheets across direct, small friends, big friends, and mix operations — perfectly calibrated per level.", gradient: "linear-gradient(135deg, #7c3aed, #5b21b6)", tag: "Core" },
+    { icon: <Zap size={22} />, title: "Burst & Mental Mode", desc: "Timed flash-card sessions that build calculation speed and working memory — like HIIT for the brain.", gradient: "linear-gradient(135deg, #f59e0b, #d97706)", tag: "Speed" },
+    { icon: <Trophy size={22} />, title: "Gamified Progress", desc: "Streak bonuses, XP points, level badges, and a real-time leaderboard. Students compete, celebrate, and improve.", gradient: "linear-gradient(135deg, #06b6d4, #0891b2)", tag: "Engage" },
+    { icon: <Calendar size={22} />, title: "Live Attendance", desc: "One-tap QR attendance with real-time admin overview. Automated notifications and detailed reports for institutes.", gradient: "linear-gradient(135deg, #10b981, #059669)", tag: "Manage" },
+    { icon: <BarChart3 size={22} />, title: "Progress Analytics", desc: "Per-student dashboards showing accuracy trends, streak history, weak areas, and improvement over time.", gradient: "linear-gradient(135deg, #8b5cf6, #7c3aed)", tag: "Insights" },
+    { icon: <FileText size={22} />, title: "PDF Paper Generator", desc: "Beautiful, print-ready practice papers with custom headers, difficulty levels, and professional formatting.", gradient: "linear-gradient(135deg, #ec4899, #db2777)", tag: "Print" },
+  ];
 
-  useEffect(() => {
-    if (!shuffledImages.length) return;
-    const timer = setInterval(() => setCurrentImageIndex(p => (p + 1) % shuffledImages.length), 5000);
-    return () => clearInterval(timer);
-  }, [shuffledImages]);
+  const instituteFeatures = [
+    { icon: <Users size={18} />, text: "Manage unlimited students across batches" },
+    { icon: <Calendar size={18} />, text: "Live attendance with automated notifications" },
+    { icon: <BarChart3 size={18} />, text: "Admin dashboard with cohort-level analytics" },
+    { icon: <FileText size={18} />, text: "Generate custom worksheets for any level" },
+    { icon: <Trophy size={18} />, text: "Leaderboards to keep students motivated" },
+    { icon: <Shield size={18} />, text: "Secure, role-based access controls" },
+  ];
 
-  if (!shuffledImages.length) return null;
+  const testimonials = [
+    { quote: "My daughter's mental calculation speed has improved dramatically. She now solves 3-digit sums in seconds — her teachers are amazed.", name: "Priya Sharma", role: "Parent · Grade 5", avatar: "PS" },
+    { quote: "As an abacus institute owner, managing attendance and tracking 200+ students used to be a nightmare. BlackMonkey made it effortless.", name: "Rajesh Kumar", role: "Institute Director · Delhi", avatar: "RK" },
+    { quote: "The streak system keeps my students genuinely excited about practice. They remind ME to open the app — not the other way around.", name: "Sunita Mehra", role: "Abacus Instructor", avatar: "SM" },
+  ];
 
   return (
-    <div style={{ background: "var(--th-bg)", color: "var(--th-white)", fontFamily: "var(--th-font-body)", overflowX: "hidden" }}>
-      <GlobalStyles />
-      <div className="th-noise" />
+    <div style={{ background: "#07070F", color: "#fff", minHeight: "100vh", overflowX: "hidden", fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* ── HERO SECTION ──────────────────────────────────────────── */}
-      <section style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "flex-start", overflow: "hidden", paddingTop: 70 }}>
-        <div style={{ position: "absolute", top: "8%", left: "3%", width: 650, height: 650, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.10) 0%, transparent 70%)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", bottom: "8%", right: "3%", width: 420, height: 420, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)", backgroundSize: "60px 60px", maskImage: "radial-gradient(ellipse at 50% 50%, black 30%, transparent 80%)" }} />
-
-        <div className="rsp-hero-grid" style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", width: "100%", display: "grid", gridTemplateColumns: "55% 42%", gap: 60, alignItems: "center" }}>
-          <div>
-            <div style={{ opacity: loaded ? 1 : 0, transform: loaded ? "none" : "translateY(14px)", transition: "all 0.6s cubic-bezier(.4,0,.2,1) 0.1s", display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(124,58,237,0.10)", border: "1px solid rgba(124,58,237,0.22)", borderRadius: 100, padding: "7px 14px", marginBottom: 24 }}>
-              <span style={{ color: "var(--th-purple2)", fontSize: 11 }}>✦</span>
-              <span style={{ fontFamily: "var(--th-font-mono)", fontSize: 12, fontWeight: 500, color: "var(--th-purple2)", letterSpacing: "0.04em" }}>18+ Years of Excellence</span>
-            </div>
-
-            <h1 style={{ fontFamily: "var(--th-font-display)", fontWeight: 800, lineHeight: 1.01, letterSpacing: "-0.03em", marginBottom: 20, opacity: loaded ? 1 : 0, transform: loaded ? "none" : "translateY(22px)", transition: "all 0.7s cubic-bezier(.4,0,.2,1) 0.2s" }}>
-              <span style={{ display: "block", fontSize: "clamp(48px, 5.8vw, 82px)", color: "var(--th-white)" }}>Crafting</span>
-              <span style={{ display: "block", fontSize: "clamp(48px, 5.8vw, 82px)" }} className="th-gradient-text">Genius</span>
-              <span style={{ display: "block", fontSize: "clamp(48px, 5.8vw, 82px)", color: "var(--th-white)" }}>One Beat</span>
-              <span style={{ display: "block", fontSize: "clamp(48px, 5.8vw, 82px)", color: "var(--th-white)" }}>at a Time.</span>
-            </h1>
-
-            <p style={{ fontSize: 17, lineHeight: 1.72, color: "var(--th-white2)", maxWidth: 440, marginBottom: 32, opacity: loaded ? 1 : 0, transform: loaded ? "none" : "translateY(18px)", transition: "all 0.7s cubic-bezier(.4,0,.2,1) 0.35s" }}>
-              Strong basics, regular practice, and the confidence that shows — in class, in exams, and beyond. We build thinkers, not test-takers.
-            </p>
-
-            <div style={{ display: "flex", gap: 11, flexWrap: "wrap", opacity: loaded ? 1 : 0, transform: loaded ? "none" : "translateY(14px)", transition: "all 0.7s cubic-bezier(.4,0,.2,1) 0.45s" }}>
-              <button className="th-btn-primary" onClick={() => setLocation(isAuthenticated ? "/dashboard" : "/login")} style={{ fontSize: 15, padding: "13px 26px" }}>
-                Start Your Journey <ArrowRight size={15} />
-              </button>
-              <button className="th-btn-secondary" onClick={() => document.getElementById("courses-section")?.scrollIntoView({ behavior: "smooth" })} style={{ fontSize: 15, padding: "13px 26px" }}>
-                Explore Programs
-              </button>
-            </div>
-
-          </div>
-
-          {/* Right visual */}
-          <div className="th-hide-mobile" style={{ position: "relative", opacity: loaded ? 1 : 0, transform: loaded ? "none" : "translateX(28px)", transition: "all 0.9s cubic-bezier(.4,0,.2,1) 0.3s", alignSelf: "flex-start", marginTop: 20 }}>
-            <div style={{ background: "linear-gradient(145deg, var(--th-surface), var(--th-bg3))", border: "1px solid var(--th-border2)", borderRadius: 26, overflow: "hidden", height: 520, position: "relative", boxShadow: "0 48px 100px rgba(0,0,0,0.55), 0 0 60px rgba(124,58,237,0.12)" }}>
-              <AnimatePresence mode="wait">
-                <motion.div key={currentImageIndex} initial={{ opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.9 }} style={{ position: "absolute", inset: 0 }}>
-                  <img
-                    src={`/imagesproject/${shuffledImages[currentImageIndex]}`}
-                    className="w-full h-full object-cover"
-                    alt="Talent Hub Excellence"
-                    loading={currentImageIndex === 0 ? "eager" : "lazy"}
-                    decoding="async"
-                    {...(currentImageIndex === 0 ? { fetchpriority: "high" } : {})}
-                  />
-                </motion.div>
-              </AnimatePresence>
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(7,8,15,0.75) 0%, rgba(7,8,15,0.1) 50%, transparent 100%)" }} />
-            </div>
-
-            <div style={{ position: "absolute", bottom: 22, left: -18, background: "rgba(7,8,15,0.88)", backdropFilter: "blur(16px)", border: "1px solid rgba(245,158,11,0.22)", borderRadius: 13, padding: "11px 14px", animation: "th-float 5s ease-in-out infinite 1.2s", boxShadow: "0 8px 30px rgba(0,0,0,0.4)", zIndex: 2 }}>
-              <div style={{ fontFamily: "var(--th-font-mono)", fontSize: 9, color: "var(--th-gold)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 3 }}>Latest Achievement</div>
-              <div style={{ fontFamily: "var(--th-font-display)", fontSize: 14, fontWeight: 700, color: "white" }}>National Olympiad 🥇</div>
-            </div>
-          </div>
+      {/* ── HERO ──────────────────────────────────── */}
+      <section style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "120px 24px 80px" }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: "15%", left: "50%", transform: "translateX(-50%)", width: 800, height: 800, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.18) 0%, transparent 70%)", filter: "blur(40px)" }} />
+          <div style={{ position: "absolute", top: "30%", left: "20%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(6,182,212,0.10) 0%, transparent 70%)", filter: "blur(60px)" }} />
+          {[
+            { width: 6, height: 6, background: "#7c3aed", top: "25%", left: "18%", opacity: 0.5 },
+            { width: 4, height: 4, background: "#06b6d4", top: "40%", right: "15%", opacity: 0.4 },
+            { width: 8, height: 8, background: "#a78bfa", top: "60%", left: "12%", opacity: 0.3 },
+            { width: 5, height: 5, background: "#f59e0b", top: "20%", right: "25%", opacity: 0.35 },
+            { width: 3, height: 3, background: "#06b6d4", top: "75%", right: "30%", opacity: 0.45 },
+          ].map((p, i) => <Particle key={i} style={p as React.CSSProperties} />)}
         </div>
 
-        <div style={{ position: "absolute", bottom: 28, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, opacity: loaded ? 0.35 : 0, transition: "opacity 1s ease 1.4s" }}>
-          <div style={{ fontFamily: "var(--th-font-mono)", fontSize: 9, letterSpacing: "0.12em", color: "var(--th-muted)", textTransform: "uppercase" }}>Scroll</div>
-          <div style={{ width: 1, height: 36, background: "linear-gradient(to bottom, var(--th-muted), transparent)" }} />
+        <div style={{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 860, margin: "0 auto" }}>
+          <FadeUp><Pill>Next-Gen Math Education Platform</Pill></FadeUp>
+          <FadeUp delay={0.08}>
+            <h1 style={{ fontSize: "clamp(42px, 7vw, 88px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1.0, margin: "0 0 28px" }}>
+              Where Brilliant<br /><GText>Minds Are Built.</GText>
+            </h1>
+          </FadeUp>
+          <FadeUp delay={0.16}>
+            <p style={{ fontSize: "clamp(16px, 2vw, 20px)", color: "rgba(255,255,255,0.5)", lineHeight: 1.72, maxWidth: 560, margin: "0 auto 44px" }}>
+              The all-in-one platform for abacus and mental maths — gamified practice, live attendance, AI worksheets, and real-time analytics for students and institutes.
+            </p>
+          </FadeUp>
+          <FadeUp delay={0.22}>
+            <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
+              <button onClick={handleCTA}
+                style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#fff", padding: "16px 32px", borderRadius: 14, fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer", letterSpacing: "-0.01em", boxShadow: "0 0 40px rgba(124,58,237,0.35)", transition: "transform 0.2s, box-shadow 0.2s" }}
+                onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = "translateY(-2px)"; b.style.boxShadow = "0 8px 50px rgba(124,58,237,0.5)"; }}
+                onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = "translateY(0)"; b.style.boxShadow = "0 0 40px rgba(124,58,237,0.35)"; }}>
+                {isAuthenticated ? "Go to Dashboard" : "Start Free"} <ArrowRight size={16} />
+              </button>
+              <a href="#features"
+                style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.8)", padding: "16px 28px", borderRadius: 14, fontSize: 15, fontWeight: 600, textDecoration: "none", letterSpacing: "-0.01em", transition: "background 0.2s" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.09)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.05)"; }}>
+                <Play size={14} /> See how it works
+              </a>
+            </div>
+          </FadeUp>
+          <FadeUp delay={0.3}>
+            <div style={{ marginTop: 60, display: "flex", alignItems: "center", justifyContent: "center", gap: 24, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "rgba(255,255,255,0.4)" }}>
+                <div style={{ display: "flex" }}>
+                  {["#a78bfa","#7c3aed","#06b6d4","#f59e0b","#a78bfa"].map((c,i) => (
+                    <div key={i} style={{ width:26, height:26, borderRadius:"50%", background:c, border:"2px solid #07070F", marginLeft:i>0?-8:0 }} />
+                  ))}
+                </div>
+                5,000+ students learning
+              </div>
+              <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.1)" }} />
+              <div style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 13.5, color: "rgba(255,255,255,0.4)" }}>
+                {[...Array(5)].map((_,i) => <Star key={i} size={12} fill="#f59e0b" color="#f59e0b" />)}
+                <span style={{ marginLeft: 4 }}>Rated 4.9 by institutes</span>
+              </div>
+            </div>
+          </FadeUp>
         </div>
       </section>
 
-      {/* ── REST OF SECTIONS ─────────────────────────────────────── */}
-      <MarqueeBar />
-      <StatsBar />
+      {/* ── EDUCATION CRISIS STATS ──────────────────────────────── */}
+      <section style={{ padding: "80px 24px", maxWidth: 1200, margin: "0 auto" }}>
+        <FadeUp>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <Pill>The Math Crisis Is Real</Pill>
+            <h2 style={{ fontSize: "clamp(28px, 4vw, 52px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 16 }}>
+              The numbers are<br /><GText gradient="linear-gradient(135deg, #f97316, #ec4899)">alarming.</GText>
+            </h2>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.45)", maxWidth: 480, margin: "0 auto" }}>
+              Government data reveals the true scale of the numeracy gap in India. BlackMonkey exists to close it.
+            </p>
+          </div>
+        </FadeUp>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2, background: "rgba(255,255,255,0.05)", borderRadius: 24, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {crisisStats.map((s, i) => (
+            <FadeUp key={s.label} delay={i * 0.08}>
+              <div style={{ background: "#07070F", padding: "40px 28px" }}>
+                <div style={{ fontSize: 32, marginBottom: 14 }}>{s.icon}</div>
+                <div style={{ fontSize: "clamp(44px, 5vw, 64px)", fontWeight: 900, letterSpacing: "-0.04em", lineHeight: 1, marginBottom: 10, color: s.color, textShadow: `0 0 40px ${s.color}60` }}>
+                  <Counter to={s.value} suffix={s.suffix} />
+                </div>
+                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.55, marginBottom: 10 }}>{s.label}</div>
+                <div style={{ display: "inline-block", fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: "rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, padding: "3px 10px" }}>{s.note}</div>
+              </div>
+            </FadeUp>
+          ))}
+        </div>
+        <FadeUp delay={0.2}>
+          <p style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>
+            Sources: ASER (Annual Status of Education Report) 2024, NCERT Learning Outcomes Survey
+          </p>
+        </FadeUp>
+      </section>
 
-      <div id="courses-section">
-        <Programs />
-      </div>
+      {/* ── FEATURES ─────────────────────────────────────────────── */}
+      <section id="features" style={{ padding: "80px 24px", maxWidth: 1200, margin: "0 auto" }}>
+        <FadeUp>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <Pill>Everything You Need</Pill>
+            <h2 style={{ fontSize: "clamp(28px, 4vw, 52px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 16 }}>
+              One platform.<br /><GText>Infinite practice.</GText>
+            </h2>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.45)", maxWidth: 480, margin: "0 auto" }}>
+              Every tool a student or institute needs to master mental maths — built into a single, seamless experience.
+            </p>
+          </div>
+        </FadeUp>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
+          {features.map((f, i) => (
+            <FadeUp key={f.title} delay={i * 0.07}>
+              <div
+                style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: "32px 28px", height: "100%", transition: "border-color 0.2s, transform 0.2s" }}
+                onMouseEnter={e => { const d = e.currentTarget as HTMLDivElement; d.style.borderColor = "rgba(124,58,237,0.4)"; d.style.transform = "translateY(-3px)"; }}
+                onMouseLeave={e => { const d = e.currentTarget as HTMLDivElement; d.style.borderColor = "rgba(255,255,255,0.07)"; d.style.transform = "translateY(0)"; }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 14, background: f.gradient, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0 }}>{f.icon}</div>
+                  <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, padding: "3px 10px", letterSpacing: "0.06em" }}>{f.tag}</span>
+                </div>
+                <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 10, color: "#e2e8f0", letterSpacing: "-0.02em" }}>{f.title}</h3>
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.72 }}>{f.desc}</p>
+              </div>
+            </FadeUp>
+          ))}
+        </div>
+      </section>
 
-      <WhySection />
-      <Toolkit />
-      <AchievementsSection />
-      <Testimonials />
-      <CTABanner />
+      {/* ── HOW IT WORKS ──────────────────────────────────────────── */}
+      <section style={{ padding: "80px 24px", maxWidth: 1100, margin: "0 auto" }}>
+        <FadeUp>
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
+            <Pill>The BlackMonkey Method</Pill>
+            <h2 style={{ fontSize: "clamp(28px, 4vw, 52px)", fontWeight: 800, letterSpacing: "-0.03em" }}>
+              Built for how kids<br /><GText>actually learn.</GText>
+            </h2>
+          </div>
+        </FadeUp>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 2, background: "rgba(255,255,255,0.04)", borderRadius: 24, overflow: "hidden", border: "1px solid rgba(255,255,255,0.07)" }}>
+          {[
+            { step: "01", title: "Structured Pedagogy", color: "#7c3aed", desc: "Content follows the proven abacus sequence: Direct → Small Friends → Big Friends → Mix. No skipping steps.", icon: <Target size={20} /> },
+            { step: "02", title: "Adaptive Practice", color: "#06b6d4", desc: "Worksheets auto-calibrate to digit count, rows, and operation type. Each session is unique, never repetitive.", icon: <Brain size={20} /> },
+            { step: "03", title: "Instant Feedback", color: "#f59e0b", desc: "Burst and mental modes give per-question feedback. Students immediately know what they got right or wrong.", icon: <Zap size={20} /> },
+            { step: "04", title: "Celebrate Milestones", color: "#10b981", desc: "XP, streaks, and badges celebrate every achievement. Visibility into progress keeps motivation high.", icon: <Trophy size={20} /> },
+          ].map((item, i) => (
+            <FadeUp key={item.step} delay={i * 0.09}>
+              <div style={{ background: "#07070F", padding: "36px 28px", height: "100%" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: `${item.color}20`, border: `1px solid ${item.color}40`, display: "flex", alignItems: "center", justifyContent: "center", color: item.color }}>{item.icon}</div>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: item.color, fontWeight: 700, letterSpacing: "0.08em" }}>STEP {item.step}</span>
+                </div>
+                <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 10, color: "#e2e8f0", letterSpacing: "-0.02em" }}>{item.title}</h3>
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.72 }}>{item.desc}</p>
+              </div>
+            </FadeUp>
+          ))}
+        </div>
+      </section>
+
+      {/* ── GAMIFICATION SPOTLIGHT ────────────────────────────────── */}
+      <section style={{ padding: "80px 24px", maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 48, alignItems: "center" }}>
+          <FadeUp>
+            <Pill>Gamification</Pill>
+            <h2 style={{ fontSize: "clamp(26px, 3.5vw, 48px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 20 }}>Practice feels like<br /><GText>playing a game.</GText></h2>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", lineHeight: 1.72, marginBottom: 32 }}>Streaks, XP points, achievement badges, and a competitive leaderboard turn daily practice from a chore into a highlight of the day.</p>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
+              {[
+                { icon: <Flame size={16} color="#f97316" />, text: "Daily streaks with bonus XP multipliers" },
+                { icon: <TrendingUp size={16} color="#22c55e" />, text: "Level progression: Beginner to Champion" },
+                { icon: <Medal size={16} color="#f59e0b" />, text: "Monthly achievement badges" },
+                { icon: <Trophy size={16} color="#a78bfa" />, text: "Live leaderboard rankings by batch" },
+              ].map((item, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{item.icon}</div>
+                  <span style={{ fontSize: 14, color: "rgba(255,255,255,0.7)" }}>{item.text}</span>
+                </div>
+              ))}
+            </div>
+          </FadeUp>
+          <FadeUp delay={0.12}>
+            <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 24, padding: 28, position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, right: 0, width: 200, height: 200, background: "radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%)", pointerEvents: "none" }} />
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em", marginBottom: 18, textTransform: "uppercase" as const }}>This Week's Top Learners</div>
+              {[
+                { name: "Aryan K.", xp: "2,840 XP", streak: 14, badge: "1st" },
+                { name: "Priya S.", xp: "2,410 XP", streak: 11, badge: "2nd" },
+                { name: "Rohit M.", xp: "2,180 XP", streak: 9, badge: "3rd" },
+                { name: "Ananya T.", xp: "1,950 XP", streak: 7, badge: "4th" },
+                { name: "Dev P.", xp: "1,730 XP", streak: 6, badge: "5th" },
+              ].map((entry, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: i === 0 ? "rgba(245,158,11,0.07)" : "transparent", marginBottom: 4, border: i === 0 ? "1px solid rgba(245,158,11,0.15)" : "1px solid transparent" }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: i === 0 ? "#f59e0b" : "rgba(255,255,255,0.3)", width: 28, textAlign: "center" as const }}>{entry.badge}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "#e2e8f0" }}>{entry.name}</div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 3 }}>
+                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", fontFamily: "'JetBrains Mono', monospace" }}>{entry.xp}</span>
+                      <span style={{ fontSize: 11, color: "#f97316" }}>{entry.streak} day streak</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <button onClick={handleCTA} style={{ marginTop: 16, width: "100%", padding: "12px", background: "rgba(124,58,237,0.15)", border: "1px solid rgba(124,58,237,0.25)", borderRadius: 12, color: "#a78bfa", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                View Full Leaderboard <ChevronRight size={14} />
+              </button>
+            </div>
+          </FadeUp>
+        </div>
+      </section>
+
+      {/* ── FOR INSTITUTES ────────────────────────────────────────── */}
+      <section style={{ padding: "80px 24px", background: "rgba(6,182,212,0.03)", borderTop: "1px solid rgba(6,182,212,0.08)", borderBottom: "1px solid rgba(6,182,212,0.08)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 60, alignItems: "center" }}>
+          <FadeUp>
+            <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(6,182,212,0.15)", borderRadius: 24, padding: 28 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(6,182,212,0.6)", letterSpacing: "0.1em", marginBottom: 18, textTransform: "uppercase" as const }}>Today's Attendance — Batch A</div>
+              {[
+                { name: "Shreya Agarwal", time: "09:02 AM", status: "present" },
+                { name: "Karan Verma", time: "09:05 AM", status: "present" },
+                { name: "Nisha Patel", time: "09:08 AM", status: "present" },
+                { name: "Aakash Singh", time: "—", status: "absent" },
+                { name: "Meera Roy", time: "09:12 AM", status: "present" },
+              ].map((s, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderRadius: 10, background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent", marginBottom: 4 }}>
+                  <span style={{ fontSize: 13.5, color: "#e2e8f0" }}>{s.name}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{s.time}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 100, background: s.status === "present" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: s.status === "present" ? "#4ade80" : "#f87171", border: `1px solid ${s.status === "present" ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}` }}>{s.status}</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop: 18, padding: "12px 14px", background: "rgba(6,182,212,0.05)", borderRadius: 12, border: "1px solid rgba(6,182,212,0.12)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Attendance Rate</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: "#06b6d4" }}>80%</span>
+              </div>
+            </div>
+          </FadeUp>
+          <FadeUp delay={0.12}>
+            <Pill>For Institutes</Pill>
+            <h2 style={{ fontSize: "clamp(26px, 3.5vw, 48px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 20 }}>Run your academy<br /><GText gradient="linear-gradient(135deg, #06b6d4, #7c3aed)">with zero friction.</GText></h2>
+            <p style={{ fontSize: 15.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.72, marginBottom: 28 }}>Everything a modern abacus or math institute needs — from live attendance to student analytics — in one place.</p>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+              {instituteFeatures.map((f, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14, color: "rgba(255,255,255,0.65)" }}>
+                  <div style={{ color: "#06b6d4", flexShrink: 0 }}>{f.icon}</div>
+                  {f.text}
+                </div>
+              ))}
+            </div>
+            <button onClick={handleCTA}
+              style={{ marginTop: 32, display: "inline-flex", alignItems: "center", gap: 10, background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.3)", color: "#06b6d4", padding: "14px 26px", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "background 0.2s" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(6,182,212,0.2)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(6,182,212,0.12)"; }}>
+              Get Institute Access <ArrowRight size={15} />
+            </button>
+          </FadeUp>
+        </div>
+      </section>
+
+      {/* ── METRICS ───────────────────────────────────────────────── */}
+      <section style={{ padding: "80px 24px", maxWidth: 1000, margin: "0 auto", textAlign: "center" }}>
+        <FadeUp>
+          <h2 style={{ fontSize: "clamp(26px, 3.5vw, 48px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 52 }}>
+            Numbers that<br /><GText>speak for themselves.</GText>
+          </h2>
+        </FadeUp>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 2, background: "rgba(255,255,255,0.04)", borderRadius: 24, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {[
+            { value: 5000, suffix: "+", label: "Active Students", color: "#7c3aed" },
+            { value: 98, suffix: "%", label: "Accuracy Rate", color: "#06b6d4" },
+            { value: 2000000, suffix: "+", label: "Problems Solved", color: "#f59e0b" },
+            { value: 40, suffix: "%", label: "Avg. Speed Gain", color: "#22c55e" },
+          ].map((m, i) => (
+            <FadeUp key={m.label} delay={i * 0.1}>
+              <div style={{ background: "#07070F", padding: "40px 20px" }}>
+                <div style={{ fontSize: "clamp(32px, 4vw, 54px)", fontWeight: 900, letterSpacing: "-0.04em", color: m.color, textShadow: `0 0 30px ${m.color}50`, marginBottom: 8 }}>
+                  <Counter to={m.value} suffix={m.suffix} />
+                </div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em", textTransform: "uppercase" as const }}>{m.label}</div>
+              </div>
+            </FadeUp>
+          ))}
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ──────────────────────────────────────────── */}
+      <section style={{ padding: "80px 24px", maxWidth: 1200, margin: "0 auto" }}>
+        <FadeUp>
+          <div style={{ textAlign: "center", marginBottom: 52 }}>
+            <Pill>Stories</Pill>
+            <h2 style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 800, letterSpacing: "-0.03em" }}>
+              Heard from those<br /><GText>who use it daily.</GText>
+            </h2>
+          </div>
+        </FadeUp>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
+          {testimonials.map((t, i) => (
+            <FadeUp key={t.name} delay={i * 0.09}>
+              <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: "32px 28px", height: "100%", display: "flex", flexDirection: "column" as const }}>
+                <div style={{ display: "flex", marginBottom: 16 }}>
+                  {[...Array(5)].map((_,j) => <Star key={j} size={14} fill="#f59e0b" color="#f59e0b" />)}
+                </div>
+                <p style={{ fontSize: 15, color: "rgba(255,255,255,0.6)", lineHeight: 1.72, flex: 1, marginBottom: 24, fontStyle: "italic" }}>"{t.quote}"</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg, #7c3aed, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{t.avatar}</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#e2e8f0" }}>{t.name}</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{t.role}</div>
+                  </div>
+                </div>
+              </div>
+            </FadeUp>
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA BANNER ────────────────────────────────────────────── */}
+      <section style={{ padding: "80px 24px 120px" }}>
+        <FadeUp>
+          <div style={{ maxWidth: 800, margin: "0 auto", textAlign: "center", position: "relative" }}>
+            <div style={{ position: "absolute", inset: -60, background: "radial-gradient(ellipse at center, rgba(124,58,237,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
+            <div style={{ position: "relative", background: "rgba(124,58,237,0.06)", border: "1px solid rgba(124,58,237,0.18)", borderRadius: 28, padding: "64px 48px" }}>
+              <div style={{ fontSize: 48, marginBottom: 20 }}>🐒</div>
+              <h2 style={{ fontSize: "clamp(28px, 4vw, 52px)", fontWeight: 900, letterSpacing: "-0.03em", marginBottom: 16 }}>
+                Ready to build a<br /><GText>brilliant mind?</GText>
+              </h2>
+              <p style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", lineHeight: 1.72, maxWidth: 480, margin: "0 auto 40px" }}>
+                Join thousands of students and institutes already on BlackMonkey. Free to start, powerful to scale.
+              </p>
+              <button onClick={handleCTA} style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#fff", padding: "17px 36px", borderRadius: 14, fontSize: 16, fontWeight: 700, border: "none", cursor: "pointer", letterSpacing: "-0.01em", boxShadow: "0 0 50px rgba(124,58,237,0.4)" }}>
+                {isAuthenticated ? "Go to Dashboard" : "Get Started Free"} <ArrowRight size={16} />
+              </button>
+              <p style={{ marginTop: 18, fontSize: 12.5, color: "rgba(255,255,255,0.25)" }}>No credit card required · Works on all devices</p>
+            </div>
+          </div>
+        </FadeUp>
+      </section>
+
     </div>
   );
 }

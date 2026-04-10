@@ -26,6 +26,7 @@ const PaperCreate = lazy(() => import("./pages/PaperCreate"));
 const PaperAttempt = lazy(() => import("./pages/PaperAttempt"));
 const Mental = lazy(() => import("./pages/Mental"));
 const BurstMode = lazy(() => import("./pages/BurstMode"));
+const SharedPaperView = lazy(() => import("./pages/SharedPaperView"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const StudentDashboard = lazy(() => import("./pages/StudentDashboard"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
@@ -34,10 +35,6 @@ const AdminStudentIDManagement = lazy(() => import("./pages/AdminStudentIDManage
 const AdminAttendance = lazy(() => import("./pages/AdminAttendance"));
 const AdminStudentManagement = lazy(() => import("./pages/AdminStudentManagement"));
 const StudentAttendance = lazy(() => import("./pages/StudentAttendance"));
-const AbacusCourse = lazy(() => import("./pages/AbacusCourse"));
-const VedicMathsCourse = lazy(() => import("./pages/VedicMathsCourse"));
-const HandwritingCourse = lazy(() => import("./pages/HandwritingCourse"));
-const STEMCourse = lazy(() => import("./pages/STEMCourse"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const AboutUs = lazy(() => import("./pages/AboutUs"));
@@ -141,14 +138,46 @@ function AppContent() {
             <Switch>
               <Route path="/login" component={Login} />
               <Route path="/" component={Home} />
-              <Route path="/create/junior" component={PaperCreate} />
-              <Route path="/create/basic" component={PaperCreate} />
-              <Route path="/create/advanced" component={PaperCreate} />
-              <Route path="/create" component={PaperCreate} />
-              <Route path="/vedic-maths/level-1" component={PaperCreate} />
-              <Route path="/vedic-maths/level-2" component={PaperCreate} />
-              <Route path="/vedic-maths/level-3" component={PaperCreate} />
-              <Route path="/vedic-maths/level-4" component={PaperCreate} />
+              <Route path="/create/junior">
+                <ProtectedRoute>
+                  <PaperCreate />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/create/basic">
+                <ProtectedRoute>
+                  <PaperCreate />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/create/advanced">
+                <ProtectedRoute>
+                  <PaperCreate />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/create">
+                <ProtectedRoute>
+                  <PaperCreate />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/vedic-maths/level-1">
+                <ProtectedRoute>
+                  <PaperCreate />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/vedic-maths/level-2">
+                <ProtectedRoute>
+                  <PaperCreate />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/vedic-maths/level-3">
+                <ProtectedRoute>
+                  <PaperCreate />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/vedic-maths/level-4">
+                <ProtectedRoute>
+                  <PaperCreate />
+                </ProtectedRoute>
+              </Route>
               <Route path="/mental">
                 <ProtectedRoute>
                   <Mental />
@@ -207,10 +236,6 @@ function AppContent() {
                 </ProtectedRoute>
               </Route>
               <Route path="/leaderboard" component={LeaderboardComingSoon} />
-              <Route path="/courses/abacus" component={AbacusCourse} />
-              <Route path="/courses/vedic-maths" component={VedicMathsCourse} />
-              <Route path="/courses/handwriting" component={HandwritingCourse} />
-              <Route path="/courses/stem" component={STEMCourse} />
               <Route path="/privacy-policy" component={PrivacyPolicy} />
               <Route path="/account-deletion" component={AccountDeletion} />
               <Route path="/terms-of-service" component={TermsOfService} />
@@ -229,6 +254,7 @@ function AppContent() {
                   <AdminRewards />
                 </AdminRoute>
               </Route>
+              <Route path="/paper/shared/:code" component={SharedPaperView} />
               <Route component={NotFound} />
             </Switch>
             </Suspense>

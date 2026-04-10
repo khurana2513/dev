@@ -8,6 +8,15 @@ import { GoogleAuth } from "@codetrix-studio/capacitor-google-auth";
 // Permanently dark mode — apply before render to avoid any flash
 document.documentElement.classList.add("dark");
 
+// Unregister any previously installed service workers in development.
+// An active SW can intercept API requests and serve stale cached responses,
+// causing dashboard/rewards/profile to appear stuck in loading state.
+if (import.meta.env.DEV && "serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    registrations.forEach((r) => r.unregister());
+  });
+}
+
 // Initialize Google Auth as early as possible.
 // On native (Android/iOS) the plugin reads serverClientId from capacitor.config.json.
 // On web it needs the explicit clientId to render the GSI button.

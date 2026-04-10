@@ -8,7 +8,7 @@ from datetime import datetime
 QuestionType = Literal[
     "addition", "subtraction", "add_sub", "multiplication", "division", "square_root", "cube_root", 
     "decimal_multiplication", "lcm", "gcd", "integer_add_sub", "decimal_division", "decimal_add_sub", 
-    "direct_add_sub", "small_friends_add_sub", "big_friends_add_sub", "percentage",
+    "direct_add_sub", "small_friends_add_sub", "big_friends_add_sub", "mix_friends_add_sub", "percentage",
     # Vedic Maths Level 1 operations
     "vedic_multiply_by_11", "vedic_multiply_by_101", "vedic_subtraction_complement", "vedic_subtraction_normal",
     "vedic_multiply_by_12_19", "vedic_special_products_base_100", "vedic_special_products_base_50",

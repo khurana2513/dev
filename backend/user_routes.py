@@ -1,7 +1,7 @@
 """API routes for user authentication, progress tracking, and dashboards."""
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Response, status, Query, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from sqlalchemy import func, desc
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
@@ -140,7 +140,8 @@ async def login(
                 email=user_info["email"],
                 name=user_info["name"],
                 avatar_url=user_info.get("avatar_url"),
-                role=role
+                role=role,
+                system_role="platform_admin" if is_admin_email else "user",
             )
             db.add(user)
             db.commit()
@@ -168,11 +169,12 @@ async def login(
                 print(f"🔄 [AUTH] Promoting user {user.email} to admin (found in ADMIN_EMAILS)")
                 user.role = "admin"
             elif not is_admin_email and user.role == "admin":
-                # Only demote if explicitly not in admin list (optional - comment out if you want to keep existing admins)
-                # Uncomment the next line if you want to automatically demote admins removed from ADMIN_EMAILS
-                # print(f"🔄 [AUTH] Demoting user {user.email} from admin (not in ADMIN_EMAILS)")
-                # user.role = "student"
                 pass
+            # Sync system_role
+            if is_admin_email and getattr(user, 'system_role', None) != "platform_admin":
+                user.system_role = "platform_admin"
+            elif not is_admin_email and getattr(user, 'system_role', None) != "user":
+                user.system_role = "user"
             
             db.commit()
         
@@ -637,7 +639,7 @@ async def save_practice_session(
 
 
 @router.get("/stats", response_model=StudentStats)
-async def get_student_stats(
+def get_student_stats(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -704,7 +706,17 @@ async def get_student_stats(
     ).order_by(desc(PracticeSession.started_at)).limit(10).all()
 
     # Get recent paper attempts (only latest 10 - fetched directly from DB with limit)
-    recent_paper_attempts = db.query(PaperAttempt).filter(
+    # load_only: skip TOAST-stored JSON columns (generated_blocks/paper_config/answers)
+    # that are not needed for PaperAttemptResponse, cutting query time from ~35s to <0.5s
+    recent_paper_attempts = db.query(PaperAttempt).options(
+        load_only(
+            PaperAttempt.id, PaperAttempt.paper_title, PaperAttempt.paper_level,
+            PaperAttempt.total_questions, PaperAttempt.correct_answers,
+            PaperAttempt.wrong_answers, PaperAttempt.accuracy, PaperAttempt.score,
+            PaperAttempt.time_taken, PaperAttempt.points_earned,
+            PaperAttempt.started_at, PaperAttempt.completed_at, PaperAttempt.seed,
+        )
+    ).filter(
         PaperAttempt.user_id == current_user.id
     ).order_by(desc(PaperAttempt.started_at)).limit(10).all()
     
@@ -745,7 +757,7 @@ async def get_student_stats(
 
 
 @router.get("/dashboard-data", response_model=StudentDashboardData)
-async def get_student_dashboard_data(
+def get_student_dashboard_data(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -802,7 +814,16 @@ async def get_student_dashboard_data(
         PracticeSession.user_id == current_user.id
     ).order_by(desc(PracticeSession.started_at)).limit(10).all()
 
-    recent_paper_attempts = db.query(PaperAttempt).filter(
+    # load_only: skip TOAST JSON columns not needed by PaperAttemptResponse
+    recent_paper_attempts = db.query(PaperAttempt).options(
+        load_only(
+            PaperAttempt.id, PaperAttempt.paper_title, PaperAttempt.paper_level,
+            PaperAttempt.total_questions, PaperAttempt.correct_answers,
+            PaperAttempt.wrong_answers, PaperAttempt.accuracy, PaperAttempt.score,
+            PaperAttempt.time_taken, PaperAttempt.points_earned,
+            PaperAttempt.started_at, PaperAttempt.completed_at, PaperAttempt.seed,
+        )
+    ).filter(
         PaperAttempt.user_id == current_user.id
     ).order_by(desc(PaperAttempt.started_at)).limit(10).all()
     
@@ -854,7 +875,17 @@ async def get_student_dashboard_data(
     profile_response = StudentProfileResponse.model_validate(profile)
 
     # ── 4. All paper attempts (for session history) ────────────────────────────
-    all_paper_attempts = db.query(PaperAttempt).filter(
+    # load_only: skip TOAST JSON columns (generated_blocks ~15kB each) not in PaperAttemptResponse
+    # Without this: 38 rows × 3 TOAST cols × ~300ms RTT = ~35s. With this: <0.5s.
+    all_paper_attempts = db.query(PaperAttempt).options(
+        load_only(
+            PaperAttempt.id, PaperAttempt.paper_title, PaperAttempt.paper_level,
+            PaperAttempt.total_questions, PaperAttempt.correct_answers,
+            PaperAttempt.wrong_answers, PaperAttempt.accuracy, PaperAttempt.score,
+            PaperAttempt.time_taken, PaperAttempt.points_earned,
+            PaperAttempt.started_at, PaperAttempt.completed_at, PaperAttempt.seed,
+        )
+    ).filter(
         PaperAttempt.user_id == current_user.id
     ).order_by(desc(PaperAttempt.started_at)).all()
     
@@ -1242,7 +1273,7 @@ async def update_student_info_admin(
 
 
 @router.get("/admin/students/{student_id}/stats", response_model=StudentStats)
-async def get_student_stats_admin(
+def get_student_stats_admin(
     student_id: int,
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
@@ -1301,7 +1332,16 @@ async def get_student_stats_admin(
     ).order_by(desc(PracticeSession.started_at)).limit(10).all()
     
     # Get recent paper attempts (practice paper sessions)
-    recent_paper_attempts = db.query(PaperAttempt).filter(
+    # load_only: skip TOAST JSON columns not needed by PaperAttemptResponse
+    recent_paper_attempts = db.query(PaperAttempt).options(
+        load_only(
+            PaperAttempt.id, PaperAttempt.paper_title, PaperAttempt.paper_level,
+            PaperAttempt.total_questions, PaperAttempt.correct_answers,
+            PaperAttempt.wrong_answers, PaperAttempt.accuracy, PaperAttempt.score,
+            PaperAttempt.time_taken, PaperAttempt.points_earned,
+            PaperAttempt.started_at, PaperAttempt.completed_at, PaperAttempt.seed,
+        )
+    ).filter(
         PaperAttempt.user_id == student.id
     ).order_by(desc(PaperAttempt.started_at)).limit(10).all()
     
@@ -2657,7 +2697,7 @@ async def get_weekly_leaderboard_endpoint(
 # ─── Certificate Routes ─────────────────────────────────────────────────────
 
 @router.get("/my-certificates", response_model=List[CertificateResponse])
-async def get_my_certificates(
+def get_my_certificates(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):

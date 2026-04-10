@@ -396,7 +396,7 @@ function PaymentModal({ plan, onClose, onSuccess }: PaymentModalProps) {
           amount: initData.amount,
           currency: initData.currency,
           order_id: initData.gateway_order_id,
-          name: "Talent Hub Excellence Lab",
+          name: "BlackMonkey Excellence Lab",
           description: initData.plan_name,
           prefill: { name: initData.user_name, email: initData.user_email },
           theme: { color: "#4F46E5" },

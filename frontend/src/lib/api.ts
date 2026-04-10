@@ -42,7 +42,7 @@ export interface Constraints {
 export type QuestionType = 
   | "addition" | "subtraction" | "add_sub" | "multiplication" | "division" | "square_root" | "cube_root" 
   | "decimal_multiplication" | "lcm" | "gcd" | "integer_add_sub" | "decimal_division" | "decimal_add_sub" 
-  | "direct_add_sub" | "small_friends_add_sub" | "big_friends_add_sub" | "percentage"
+  | "direct_add_sub" | "small_friends_add_sub" | "big_friends_add_sub" | "mix_friends_add_sub" | "percentage"
   | "vedic_multiply_by_11" | "vedic_multiply_by_101" | "vedic_subtraction_complement" | "vedic_subtraction_normal"
   | "vedic_multiply_by_12_19" | "vedic_special_products_base_100" | "vedic_special_products_base_50"
   | "vedic_multiply_by_21_91" | "vedic_addition" | "vedic_multiply_by_2" | "vedic_multiply_by_4"
@@ -271,4 +271,80 @@ export async function getPaperAttemptCount(seed: number, paperTitle: string): Pr
     paper_title: paperTitle,
   });
   return apiClient.get<PaperAttemptCount>(`/papers/attempt/count?${searchParams.toString()}`);
+}
+
+// ── User Paper Templates ──────────────────────────────────────────────────────
+
+export interface UserPaperTemplate {
+  id: number;
+  name: string;
+  level: string | null;
+  blocks: BlockConfig[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserPaperTemplateCreate {
+  name: string;
+  level?: string | null;
+  blocks: BlockConfig[];
+}
+
+export interface UserPaperTemplateUpdate {
+  name?: string;
+  level?: string | null;
+  blocks?: BlockConfig[];
+}
+
+export async function getUserPaperTemplates(): Promise<UserPaperTemplate[]> {
+  return apiClient.get<UserPaperTemplate[]>("/paper-templates");
+}
+
+export async function createUserPaperTemplate(data: UserPaperTemplateCreate): Promise<UserPaperTemplate> {
+  return apiClient.post<UserPaperTemplate>("/paper-templates", data);
+}
+
+export async function updateUserPaperTemplate(id: number, data: UserPaperTemplateUpdate): Promise<UserPaperTemplate> {
+  return apiClient.put<UserPaperTemplate>(`/paper-templates/${id}`, data);
+}
+
+export async function deleteUserPaperTemplate(id: number): Promise<void> {
+  return apiClient.delete<void>(`/paper-templates/${id}`);
+}
+
+// ── Shared Papers ───────────────────────────────────────────────────────────
+
+export interface SharedPaper {
+  code: string;
+  paper_title: string;
+  paper_level: string;
+  paper_config: PaperConfig;
+  generated_blocks: GeneratedBlock[];
+  seed: number;
+  total_questions: number;
+  created_by_name: string | null;
+  created_at: string;
+  expires_at: string;
+  view_count: number;
+  attempt_count: number;
+}
+
+export interface SharePaperRequest {
+  paper_title: string;
+  paper_level: string;
+  paper_config: PaperConfig;
+  generated_blocks: GeneratedBlock[];
+  seed: number;
+}
+
+export async function sharePaper(data: SharePaperRequest): Promise<SharedPaper> {
+  return apiClient.post<SharedPaper>("/papers/share", data);
+}
+
+export async function getSharedPaper(code: string): Promise<SharedPaper> {
+  return apiClient.get<SharedPaper>(`/papers/shared/${encodeURIComponent(code)}`, { requireAuth: false });
+}
+
+export async function markSharedPaperAttemptStarted(code: string): Promise<void> {
+  return apiClient.post<void>(`/papers/shared/${encodeURIComponent(code)}/attempt-started`);
 }

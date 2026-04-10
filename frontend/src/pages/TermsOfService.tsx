@@ -45,11 +45,11 @@ export default function TermsOfService() {
         {[
           {
             title: "Acceptance of Terms",
-            body: "By accessing and using Talent Hub's services, you accept and agree to be bound by the terms and provisions of this agreement. If you do not agree to these terms, please do not use our services.",
+            body: "By accessing and using BlackMonkey's services, you accept and agree to be bound by the terms and provisions of this agreement. If you do not agree to these terms, please do not use our services.",
           },
           {
             title: "Description of Services",
-            body: "Talent Hub provides educational programs including Abacus training, Vedic Mathematics, Handwriting improvement, and STEM education for children. Our services are delivered through in-person classes, online sessions, and our digital platform.",
+            body: "BlackMonkey provides a digital math education platform including Abacus training and Mental Maths practice for students and institutes. Our services are delivered through our digital platform, practice tools, and gamification systems.",
           },
           {
             title: "Enrollment and Fees",
@@ -61,15 +61,15 @@ export default function TermsOfService() {
           },
           {
             title: "Intellectual Property",
-            body: "All course materials, worksheets, digital content, and proprietary teaching methodologies are the intellectual property of Talent Hub. Students and parents may not reproduce, distribute, or share these materials without prior written consent.",
+            body: "All course materials, worksheets, digital content, and proprietary teaching methodologies are the intellectual property of BlackMonkey. Students and institutes may not reproduce, distribute, or share these materials without prior written consent.",
           },
           {
             title: "Code of Conduct",
-            body: "Students are expected to behave respectfully toward instructors and fellow students. Talent Hub reserves the right to discontinue services to any student who disrupts the learning environment.",
+            body: "Students are expected to behave respectfully within the platform. BlackMonkey reserves the right to suspend or discontinue services to any user who violates these terms or community standards.",
           },
           {
             title: "Limitation of Liability",
-            body: "Talent Hub's liability is limited to the fees paid for the specific service in question. We are not liable for indirect, incidental, or consequential damages arising from the use of our services.",
+            body: "BlackMonkey's liability is limited to the fees paid for the specific service in question. We are not liable for indirect, incidental, or consequential damages arising from the use of our services.",
           },
           {
             title: "Cancellation and Refunds",
@@ -77,11 +77,11 @@ export default function TermsOfService() {
           },
           {
             title: "Modifications to Terms",
-            body: "Talent Hub reserves the right to modify these terms at any time. Continued use of our services following notification of changes constitutes acceptance of the updated terms.",
+            body: "BlackMonkey reserves the right to modify these terms at any time. Continued use of our services following notification of changes constitutes acceptance of the updated terms.",
           },
           {
             title: "Contact",
-            body: "For questions about these Terms of Service, please contact us at: Talent Hub, New Delhi. Phone: +91 92661 17055.",
+            body: "For questions about these Terms of Service, please contact us at: BlackMonkey. Email: support@blackmonkey.in.",
           },
         ].map(({ title, body }) => (
           <div key={title} style={{ marginBottom: 40 }}>
@@ -95,8 +95,8 @@ export default function TermsOfService() {
         {/* Footer note */}
         <div style={{ marginTop: 64, padding: "24px", background: S.surface, borderRadius: 16, border: `1px solid ${S.border}` }}>
           <p style={{ fontSize: 13.5, color: S.muted, lineHeight: 1.7, margin: 0 }}>
-            These terms govern your use of Talent Hub services. For questions, reach us at{" "}
-            <a href="tel:+919266117055" style={{ color: S.purple, textDecoration: "none" }}>+91 92661 17055</a>.
+            These terms govern your use of BlackMonkey services. For questions, reach us at{" "}
+            <a href="mailto:support@blackmonkey.in" style={{ color: S.purple, textDecoration: "none" }}>support@blackmonkey.in</a>.
           </p>
         </div>
       </div>
