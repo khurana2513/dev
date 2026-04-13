@@ -227,6 +227,49 @@ function compareAnswers(user: number, correct: number): boolean {
   return Math.abs(user - correct) < 0.01;
 }
 
+function roomScoresToLiveScores(room: DuelRoomState): Record<number, LiveScore> {
+  const next: Record<number, LiveScore> = {};
+  Object.entries(room.scores ?? {}).forEach(([userId, score]) => {
+    next[Number(userId)] = {
+      correct: score?.correct ?? 0,
+      wrong: score?.wrong ?? 0,
+    };
+  });
+  return next;
+}
+
+function roomFinishedIds(room: DuelRoomState): Set<number> {
+  const finished = new Set<number>();
+  room.players.forEach((player) => {
+    if (player.is_finished) finished.add(player.id);
+  });
+  Object.entries(room.scores ?? {}).forEach(([userId, score]) => {
+    if (score?.finished) finished.add(Number(userId));
+  });
+  return finished;
+}
+
+function buildRankingsFromRoom(room: DuelRoomState): DuelRanking[] {
+  const rankings = room.players.map((player) => {
+    const score = room.scores[player.id] ?? room.scores[String(player.id) as unknown as number];
+    return {
+      userId: player.id,
+      name: player.name,
+      rank: 0,
+      correct: score?.correct ?? 0,
+      wrong: score?.wrong ?? 0,
+      points: score?.points ?? 0,
+      finished: score?.finished ?? player.is_finished,
+    };
+  });
+
+  rankings.sort((a, b) => (-a.correct) || (a.wrong - b.wrong) || a.name.localeCompare(b.name));
+  rankings.forEach((entry, index) => {
+    entry.rank = index + 1;
+  });
+  return rankings;
+}
+
 // ── Avatar color helper ───────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
@@ -385,6 +428,8 @@ export default function DuelMode() {
       case "ROOM_STATE": {
         const r = msg.payload;
         setRoom(r);
+        setLiveScores(roomScoresToLiveScores(r));
+        setFinishedIds(roomFinishedIds(r));
         if (r.state === "playing" && r.start_ts && r.seed) {
           // Reconnected mid-game: resume
           const elapsed = Date.now() - r.start_ts * 1000;
@@ -392,8 +437,11 @@ export default function DuelMode() {
           startGame(r.config, r.seed, r.start_ts * 1000, remaining);
         } else if (r.state === "lobby" || r.state === "countdown") {
           setPhase("lobby");
+        } else if (r.state === "finishing") {
+          setPhase(prev => prev === "results" ? prev : "waiting");
         } else if (r.state === "results") {
-          // Already finished when we (re)connected
+          // Already finished when we (re)connected or we missed ALL_FINISHED.
+          setFinalRankings(buildRankingsFromRoom(r));
           setPhase("results");
         }
         break;
@@ -440,6 +488,10 @@ export default function DuelMode() {
       }
       case "PLAYER_FINISHED": {
         setFinishedIds(prev => new Set([...prev, msg.payload.userId]));
+        setRoom(prev => prev ? {
+          ...prev,
+          players: prev.players.map(player => player.id === msg.payload.userId ? { ...player, is_finished: true } : player),
+        } : prev);
         break;
       }
       case "ALL_FINISHED": {

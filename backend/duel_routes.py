@@ -217,8 +217,14 @@ async def duel_websocket(
                         "payload": {"userId": user_id},
                     })
 
-                    # If every *connected* player has finished → emit ALL_FINISHED
                     refreshed = await duel_manager.get_room(code)
+                    if refreshed:
+                        await duel_manager.broadcast(code, {
+                            "type":    "ROOM_STATE",
+                            "payload": refreshed,
+                        })
+
+                    # If every *connected* player has finished → emit ALL_FINISHED
                     if refreshed:
                         connected = set(duel_manager.get_connected_ids(code))
                         all_done  = all(
@@ -229,6 +235,12 @@ async def duel_websocket(
                         if all_done and connected:
                             rankings = _build_rankings(refreshed)
                             await duel_manager.update_state(code, "results")
+                            final_room = await duel_manager.get_room(code)
+                            if final_room:
+                                await duel_manager.broadcast(code, {
+                                    "type":    "ROOM_STATE",
+                                    "payload": final_room,
+                                })
                             await duel_manager.broadcast(code, {
                                 "type":    "ALL_FINISHED",
                                 "payload": {"rankings": rankings},

@@ -82,7 +82,12 @@ class DuelManager:
             "config": json.loads(json.dumps(room["config"])),
             "start_ts": room["start_ts"],
             "players": json.loads(json.dumps(room["players"])),
-            "scores": json.loads(json.dumps(room["scores"])),
+            # Preserve integer user_id keys for server-side ranking logic.
+            # A JSON round-trip would coerce them to strings and break score lookups.
+            "scores": {
+                int(uid): json.loads(json.dumps(score))
+                for uid, score in room["scores"].items()
+            },
         }
 
     def _get_local_room(self, code: str) -> Optional[Dict[str, Any]]:
