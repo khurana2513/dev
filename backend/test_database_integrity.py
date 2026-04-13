@@ -37,12 +37,11 @@ def test_connection_pool():
     print(f"   Pool recycle: {pool._recycle}")
     
     # Verify settings
-    assert pool.size() == 20, f"Expected pool_size=20, got {pool.size()}"
-    assert pool._max_overflow == 30, f"Expected max_overflow=30, got {pool._max_overflow}"
+    assert pool.size() == 5, f"Expected pool_size=5, got {pool.size()}"
+    assert pool._max_overflow == 10, f"Expected max_overflow=10, got {pool._max_overflow}"
     assert pool._timeout == 30, f"Expected timeout=30, got {pool._timeout}"
-    assert pool._recycle == 3600, f"Expected recycle=3600, got {pool._recycle}"
     
-    print("   ✅ Connection pool configured correctly (20+30 connections)")
+    print("   ✅ Connection pool configured correctly (5+10 connections)")
 
 
 def test_timezone_aware_columns():

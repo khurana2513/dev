@@ -84,6 +84,47 @@ def generate_seeded_rng(seed: int, question_id: int) -> Callable[[], float]:
     return rng
 
 
+def generate_intl_add_sub_question(
+    question_id: int,
+    constraints: Constraints,
+    random_func: Callable[[], float],
+) -> Question:
+    """Generate Intl Add/Sub questions with mixed digit widths and non-negative running totals."""
+    preset = constraints.intlAddSubPreset or "1_2"
+    digit_ranges = (1, 2) if preset == "1_2" else (2, 3)
+    rows = max(3, min(30, constraints.rows or 3))
+
+    def generate_operand() -> int:
+        digit_count = digit_ranges[0] if random_func() < 0.5 else digit_ranges[1]
+        return generate_number(digit_count, random_func)
+
+    operands = [generate_operand()]
+    operators_list: List[str] = []
+    running_total = operands[0]
+
+    for _ in range(rows - 1):
+        operand = generate_operand()
+        can_subtract = running_total >= operand
+        use_addition = not can_subtract or random_func() < 0.5
+        operators_list.append("+" if use_addition else "-")
+        operands.append(operand)
+        running_total = running_total + operand if use_addition else running_total - operand
+
+    text_lines = [str(operands[0])]
+    for idx, op in enumerate(operators_list, start=1):
+        text_lines.append(f"{op} {operands[idx]}")
+
+    return Question(
+        id=question_id,
+        text="\n".join(text_lines),
+        operands=operands,
+        operator="±",
+        operators=operators_list,
+        answer=float(running_total),
+        isVertical=True,
+    )
+
+
 def generate_question(
     question_id: int,
     question_type: QuestionType,
@@ -110,8 +151,10 @@ def generate_question(
         if seed is not None:
             rng = generate_seeded_rng(seed, question_id)
             generate_num_fallback = lambda d: generate_number(d, rng)
+            fallback_random_func = rng
         else:
             generate_num_fallback = lambda d: generate_number(d)
+            fallback_random_func = random.random
         
         if question_type == "multiplication":
             # Simple multiplication fallback - respect digit constraints
@@ -998,6 +1041,8 @@ def generate_question(
                 answer=answer,
                 isVertical=True
             )
+        elif question_type == "intl_add_sub":
+            return generate_intl_add_sub_question(question_id, constraints, fallback_random_func)
         elif question_type in ("direct_add_sub", "small_friends_add_sub", "big_friends_add_sub"):
             # Junior operations fallback - simple addition
             digits = constraints.digits or 1
@@ -1822,6 +1867,9 @@ def generate_question(
         
         # Debug: Print text to verify it's being set correctly
         # print(f"DEBUG decimal_add_sub text: {repr(text)}")
+
+    elif question_type == "intl_add_sub":
+        return generate_intl_add_sub_question(question_id, constraints, random_func)
     
     elif question_type == "decimal_division":
         operator = "÷"
@@ -4185,7 +4233,7 @@ def generate_question(
     # Check answer bounds (skip for operations that have decimal answers or special handling)
     skip_answer_bounds = (
         "decimal_multiplication", "square_root", "cube_root", "lcm", "gcd", "integer_add_sub", 
-        "decimal_division", "decimal_add_sub", "direct_add_sub", "small_friends_add_sub", 
+        "decimal_division", "decimal_add_sub", "intl_add_sub", "direct_add_sub", "small_friends_add_sub", 
         "big_friends_add_sub", "mix_friends_add_sub", "percentage",
         "vedic_divide_by_2", "vedic_divide_by_4", "vedic_divide_single_digit", "vedic_divide_by_11",
         "vedic_divide_by_5_25_125", "vedic_divide_by_5_50_500", "vedic_divide_with_remainder",
@@ -4588,7 +4636,7 @@ def generate_block(block_config: BlockConfig, start_id: int, seed: Optional[int]
                                         answer=answer,
                                         isVertical=False
                                     ))
-                                elif block_config.type in ("decimal_multiplication", "decimal_division", "decimal_add_sub", "integer_add_sub", "direct_add_sub", "small_friends_add_sub", "big_friends_add_sub"):
+                                elif block_config.type in ("decimal_multiplication", "decimal_division", "decimal_add_sub", "integer_add_sub", "intl_add_sub", "direct_add_sub", "small_friends_add_sub", "big_friends_add_sub"):
                                     # For other types, use generate_question fallback
                                     try:
                                         question = generate_question(

@@ -435,6 +435,30 @@ async def mark_attendance(
         AttendanceRecord.student_profile_id == attendance_data.student_profile_id
     ).first()
     session_obj = db.query(ClassSession).filter(ClassSession.id == attendance_data.session_id).first()
+    if not session_obj:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # ── Daily limit: max 3 attendance marks per student per calendar day ──────
+    # Only check when CREATING a new record (updates are always allowed).
+    MAX_DAILY = 3
+    if not existing and attendance_data.status is not None:
+        raw_date = session_obj.session_date
+        session_date_only = raw_date.date() if hasattr(raw_date, "date") else raw_date
+        today_count = (
+            db.query(func.count(AttendanceRecord.id))
+            .join(ClassSession, AttendanceRecord.session_id == ClassSession.id)
+            .filter(
+                AttendanceRecord.student_profile_id == attendance_data.student_profile_id,
+                func.date(ClassSession.session_date) == session_date_only,
+            )
+            .scalar()
+        ) or 0
+        if today_count >= MAX_DAILY:
+            raise HTTPException(
+                status_code=409,
+                detail=f"MAX_DAILY_LIMIT: Student already has {today_count} attendance mark(s) for this day (max {MAX_DAILY}).",
+            )
+    # ─────────────────────────────────────────────────────────────────────────
 
     if existing:
         existing.status = attendance_data.status
@@ -486,10 +510,38 @@ async def mark_bulk_attendance(
     }
 
     session_obj = db.query(ClassSession).filter(ClassSession.id == bulk_data.session_id).first()
+    if not session_obj:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # ── Daily limit: max 3 attendance marks per student per calendar day ──────
+    # Build a map of how many records each student already has today in OTHER
+    # sessions (the current session's records are in existing_map and do not
+    # represent new marks — they are updates, which are always allowed).
+    MAX_DAILY = 3
+    raw_date = session_obj.session_date
+    session_date_only = raw_date.date() if hasattr(raw_date, "date") else raw_date
+
+    other_day_rows = (
+        db.query(AttendanceRecord.student_profile_id, func.count(AttendanceRecord.id))
+        .join(ClassSession, AttendanceRecord.session_id == ClassSession.id)
+        .filter(
+            AttendanceRecord.student_profile_id.in_(student_ids),
+            func.date(ClassSession.session_date) == session_date_only,
+            AttendanceRecord.session_id != bulk_data.session_id,
+        )
+        .group_by(AttendanceRecord.student_profile_id)
+        .all()
+    )
+    other_day_counts = {sid: cnt for sid, cnt in other_day_rows}
+    # ─────────────────────────────────────────────────────────────────────────
 
     results = []
     for attendance_data in bulk_data.attendance_data:
         existing = existing_map.get(attendance_data.student_profile_id)
+        # Skip students that would exceed the daily limit (only for new records)
+        if not existing and attendance_data.status is not None:
+            if other_day_counts.get(attendance_data.student_profile_id, 0) >= MAX_DAILY:
+                continue  # Silently skip — frontend shows the daily count badge
         if existing:
             existing.status = attendance_data.status
             t_shirt = getattr(attendance_data, 't_shirt_worn', None)
@@ -879,9 +931,10 @@ async def get_attendance_sheet(
         raise HTTPException(status_code=404, detail="Session not found")
 
     # Fetch all active students for this branch (course-filtered if session has a course)
-    # "All Branches" (or empty-string branch) sessions show students from every branch
+    # "All Branches" (or empty-string branch) sessions show students from every branch.
+    # Explicit join condition prevents ambiguity on some DB configurations.
     _ALL_BRANCHES_SENTINEL = {"All Branches", ""}
-    query = db.query(StudentProfile, User).join(User).filter(
+    query = db.query(StudentProfile, User).join(User, StudentProfile.user_id == User.id).filter(
         User.role == "student",
         StudentProfile.status == "active",
     )
@@ -903,11 +956,48 @@ async def get_attendance_sheet(
         for r in db.query(AttendanceRecord).filter(AttendanceRecord.session_id == session_id).all()
     }
 
+    # ── Cross-session daily awareness ─────────────────────────────────────────
+    # Compute the calendar date of this session (strip time component).
+    raw_date = session.session_date
+    if hasattr(raw_date, "date"):
+        session_date_only = raw_date.date()
+    else:
+        session_date_only = raw_date
+
+    profile_ids = [row[0].id for row in students_rows]
+
+    # Fetch ALL attendance records on this calendar date for these students
+    # (across every session, including the current one) in a single query.
+    if profile_ids:
+        day_recs = (
+            db.query(AttendanceRecord, ClassSession)
+            .join(ClassSession, AttendanceRecord.session_id == ClassSession.id)
+            .filter(
+                AttendanceRecord.student_profile_id.in_(profile_ids),
+                func.date(ClassSession.session_date) == session_date_only,
+            )
+            .all()
+        )
+    else:
+        day_recs = []
+
+    from collections import defaultdict
+    daily_map: dict = defaultdict(list)
+    for rec, sess in day_recs:
+        daily_map[rec.student_profile_id].append({
+            "session_id": sess.id,
+            "branch": sess.branch,
+            "status": rec.status,
+            "marked_at": _dt_to_ist_iso(rec.created_at),
+        })
+    # ─────────────────────────────────────────────────────────────────────────
+
     student_entries = []
     present_count = absent_count = on_break_count = leave_count = unmarked_count = tshirt_count = 0
 
     for profile, user in students_rows:
         rec = existing_records.get(profile.id)
+        today_sess_list = daily_map.get(profile.id, [])
         entry = {
             "student_profile_id": profile.id,
             "user_id": profile.user_id,
@@ -923,6 +1013,9 @@ async def get_attendance_sheet(
             "t_shirt_worn": rec.t_shirt_worn if rec else False,
             "remarks": rec.remarks if rec else None,
             "marked_at": _dt_to_ist_iso(rec.created_at) if rec else None,
+            # Daily cross-session fields
+            "today_attendance_count": len(today_sess_list),
+            "today_sessions": today_sess_list,
         }
         student_entries.append(entry)
         if rec:

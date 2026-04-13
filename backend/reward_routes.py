@@ -498,28 +498,44 @@ def get_weekly_summary(
     """Points earned in the last 7 days, broken down by day."""
     student_id = current_user.id
     now_ist = get_ist_now()
+    today_ist = now_ist.date()
+
+    # Build the 7-day window boundaries in UTC (single DB round trip)
+    week_start_ist = datetime.combine(
+        today_ist - timedelta(days=6), dt_time.min
+    ).replace(tzinfo=IST_TIMEZONE)
+    week_end_ist = datetime.combine(
+        today_ist + timedelta(days=1), dt_time.min
+    ).replace(tzinfo=IST_TIMEZONE)
+    week_start_utc = ist_to_utc(week_start_ist)
+    week_end_utc = ist_to_utc(week_end_ist)
+
+    # Single query: fetch all qualifying events in the 7-day window
+    rows = (
+        db.query(RewardEvent.event_timestamp, RewardEvent.points_delta)
+        .filter(
+            RewardEvent.student_id == student_id,
+            RewardEvent.is_voided == False,
+            RewardEvent.event_timestamp >= week_start_utc,
+            RewardEvent.event_timestamp < week_end_utc,
+        )
+        .all()
+    )
+
+    # Aggregate in Python per IST calendar day
+    day_totals: dict = {}
+    for ts, pts in rows:
+        # Convert UTC timestamp to IST date
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=IST_TIMEZONE)
+        ist_date = ts.astimezone(IST_TIMEZONE).date()
+        day_totals[ist_date] = day_totals.get(ist_date, 0) + (pts or 0)
 
     daily_points = []
     total_week = 0
-
     for days_ago in range(6, -1, -1):  # 6 days ago → today
-        day = (now_ist - timedelta(days=days_ago)).date()
-        ist_start = datetime.combine(day, dt_time.min).replace(tzinfo=IST_TIMEZONE)
-        ist_end = datetime.combine(day + timedelta(days=1), dt_time.min).replace(tzinfo=IST_TIMEZONE)
-        utc_start = ist_to_utc(ist_start)
-        utc_end = ist_to_utc(ist_end)
-
-        day_total = (
-            db.query(func.coalesce(func.sum(RewardEvent.points_delta), 0))
-            .filter(
-                RewardEvent.student_id == student_id,
-                RewardEvent.is_voided == False,
-                RewardEvent.event_timestamp >= utc_start,
-                RewardEvent.event_timestamp < utc_end,
-            )
-            .scalar()
-        ) or 0
-
+        day = today_ist - timedelta(days=days_ago)
+        day_total = day_totals.get(day, 0)
         daily_points.append({
             "date": str(day),
             "points": day_total,

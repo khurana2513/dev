@@ -887,7 +887,7 @@ def get_student_dashboard_data(
         )
     ).filter(
         PaperAttempt.user_id == current_user.id
-    ).order_by(desc(PaperAttempt.started_at)).all()
+    ).order_by(desc(PaperAttempt.started_at)).limit(50).all()
     
     for a in all_paper_attempts:
         if a.started_at and a.started_at.tzinfo is None:
@@ -897,13 +897,32 @@ def get_student_dashboard_data(
 
     paper_attempts_response = [PaperAttemptResponse.model_validate(a) for a in all_paper_attempts]
 
+    # ── 5. Attempt counts per unique paper (eliminates N+1 waterfall) ─────────
+    # Single GROUP BY query replaces N separate getPaperAttemptCount() API calls.
+    count_rows = (
+        db.query(
+            PaperAttempt.seed,
+            PaperAttempt.paper_title,
+            func.count(PaperAttempt.id).label("cnt"),
+        )
+        .filter(
+            PaperAttempt.user_id == current_user.id,
+            PaperAttempt.completed_at.isnot(None),
+            PaperAttempt.shared_paper_code.is_(None),
+        )
+        .group_by(PaperAttempt.seed, PaperAttempt.paper_title)
+        .all()
+    )
+    attempt_counts = {f"{row.seed}_{row.paper_title}": row.cnt for row in count_rows}
+
     elapsed = time.time() - request_start
     print(f"⏱ [DASHBOARD] GET /users/dashboard-data took {elapsed:.2f}s (combined endpoint)")
 
     return StudentDashboardData(
         stats=stats,
         profile=profile_response,
-        paper_attempts=paper_attempts_response
+        paper_attempts=paper_attempts_response,
+        attempt_counts=attempt_counts,
     )
 
 

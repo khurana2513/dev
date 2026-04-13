@@ -145,6 +145,8 @@ export interface StudentDashboardData {
   stats: StudentStats;
   profile: StudentProfile | null;
   paper_attempts: PaperAttempt[];
+  // Pre-aggregated per-paper attempt counts: "{seed}_{paper_title}" → count
+  attempt_counts: Record<string, number>;
 }
 
 export interface AdminDashboardData {

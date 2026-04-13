@@ -2,6 +2,7 @@
 export interface Constraints {
   digits?: number;
   rows?: number;
+  intlAddSubPreset?: "1_2" | "2_3";
   allowBorrow?: boolean;
   allowCarry?: boolean;
   minAnswer?: number;
@@ -42,7 +43,7 @@ export interface Constraints {
 export type QuestionType = 
   | "addition" | "subtraction" | "add_sub" | "multiplication" | "division" | "square_root" | "cube_root" 
   | "decimal_multiplication" | "lcm" | "gcd" | "integer_add_sub" | "decimal_division" | "decimal_add_sub" 
-  | "direct_add_sub" | "small_friends_add_sub" | "big_friends_add_sub" | "mix_friends_add_sub" | "percentage"
+  | "direct_add_sub" | "small_friends_add_sub" | "big_friends_add_sub" | "mix_friends_add_sub" | "intl_add_sub" | "percentage"
   | "vedic_multiply_by_11" | "vedic_multiply_by_101" | "vedic_subtraction_complement" | "vedic_subtraction_normal"
   | "vedic_multiply_by_12_19" | "vedic_special_products_base_100" | "vedic_special_products_base_50"
   | "vedic_multiply_by_21_91" | "vedic_addition" | "vedic_multiply_by_2" | "vedic_multiply_by_4"

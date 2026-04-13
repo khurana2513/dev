@@ -84,8 +84,8 @@ export default function StudentDashboard() {
   const { data: dashboardData, isLoading: dashboardLoading, isError: dashboardError } = useQuery<StudentDashboardData>({
     queryKey: ["studentDashboard"],
     queryFn: getStudentDashboardData,
-    staleTime: 0,          // Always re-fetch — sessions recorded elsewhere must appear immediately
-    refetchOnMount: true,  // Always refetch when navigating back to dashboard
+    staleTime: 30 * 1000,   // 30 s — avoids redundant refetch on quick back-navigation
+    refetchOnMount: true,   // Refetch when stale (after 30 s) on re-mount
     refetchOnWindowFocus: false,
     retry: 2,
   });
@@ -100,41 +100,14 @@ export default function StudentDashboard() {
     const paperAttemptsData = dashboardData.paper_attempts || [];
     setPaperAttempts(paperAttemptsData);
     
-    if (paperAttemptsData.length > 0) {
-      // Load attempt counts for each unique paper in parallel
-      const uniquePapers = new Map<string, { seed: number; title: string }>();
-      paperAttemptsData.forEach(attempt => {
-        if (attempt.seed !== undefined && attempt.seed !== null) {
-          const key = `${attempt.seed}_${attempt.paper_title}`;
-          if (!uniquePapers.has(key)) {
-            uniquePapers.set(key, { seed: attempt.seed, title: attempt.paper_title });
-          }
-        }
+    // Derive attempt counts from the pre-aggregated data returned by the dashboard endpoint.
+    // This eliminates the N+1 waterfall of per-paper getPaperAttemptCount() API calls.
+    if (dashboardData.attempt_counts) {
+      const countsMap: { [key: string]: { count: number; can_reattempt: boolean } } = {};
+      Object.entries(dashboardData.attempt_counts).forEach(([key, count]) => {
+        countsMap[key] = { count, can_reattempt: count < 2 };
       });
-      
-      if (uniquePapers.size > 0) {
-        const countPromises = Array.from(uniquePapers.entries()).map(([key, paper]) =>
-          (paper.seed !== undefined && paper.seed !== null)
-            ? getPaperAttemptCount(paper.seed, paper.title)
-                .then(countData => [key, { count: countData.count, can_reattempt: countData.can_reattempt }])
-                .catch(err => {
-                  console.error(`Failed to get attempt count for paper ${key}:`, err);
-                  return [key, { count: 0, can_reattempt: false }];
-                })
-            : Promise.resolve(null)
-        );
-        
-        Promise.all(countPromises).then(results => {
-          const countsMap: { [key: string]: { count: number; can_reattempt: boolean } } = {};
-          results.forEach(result => {
-            if (result) {
-              const [key, countData] = result as [string, { count: number; can_reattempt: boolean }];
-              countsMap[key] = countData;
-            }
-          });
-          setAttemptCounts(countsMap);
-        });
-      }
+      setAttemptCounts(countsMap);
     }
 
     setLoading(false);

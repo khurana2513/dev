@@ -4,7 +4,7 @@ import {
   ChevronDown, LogOut, BarChart3, Shield, GraduationCap,
   Calculator, Menu, X, Brain, FileText,
   User, ArrowRight, Lock, Zap, Calendar, Grid3X3,
-  Gamepad2, Sparkles, Award, Hash
+  Gamepad2, Sparkles, Award, Hash, Swords
 } from "lucide-react";
 import { useAuthSafe } from "../contexts/AuthContext";
 import { motion } from "framer-motion";
@@ -211,7 +211,7 @@ export default function Header() {
             {/* PRACTICE */}
             <div ref={practiceDropdownRef} className="relative" onMouseEnter={handlePracticeEnter} onMouseLeave={handlePracticeLeave}>
               <button className={`flex items-center gap-1.5 px-5 py-2.5 text-xs font-black uppercase tracking-widest rounded-full transition-all duration-200 ${
-                isActive("/create") || isActive("/vedic-maths") || isActive("/mental") || isActive("/burst")
+                isActive("/create") || isActive("/vedic-maths") || isActive("/mental") || isActive("/burst") || isActive("/duel")
                   ? "text-primary bg-card/70 shadow-sm" : "text-foreground/70 hover:text-primary hover:bg-card/60"
               }`}>
                 <Brain className="w-3.5 h-3.5" />Practice
@@ -242,11 +242,20 @@ export default function Header() {
                       </div>
                     </Link>
                     <Link href="/burst">
-                      <div className={navItem(isActive("/burst"), true)} onClick={() => setPracticeOpen(false)}>
+                      <div className={navItem(isActive("/burst"))} onClick={() => setPracticeOpen(false)}>
                         <Zap className="w-4 h-4 text-amber-500" />Burst Mode
                         <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                        </span>
+                      </div>
+                    </Link>
+                    <Link href="/duel">
+                      <div className={navItem(isActive("/duel"))} onClick={() => setPracticeOpen(false)}>
+                        <Swords className="w-4 h-4 text-violet-400" />Duel Mode
+                        <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
                         </span>
                       </div>
                     </Link>
@@ -510,6 +519,15 @@ export default function Header() {
                   <span className="ml-auto relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                  </span>
+                </div>
+              </Link>
+              <Link href="/duel" onClick={() => setMobileMenuOpen(false)}>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors">
+                  <Swords className="w-4 h-4 text-violet-400" /><span>Duel Mode</span>
+                  <span className="ml-auto relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
                   </span>
                 </div>
               </Link>

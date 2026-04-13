@@ -69,6 +69,41 @@ class DuelManager:
         self._connections: Dict[str, Dict[int, WebSocket]] = {}
         # code → countdown asyncio.Task
         self._countdown_tasks: Dict[str, asyncio.Task] = {}   # type: ignore[type-arg]
+        # In-memory fallback for local single-worker mode when Redis is unavailable.
+        self._rooms: Dict[str, Dict[str, Any]] = {}
+        self._tickets: Dict[str, Dict[str, Any]] = {}
+
+    def _copy_room(self, room: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "code": room["code"],
+            "state": room["state"],
+            "host_id": room["host_id"],
+            "seed": room["seed"],
+            "config": json.loads(json.dumps(room["config"])),
+            "start_ts": room["start_ts"],
+            "players": json.loads(json.dumps(room["players"])),
+            "scores": json.loads(json.dumps(room["scores"])),
+        }
+
+    def _get_local_room(self, code: str) -> Optional[Dict[str, Any]]:
+        room = self._rooms.get(code)
+        if not room:
+            return None
+        if room["created_at"] + ROOM_TTL < time.time():
+            self._rooms.pop(code, None)
+            self._connections.pop(code, None)
+            self.cancel_countdown(code)
+            return None
+        return room
+
+    def _get_local_ticket(self, ticket: str) -> Optional[Dict[str, Any]]:
+        payload = self._tickets.get(ticket)
+        if not payload:
+            return None
+        if payload["expires_at"] < time.time():
+            self._tickets.pop(ticket, None)
+            return None
+        return payload
 
     # ── Key helpers ─────────────────────────────────────────────────────────
 
@@ -90,7 +125,10 @@ class DuelManager:
         redis = await _get_redis()
         for _ in range(20):
             code = "".join(random.choices(CODE_CHARS, k=6))
-            if redis is None or not await redis.exists(self._rk(code)):
+            if redis is not None:
+                if not await redis.exists(self._rk(code)):
+                    return code
+            elif not self._get_local_room(code):
                 return code
         raise RuntimeError("Could not generate a unique room code after 20 tries")
 
@@ -120,14 +158,7 @@ class DuelManager:
             "is_finished": False,
         }
 
-        if redis:
-            pipe = redis.pipeline()
-            pipe.hset(self._rk(code), mapping=room_hash)
-            pipe.expire(self._rk(code), ROOM_TTL)
-            pipe.set(self._pk(code), json.dumps([host_player]), ex=ROOM_TTL)
-            await pipe.execute()
-
-        return {
+        room = {
             "code":     code,
             "state":    "lobby",
             "host_id":  host_id,
@@ -136,12 +167,25 @@ class DuelManager:
             "start_ts": None,
             "players":  [host_player],
             "scores":   {},
+            "created_at": now,
         }
+
+        if redis:
+            pipe = redis.pipeline()
+            pipe.hset(self._rk(code), mapping=room_hash)
+            pipe.expire(self._rk(code), ROOM_TTL)
+            pipe.set(self._pk(code), json.dumps([host_player]), ex=ROOM_TTL)
+            await pipe.execute()
+        else:
+            self._rooms[code] = room
+
+        return self._copy_room(room)
 
     async def get_room(self, code: str) -> Optional[dict]:
         redis = await _get_redis()
         if not redis:
-            return None
+            room = self._get_local_room(code)
+            return self._copy_room(room) if room else None
 
         raw = await redis.hgetall(self._rk(code))
         if not raw:
@@ -167,7 +211,22 @@ class DuelManager:
     async def join_room(self, code: str, user_id: int, user_name: str) -> list:
         redis = await _get_redis()
         if not redis:
-            raise ValueError("REDIS_UNAVAILABLE")
+            room = self._get_local_room(code)
+            if not room:
+                raise ValueError("ROOM_NOT_FOUND")
+            players = room["players"]
+            if any(p["id"] == user_id for p in players):
+                return json.loads(json.dumps(players))
+            if len(players) >= MAX_PLAYERS:
+                raise ValueError("ROOM_FULL")
+            players.append({
+                "id":          user_id,
+                "name":        user_name,
+                "joined_at":   time.time(),
+                "is_ready":    True,
+                "is_finished": False,
+            })
+            return json.loads(json.dumps(players))
 
         players_raw = await redis.get(self._pk(code))
         players: list = json.loads(players_raw) if players_raw else []
@@ -191,6 +250,11 @@ class DuelManager:
     async def update_state(self, code: str, state: str, extra: Optional[dict] = None) -> None:
         redis = await _get_redis()
         if not redis:
+            room = self._get_local_room(code)
+            if room:
+                room["state"] = state
+                if extra:
+                    room.update(extra)
             return
         updates: dict = {"state": state}
         if extra:
@@ -208,6 +272,14 @@ class DuelManager:
     ) -> None:
         redis = await _get_redis()
         if not redis:
+            room = self._get_local_room(code)
+            if room:
+                room["scores"][user_id] = {
+                    "correct": correct,
+                    "wrong": wrong,
+                    "points": points,
+                    "finished": finished,
+                }
             return
         score = {"correct": correct, "wrong": wrong, "points": points, "finished": finished}
         await redis.hset(self._sk(code), str(user_id), json.dumps(score))
@@ -216,6 +288,11 @@ class DuelManager:
     async def mark_player_finished(self, code: str, user_id: int) -> None:
         redis = await _get_redis()
         if not redis:
+            room = self._get_local_room(code)
+            if room:
+                for p in room["players"]:
+                    if p["id"] == user_id:
+                        p["is_finished"] = True
             return
         players_raw = await redis.get(self._pk(code))
         players: list = json.loads(players_raw) if players_raw else []
@@ -228,7 +305,15 @@ class DuelManager:
         """Remove player from room.  Returns (updated_players, new_host_id_or_None)."""
         redis = await _get_redis()
         if not redis:
-            return [], None
+            room = self._get_local_room(code)
+            if not room:
+                return [], None
+            room["players"] = [p for p in room["players"] if p["id"] != user_id]
+            new_host: Optional[int] = None
+            if room["host_id"] == user_id and room["players"]:
+                new_host = room["players"][0]["id"]
+                room["host_id"] = new_host
+            return json.loads(json.dumps(room["players"])), new_host
 
         players_raw = await redis.get(self._pk(code))
         players: list = json.loads(players_raw) if players_raw else []
@@ -258,12 +343,22 @@ class DuelManager:
         payload = json.dumps({"user_id": user_id, "user_name": user_name})
         if redis:
             await redis.set(self._tk(ticket), payload, ex=TICKET_TTL)
+        else:
+            self._tickets[ticket] = {
+                "user_id": user_id,
+                "user_name": user_name,
+                "expires_at": time.time() + TICKET_TTL,
+            }
         return ticket
 
     async def consume_ws_ticket(self, ticket: str) -> Optional[dict]:
         """Look up ticket, delete it atomically (single-use), return identity."""
         redis = await _get_redis()
         if not redis:
+            payload = self._get_local_ticket(ticket)
+            if payload:
+                self._tickets.pop(ticket, None)
+                return {"user_id": payload["user_id"], "user_name": payload["user_name"]}
             return None
         key     = self._tk(ticket)
         payload = await redis.get(key)

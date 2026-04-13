@@ -60,6 +60,11 @@ class User(Base):
     points_logs = relationship("PointsLog", back_populates="user", cascade="all, delete-orphan")
     paper_templates = relationship("UserPaperTemplate", back_populates="user", cascade="all, delete-orphan")
 
+    __table_args__ = (
+        # Covers leaderboard and live-rank scans over active students ordered by points.
+        Index('idx_user_role_archived_points', 'role', 'is_archived', 'total_points'),
+    )
+
 
 class PracticeSession(Base):
     """Practice session model to track each practice attempt."""
@@ -110,7 +115,8 @@ class Attempt(Base):
     points_awarded = Column(Integer, nullable=True)
     # FK to the point_rule that was applied (nullable for legacy data)
     point_rule_id = Column(Integer, ForeignKey("point_rules.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=get_utc_now)
+    # Index on created_at alone for streak calendar month-range queries
+    created_at = Column(DateTime, default=get_utc_now, index=True)
     
     # Relationships
     session = relationship("PracticeSession", back_populates="attempts")
@@ -155,6 +161,10 @@ class PaperAttempt(Base):
     
     __table_args__ = (
         Index('idx_paper_user_created', 'user_id', 'started_at'),
+        # Covers streak vedic-paper count: WHERE completed_at IS NOT NULL AND paper_level=...
+        Index('idx_paper_completed_level', 'completed_at', 'paper_level'),
+        # Covers per-user paper count grouping in dashboard attempt_counts query
+        Index('idx_paper_user_seed_title', 'user_id', 'seed', 'paper_title'),
     )
 
 
@@ -211,6 +221,8 @@ class PointsLog(Base):
     __table_args__ = (
         Index('idx_user_created', 'user_id', 'created_at'),
         Index('idx_source', 'source_type', 'source_id'),
+        # Covers weekly leaderboard: WHERE created_at >= week_start GROUP BY user_id
+        Index('idx_points_log_created_at', 'created_at'),
     )
 
 
@@ -677,12 +689,15 @@ if DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgres
     # Create engine with connection pooling for PostgreSQL
     engine = create_engine(
         DATABASE_URL,
-        pool_size=20,
-        max_overflow=30,
-        # pool_pre_ping=True costs ~1s RTT per request over remote Railway (SELECT 1 health check).
-        # Instead, recycle connections every 5 minutes to discard stale ones before Railway kills them.
-        pool_pre_ping=False,
-        pool_recycle=300,   # 5 minutes: proactively recycle before Railway's idle timeout
+        # Railway PostgreSQL Hobby allows ~25 open connections total.
+        # pool_size=5 + max_overflow=10 = 15 max per process (safe headroom for 1 worker).
+        # For 5000 concurrent users, use PgBouncer or Railway Pro (100+ conn limit).
+        pool_size=5,
+        max_overflow=10,
+        # pool_pre_ping validates connections on checkout; avoids stale-connection errors
+        # after Railway's idle timeout. Cost is negligible (1 round trip on checkout only).
+        pool_pre_ping=True,
+        pool_recycle=300,   # 5 minutes: hard recycle regardless of health
         pool_timeout=30,
         connect_args={
             "keepalives": 1,           # Enable TCP keepalives

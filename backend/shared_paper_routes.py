@@ -133,7 +133,22 @@ async def share_paper(
                    f"This paper only has {total_q}. Add more questions and try again.",
         )
 
-    code = _generate_code(db)
+    # Validate payload size to prevent storing enormous papers
+    import json as _json
+    try:
+        _payload_size = len(_json.dumps(body.paper_config)) + len(_json.dumps(body.generated_blocks))
+    except Exception:
+        _payload_size = 0
+    if _payload_size > 500_000:  # 500 KB upper-bound
+        raise HTTPException(status_code=413, detail="Paper data is too large to share (max 500 KB).")
+
+    try:
+        code = _generate_code(db)
+    except RuntimeError:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not generate a unique share code at this time. Please try again.",
+        )
 
     shared = SharedPaper(
         code=code,

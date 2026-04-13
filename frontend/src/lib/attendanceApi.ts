@@ -38,6 +38,13 @@ export interface ClassSession {
   updated_at: string;
 }
 
+export interface TodaySessionEntry {
+  session_id: number;
+  branch: string;
+  status: AttendanceStatus;
+  marked_at: string;
+}
+
 export interface StudentEntry {
   student_profile_id: number;
   user_id: number;
@@ -53,6 +60,10 @@ export interface StudentEntry {
   t_shirt_worn: boolean;
   remarks: string | null;
   marked_at: string | null;
+  /** Total times this student has been marked across ALL sessions today */
+  today_attendance_count: number;
+  /** Detail of each mark today (may include the current session) */
+  today_sessions: TodaySessionEntry[];
 }
 
 export interface SheetSummary {

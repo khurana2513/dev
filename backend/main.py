@@ -566,8 +566,18 @@ async def get_paper_attempts(
 ):
     """Get user's paper attempt history. Only latest 10 attempts are stored."""
     try:
-        # Clean up stale incomplete attempts for this user
-        cleanup_stale_incomplete_attempts(db, user_id=current_user.id)
+        # Only run stale-attempt cleanup when the user actually has an incomplete attempt.
+        # This avoids opening a write transaction on every list call for users with
+        # no incomplete attempts (the common case — ~99% of requests).
+        utc_now_check = get_utc_now()
+        timeout_threshold_check = utc_now_check - timedelta(seconds=INCOMPLETE_ATTEMPT_TIMEOUT_SECONDS)
+        has_stale = db.query(PaperAttempt.id).filter(
+            PaperAttempt.user_id == current_user.id,
+            PaperAttempt.completed_at.is_(None),
+            PaperAttempt.started_at < timeout_threshold_check.replace(tzinfo=None),
+        ).limit(1).scalar()
+        if has_stale:
+            cleanup_stale_incomplete_attempts(db, user_id=current_user.id)
         
         # load_only: skip TOAST JSON columns not needed by PaperAttemptResponse
         attempts = db.query(PaperAttempt).options(

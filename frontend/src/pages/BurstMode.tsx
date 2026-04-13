@@ -54,9 +54,30 @@ interface SelectedCombo {
   option: string;
 }
 
+type BurstPlayMode = "classic" | "memory_sequence";
+
 // ── Configuration ────────────────────────────────────────────────────────────
 
 const BURST_DURATION = 60; // 60 seconds
+const MAX_MIX_COMBOS = 10; // Maximum operation combos in a single mix session
+const MEMORY_SEQUENCE_VISIBLE_MS = 3000;
+
+const BURST_PLAY_MODES: Record<BurstPlayMode, {
+  label: string;
+  shortLabel: string;
+  description: string;
+}> = {
+  classic: {
+    label: "Classic Burst",
+    shortLabel: "Classic",
+    description: "Question stays visible until you answer.",
+  },
+  memory_sequence: {
+    label: "Memory Sequence",
+    shortLabel: "Memory",
+    description: "Question is visible for 3 seconds, then disappears while the answer box stays active.",
+  },
+};
 
 const BURST_OPERATIONS: Record<BurstOperationType, BurstConfig> = {
   burst_tables: {
@@ -465,6 +486,7 @@ export default function BurstMode() {
   const [phase, setPhase] = useState<Phase>("select");
   const [selectedOp, setSelectedOp] = useState<BurstOperationType | null>(null);
   const [selectedOption, setSelectedOption] = useState<string>("");
+  const [selectedPlayMode, setSelectedPlayMode] = useState<BurstPlayMode>("classic");
 
   // Mix mode state
   const [selectedCombos, setSelectedCombos] = useState<SelectedCombo[]>([]);
@@ -476,7 +498,8 @@ export default function BurstMode() {
     setSelectedCombos(prev => {
       const idx = prev.findIndex(c => c.opType === opType && c.option === option);
       if (idx >= 0) return prev.filter((_, i) => i !== idx);
-      return [...prev, { opType, option }];
+        if (prev.length >= MAX_MIX_COMBOS) return prev; // cap reached — ignore additions
+        return [...prev, { opType, option }];
     });
   };
 
@@ -487,6 +510,7 @@ export default function BurstMode() {
   // Game state
   const [timeLeft, setTimeLeft] = useState(BURST_DURATION);
   const [currentQuestion, setCurrentQuestion] = useState<BurstQuestion | null>(null);
+  const [questionVisible, setQuestionVisible] = useState(true);
   const [userInput, setUserInput] = useState("");
   const [results, setResults] = useState<BurstResult[]>([]);
   const [questionId, setQuestionId] = useState(1);
@@ -506,6 +530,7 @@ export default function BurstMode() {
   const inputRef = useRef<HTMLInputElement>(null);
   const pageTopRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const questionHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const questionStartRef = useRef<number>(Date.now());
   const sessionStartRef = useRef<number>(Date.now());
   // Tracks the last N question texts to prevent immediate repeats
@@ -583,6 +608,13 @@ export default function BurstMode() {
     document.head.appendChild(style);
   }, []);
 
+  const clearQuestionHideTimer = useCallback(() => {
+    if (questionHideTimeoutRef.current) {
+      clearTimeout(questionHideTimeoutRef.current);
+      questionHideTimeoutRef.current = null;
+    }
+  }, []);
+
   // ── Config phase ─────────────────────────────────────────────────────────
 
   const handleSelectOperation = (op: BurstOperationType) => {
@@ -620,12 +652,14 @@ export default function BurstMode() {
   // ── Start game ───────────────────────────────────────────────────────────
 
   const startCountdown = () => {
+    clearQuestionHideTimer();
     setPhase("countdown");
     setCountdownNum(3);
     setResults([]);
     setQuestionId(1);
     setTimeLeft(BURST_DURATION);
     setUserInput("");
+    setQuestionVisible(true);
     setFlashColor("");
     setSessionSaved(false);
     savingRef.current = false;  // Reset save guard so new game can save
@@ -635,6 +669,28 @@ export default function BurstMode() {
     window.scrollTo({ top: 0, behavior: "smooth" });
     pageTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  useEffect(() => {
+    if (phase !== "playing" || !currentQuestion) {
+      clearQuestionHideTimer();
+      setQuestionVisible(true);
+      return;
+    }
+
+    setQuestionVisible(true);
+
+    if (selectedPlayMode !== "memory_sequence") {
+      return;
+    }
+
+    questionHideTimeoutRef.current = setTimeout(() => {
+      setQuestionVisible(false);
+      questionHideTimeoutRef.current = null;
+      inputRef.current?.focus();
+    }, MEMORY_SEQUENCE_VISIBLE_MS);
+
+    return clearQuestionHideTimer;
+  }, [phase, currentQuestion, selectedPlayMode, clearQuestionHideTimer]);
 
   // Countdown effect
   useEffect(() => {
@@ -701,6 +757,8 @@ export default function BurstMode() {
 
   const handleSubmit = useCallback(() => {
     if (!currentQuestion || phase !== "playing" || !userInput.trim()) return;
+
+    clearQuestionHideTimer();
 
     const now = Date.now();
     const timeTaken = (now - questionStartRef.current) / 1000;
@@ -787,6 +845,8 @@ export default function BurstMode() {
           operands: r.question.operands,
           operator: r.question.operator,
           answer: r.question.answer,
+          burst_play_mode: selectedPlayMode,
+          prompt_visible_ms: selectedPlayMode === "memory_sequence" ? MEMORY_SEQUENCE_VISIBLE_MS : null,
         },
         user_answer: r.userAnswer,
         correct_answer: r.question.answer,
@@ -865,6 +925,7 @@ export default function BurstMode() {
 
   const confirmExit = () => {
     if (timerRef.current) clearInterval(timerRef.current);
+    clearQuestionHideTimer();
     // Save partial results if any
     if (results.length > 0) {
       setPhase("results");
@@ -875,6 +936,7 @@ export default function BurstMode() {
   };
 
   const resetToSelect = () => {
+    clearQuestionHideTimer();
     setPhase("select");
     setSelectedOp(null);
     setSelectedOption("");
@@ -884,6 +946,7 @@ export default function BurstMode() {
     setTimeLeft(BURST_DURATION);
     setQuestionId(1);
     setUserInput("");
+    setQuestionVisible(true);
     setFlashColor("");
     setCurrentQuestion(null);
     setSessionSaved(false);
@@ -979,11 +1042,12 @@ export default function BurstMode() {
               <div style={{ padding: "0 32px 28px", overflowY: "auto", flex: 1 }}>
                 {[
                   { step: "1", title: "Select a Mode", desc: "Choose one of the 10 available math operations to practice — Multiplication, Division, Decimals, LCM, GCD, and more." },
-                  { step: "2", title: "Pick Difficulty", desc: "Select your preferred difficulty level (Easy, Medium, or Hard) to match your skill level." },
-                  { step: "3", title: "Start the Burst", desc: "Click 'Start Burst' to begin. A 3-2-1 countdown will prepare you for the challenge." },
-                  { step: "4", title: "Answer Quickly", desc: "You have 60 seconds to answer as many questions as possible. Type your answer and press Enter or click the arrow button." },
-                  { step: "5", title: "Track Your Progress", desc: "Watch the timer and your score update in real-time as you solve each question correctly." },
-                  { step: "6", title: "Review Results", desc: "When time's up, review your final score, accuracy, and see which answers you got right or wrong." },
+                  { step: "2", title: "Pick Classic or Memory", desc: "Classic keeps the question visible. Memory Sequence shows each question for 3 seconds, then hides it while you answer from recall." },
+                  { step: "3", title: "Pick Difficulty", desc: "Select your preferred difficulty level (Easy, Medium, or Hard) to match your skill level." },
+                  { step: "4", title: "Start the Burst", desc: "Click the start button to begin. A 3-2-1 countdown will prepare you for the challenge." },
+                  { step: "5", title: "Answer Quickly", desc: "You have 60 seconds to answer as many questions as possible. Type your answer and press Enter or click the arrow button." },
+                  { step: "6", title: "Track Your Progress", desc: "Watch the timer and your score update in real-time as you solve each question correctly." },
+                  { step: "7", title: "Review Results", desc: "When time's up, review your final score, accuracy, and see which answers you got right or wrong." },
                 ].map(({ step, title, desc }) => (
                   <div key={step} style={{ display: "flex", gap: 14, marginBottom: 18 }}>
                     <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(249,115,22,.12)", border: "1px solid rgba(249,115,22,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--bm-fm)", fontSize: 12, fontWeight: 700, color: "var(--bm-burst2)", flexShrink: 0 }}>{step}</div>
@@ -1017,10 +1081,12 @@ export default function BurstMode() {
               WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text"
             }}>Burst Mode</h1>
             <p style={{ fontFamily: "var(--bm-fb)", fontSize: 16, fontWeight: 300, color: "rgba(255,255,255,.5)", margin: "0 0 16px" }}>
-              60 seconds. Unlimited questions. Push your speed to the limit.
+              {selectedPlayMode === "memory_sequence"
+                ? "60 seconds. Question visible for 3 seconds. Recall under pressure."
+                : "60 seconds. Unlimited questions. Push your speed to the limit."}
             </p>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--bm-burstdim)", border: "1px solid rgba(249,115,22,.22)", borderRadius: 100, padding: "6px 16px", fontFamily: "var(--bm-fm)", fontSize: 12, color: "var(--bm-burst2)" }}>
-              ⚡ 10 modes · Mix Mode · 60s each
+              ⚡ 10 modes · Mix Mode · {BURST_PLAY_MODES[selectedPlayMode].shortLabel} · 60s each
             </div>
           </div>
         </div>
@@ -1047,6 +1113,36 @@ export default function BurstMode() {
         </div>
 
         <div style={{ position: "relative", zIndex: 1 }}>
+
+          <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px clamp(12px,3vw,24px) 8px" }}>
+            <div style={{ background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 18, padding: "16px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+              {(Object.entries(BURST_PLAY_MODES) as [BurstPlayMode, typeof BURST_PLAY_MODES[BurstPlayMode]][]).map(([mode, meta]) => {
+                const active = selectedPlayMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => setSelectedPlayMode(mode)}
+                    style={{
+                      textAlign: "left",
+                      padding: "14px 16px",
+                      borderRadius: 14,
+                      border: active ? "1.5px solid rgba(249,115,22,.45)" : "1px solid var(--bm-bdr2)",
+                      background: active ? "rgba(249,115,22,.09)" : "var(--bm-surf2)",
+                      cursor: "pointer",
+                      transition: "all .2s ease",
+                    }}
+                  >
+                    <div style={{ fontFamily: "var(--bm-fd)", fontSize: 16, fontWeight: 700, color: active ? "var(--bm-white)" : "var(--bm-white2)", marginBottom: 4 }}>
+                      {meta.label}
+                    </div>
+                    <div style={{ fontFamily: "var(--bm-fb)", fontSize: 12, lineHeight: 1.5, color: active ? "var(--bm-burst3)" : "var(--bm-muted)" }}>
+                      {meta.description}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Mode cards grid */}
           <div className="bm-modes-grid" style={{ maxWidth: 1100, margin: "0 auto", padding: "clamp(20px,4vw,32px) clamp(12px,3vw,24px) 16px" }}>
@@ -1150,8 +1246,15 @@ export default function BurstMode() {
               <ArrowLeft style={{ width: 14, height: 14 }} />
               Back
             </button>
-            <div style={{ fontFamily: "var(--bm-fm)", fontSize: 12, fontWeight: 600, color: mixCount > 0 ? "var(--bm-burst2)" : "var(--bm-muted)", letterSpacing: ".04em" }}>
-              {mixCount === 0 ? "Select at least 1 difficulty" : `${mixCount} combination${mixCount !== 1 ? "s" : ""} selected`}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontFamily: "var(--bm-fm)", fontSize: 12, fontWeight: 600, letterSpacing: ".04em", color: mixCount === 0 ? "var(--bm-muted)" : mixCount >= MAX_MIX_COMBOS ? "#EF4444" : "var(--bm-burst2)" }}>
+                {mixCount === 0 ? "Select at least 1 difficulty" : `${mixCount} / ${MAX_MIX_COMBOS} combinations`}
+              </div>
+              {mixCount >= MAX_MIX_COMBOS && (
+                <span style={{ fontFamily: "var(--bm-fm)", fontSize: 10, fontWeight: 700, color: "#EF4444", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, padding: "2px 7px", letterSpacing: ".03em" }}>
+                  LIMIT REACHED
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -1168,6 +1271,36 @@ export default function BurstMode() {
               Pick any combination of operations & difficulty levels.
               <br />All selected pairs appear randomly during the 60-second burst.
             </p>
+            <div style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 8, background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 999, padding: "6px 12px", fontFamily: "var(--bm-fm)", fontSize: 11, color: "var(--bm-burst2)" }}>
+              {selectedPlayMode === "memory_sequence" ? "Memory Sequence active · each prompt hides after 3s" : "Classic Burst active"}
+            </div>
+          </div>
+
+          <div style={{ background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 16, padding: 10, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginBottom: 18 }}>
+            {(Object.entries(BURST_PLAY_MODES) as [BurstPlayMode, typeof BURST_PLAY_MODES[BurstPlayMode]][]).map(([mode, meta]) => {
+              const active = selectedPlayMode === mode;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setSelectedPlayMode(mode)}
+                  style={{
+                    textAlign: "left",
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    border: active ? "1.5px solid rgba(249,115,22,.45)" : "1px solid var(--bm-bdr2)",
+                    background: active ? "rgba(249,115,22,.09)" : "var(--bm-surf2)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontFamily: "var(--bm-fd)", fontSize: 14, fontWeight: 700, color: active ? "var(--bm-white)" : "var(--bm-white2)", marginBottom: 3 }}>
+                    {meta.shortLabel}
+                  </div>
+                  <div style={{ fontFamily: "var(--bm-fb)", fontSize: 11, lineHeight: 1.45, color: active ? "var(--bm-burst3)" : "var(--bm-muted)" }}>
+                    {meta.description}
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
           {/* Operations accordion */}
@@ -1191,6 +1324,7 @@ export default function BurstMode() {
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {config.options.map(opt => {
                       const sel = isComboSelected(key, opt.value);
+                      const atCap = !sel && selectedCombos.length >= MAX_MIX_COMBOS;
                       const pts = getPointsForOption(key, opt.value);
                       return (
                         <button
@@ -1198,9 +1332,10 @@ export default function BurstMode() {
                           onClick={() => toggleCombo(key, opt.value)}
                           style={{
                             display: "inline-flex", alignItems: "center", gap: 5,
-                            padding: "7px 13px", borderRadius: 10, cursor: "pointer",
+                            padding: "7px 13px", borderRadius: 10, cursor: atCap ? "not-allowed" : "pointer",
                             fontFamily: "var(--bm-fm)", fontSize: 13, fontWeight: sel ? 700 : 500,
                             transition: "all .18s cubic-bezier(.4,0,.2,1)",
+                            opacity: atCap ? 0.38 : 1,
                             background: sel ? "rgba(249,115,22,.14)" : "var(--bm-surf2)",
                             border: sel ? "1.5px solid rgba(249,115,22,.55)" : "1px solid var(--bm-bdr2)",
                             color: sel ? "var(--bm-burst2)" : "var(--bm-white2)",
@@ -1302,6 +1437,34 @@ export default function BurstMode() {
 
           {/* Difficulty section */}
           <div style={{ padding: "0 24px 8px" }}>
+            <div style={{ fontFamily: "var(--bm-fm)", fontSize: 10, fontWeight: 600, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--bm-muted)", marginBottom: 12 }}>Play Style</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+              {(Object.entries(BURST_PLAY_MODES) as [BurstPlayMode, typeof BURST_PLAY_MODES[BurstPlayMode]][]).map(([mode, meta]) => {
+                const active = selectedPlayMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => setSelectedPlayMode(mode)}
+                    style={{
+                      textAlign: "left",
+                      padding: "12px 14px",
+                      borderRadius: 12,
+                      border: active ? "1.5px solid rgba(249,115,22,.45)" : "1px solid var(--bm-bdr2)",
+                      background: active ? "rgba(249,115,22,.09)" : "var(--bm-surf2)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontFamily: "var(--bm-fd)", fontSize: 14, fontWeight: 700, color: active ? "var(--bm-white)" : "var(--bm-white2)", marginBottom: 4 }}>
+                      {meta.shortLabel}
+                    </div>
+                    <div style={{ fontFamily: "var(--bm-fb)", fontSize: 11, lineHeight: 1.45, color: active ? "var(--bm-burst3)" : "var(--bm-muted)" }}>
+                      {meta.description}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
             <div style={{ fontFamily: "var(--bm-fm)", fontSize: 10, fontWeight: 600, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--bm-muted)", marginBottom: 12 }}>Choose Difficulty</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {config.options.map((opt) => {
@@ -1338,6 +1501,12 @@ export default function BurstMode() {
               <Clock style={{ width: 14, height: 14, color: "var(--bm-purple2)", flexShrink: 0, marginTop: 2 }} />
               <span style={{ fontFamily: "var(--bm-fb)", fontSize: 13, color: "var(--bm-white2)", lineHeight: 1.5 }}>60-second countdown timer</span>
             </div>
+            {selectedPlayMode === "memory_sequence" && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+                <BookOpen style={{ width: 14, height: 14, color: "var(--bm-purple2)", flexShrink: 0, marginTop: 2 }} />
+                <span style={{ fontFamily: "var(--bm-fb)", fontSize: 13, color: "var(--bm-white2)", lineHeight: 1.5 }}>Each question stays visible for 3 seconds, then disappears while the answer field remains active.</span>
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
               <Zap style={{ width: 14, height: 14, color: "var(--bm-purple2)", flexShrink: 0, marginTop: 2 }} />
               <span style={{ fontFamily: "var(--bm-fb)", fontSize: 13, color: "var(--bm-white2)", lineHeight: 1.5 }}>Answer as many questions as possible</span>
@@ -1359,7 +1528,7 @@ export default function BurstMode() {
               onMouseDown={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
             >
               <Play style={{ width: 20, height: 20 }} />
-              START BURST
+              {selectedPlayMode === "memory_sequence" ? "START MEMORY SEQUENCE" : "START BURST"}
             </button>
           </div>
         </div>
@@ -1388,8 +1557,8 @@ export default function BurstMode() {
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--bm-surf)", border: "1px solid var(--bm-bdr2)", borderRadius: 100, padding: "7px 16px", marginTop: 16, animation: "bm-fade-in .5s ease .4s both" }}>
             <span style={{ fontFamily: "var(--bm-fm)", fontSize: 12, color: "var(--bm-muted)" }}>
               {selectedCombos.length > 0
-                ? `Mix Mode · ${selectedCombos.length} combination${selectedCombos.length !== 1 ? "s" : ""} · 60s`
-                : `${selectedOp ? BURST_OPERATIONS[selectedOp].label : ""} · ${BURST_OPERATIONS[selectedOp!]?.options.find(o => o.value === selectedOption)?.label} · 60s`
+                ? `Mix Mode · ${selectedCombos.length} combination${selectedCombos.length !== 1 ? "s" : ""} · ${BURST_PLAY_MODES[selectedPlayMode].shortLabel} · 60s`
+                : `${selectedOp ? BURST_OPERATIONS[selectedOp].label : ""} · ${BURST_OPERATIONS[selectedOp!]?.options.find(o => o.value === selectedOption)?.label} · ${BURST_PLAY_MODES[selectedPlayMode].shortLabel} · 60s`
               }
             </span>
           </div>
@@ -1463,6 +1632,11 @@ export default function BurstMode() {
             <span style={{ fontFamily: "var(--bm-fm)", fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 800, letterSpacing: "-.02em", display: "inline-block", ...timerStyle }}>
               {formatTime(timeLeft)}
             </span>
+            {selectedPlayMode === "memory_sequence" && (
+              <div style={{ marginTop: 4, fontFamily: "var(--bm-fm)", fontSize: 10, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--bm-burst2)" }}>
+                Prompt hides after 3s
+              </div>
+            )}
           </div>
 
           {/* Fullscreen + Live scores */}
@@ -1497,23 +1671,66 @@ export default function BurstMode() {
           <div style={{ width: "100%", maxWidth: 600 }}>
             {/* Question label */}
             <div style={{ fontFamily: "var(--bm-fm)", fontSize: 11, fontWeight: 600, letterSpacing: ".16em", textTransform: "uppercase", color: "var(--bm-muted)", marginBottom: 20 }}>
-              QUESTION <span style={{ color: "var(--bm-burst2)" }}>#{results.length + 1}</span>
+              {selectedPlayMode === "memory_sequence"
+                ? `${questionVisible ? "MEMORIZE" : "RECALL"} `
+                : "QUESTION "}
+              <span style={{ color: "var(--bm-burst2)" }}>#{results.length + 1}</span>
             </div>
 
+            {selectedPlayMode === "memory_sequence" && questionVisible && (
+              <div style={{ width: "100%", maxWidth: 520, height: 4, margin: "0 auto 14px", borderRadius: 999, overflow: "hidden", background: "rgba(249,115,22,.12)" }}>
+                <div
+                  key={`memory-bar-${currentQuestion.id}`}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    background: "linear-gradient(90deg, var(--bm-burst2), var(--bm-burst))",
+                    animation: `bm-progress-drain ${MEMORY_SEQUENCE_VISIBLE_MS}ms linear forwards`,
+                    transformOrigin: "left center",
+                  }}
+                />
+              </div>
+            )}
+
             {/* Question expression */}
-            <div
-              key={currentQuestion.id}
-              className="bm-number-slam"
-              style={{ fontFamily: "var(--bm-fm)", fontSize: "clamp(84px, 15vw, 165px)", fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1, marginBottom: 32, display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: "0 2px" }}
-            >
-              {currentQuestion.text.replace(" =", "").split(" ").map((token, i) => {
-                const isOp = ["÷", "×", "+", "−", "-", "of"].includes(token);
-                return (
-                  <span key={i} style={{ color: isOp ? "var(--bm-burst2)" : "var(--bm-white)", fontSize: isOp ? "0.65em" : undefined, verticalAlign: isOp ? "middle" : undefined, display: "inline-block", margin: "0 2px" }}>
-                    {token}
-                  </span>
-                );
-              })}
+            <div style={{ minHeight: "clamp(150px, 22vw, 240px)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 32 }}>
+              {selectedPlayMode === "memory_sequence" && !questionVisible ? (
+                <div
+                  key={`memory-hidden-${currentQuestion.id}`}
+                  style={{
+                    width: "100%",
+                    maxWidth: 460,
+                    padding: "24px 28px",
+                    borderRadius: 24,
+                    background: "linear-gradient(135deg, rgba(123,92,229,.08), rgba(249,115,22,.06))",
+                    border: "1px solid rgba(123,92,229,.18)",
+                    boxShadow: "0 18px 48px rgba(0,0,0,.22)",
+                    animation: "bm-fade-in .18s ease both",
+                  }}
+                >
+                  <div style={{ fontFamily: "var(--bm-fd)", fontSize: "clamp(28px,4.5vw,40px)", fontWeight: 800, color: "var(--bm-white)", marginBottom: 10, letterSpacing: "-.02em" }}>
+                    Recall and answer
+                  </div>
+                  <div style={{ fontFamily: "var(--bm-fb)", fontSize: 14, lineHeight: 1.6, color: "var(--bm-white2)" }}>
+                    The prompt is hidden now. Keep the question in memory and enter the answer when ready.
+                  </div>
+                </div>
+              ) : (
+                <div
+                  key={currentQuestion.id}
+                  className="bm-number-slam"
+                  style={{ fontFamily: "var(--bm-fm)", fontSize: "clamp(84px, 15vw, 165px)", fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: "0 2px" }}
+                >
+                  {currentQuestion.text.replace(" =", "").split(" ").map((token, i) => {
+                    const isOp = ["÷", "×", "+", "−", "-", "of"].includes(token);
+                    return (
+                      <span key={i} style={{ color: isOp ? "var(--bm-burst2)" : "var(--bm-white)", fontSize: isOp ? "0.65em" : undefined, verticalAlign: isOp ? "middle" : undefined, display: "inline-block", margin: "0 2px" }}>
+                        {token}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Answer input row */}
@@ -1531,7 +1748,7 @@ export default function BurstMode() {
                     }
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder="?"
+                  placeholder={selectedPlayMode === "memory_sequence" && !questionVisible ? "Answer from memory" : "?"}
                   autoComplete="off"
                   className={`bm-input${flashColor === "green" ? " correct" : flashColor === "red" ? " wrong" : ""}`}
                   style={{ flex: 1, paddingRight: 56 }}
@@ -1588,6 +1805,8 @@ export default function BurstMode() {
                   <span style={{ color: "var(--bm-muted)" }}> · </span>
                   <span style={{ color: "var(--bm-white2)" }}>{selectedCombos.length} combination{selectedCombos.length !== 1 ? "s" : ""}</span>
                   <span style={{ color: "var(--bm-muted)" }}> · </span>
+                  <span style={{ color: "var(--bm-white2)" }}>{BURST_PLAY_MODES[selectedPlayMode].label}</span>
+                  <span style={{ color: "var(--bm-muted)" }}> · </span>
                   <span style={{ color: "var(--bm-white2)" }}>You answered {results.length} question{results.length !== 1 ? "s" : ""}</span>
                 </>
               ) : (
@@ -1595,6 +1814,8 @@ export default function BurstMode() {
                   <span style={{ color: "var(--bm-burst2)" }}>{config?.label}</span>
                   <span style={{ color: "var(--bm-muted)" }}> · </span>
                   <span style={{ color: "var(--bm-white2)" }}>{BURST_OPERATIONS[selectedOp!]?.options.find(o => o.value === selectedOption)?.label}</span>
+                  <span style={{ color: "var(--bm-muted)" }}> · </span>
+                  <span style={{ color: "var(--bm-white2)" }}>{BURST_PLAY_MODES[selectedPlayMode].label}</span>
                   <span style={{ color: "var(--bm-muted)" }}> · </span>
                   <span style={{ color: "var(--bm-white2)" }}>You answered {results.length} question{results.length !== 1 ? "s" : ""}</span>
                 </>

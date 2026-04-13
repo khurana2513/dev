@@ -8,7 +8,7 @@ from datetime import datetime
 QuestionType = Literal[
     "addition", "subtraction", "add_sub", "multiplication", "division", "square_root", "cube_root", 
     "decimal_multiplication", "lcm", "gcd", "integer_add_sub", "decimal_division", "decimal_add_sub", 
-    "direct_add_sub", "small_friends_add_sub", "big_friends_add_sub", "mix_friends_add_sub", "percentage",
+    "direct_add_sub", "small_friends_add_sub", "big_friends_add_sub", "mix_friends_add_sub", "intl_add_sub", "percentage",
     # Vedic Maths Level 1 operations
     "vedic_multiply_by_11", "vedic_multiply_by_101", "vedic_subtraction_complement", "vedic_subtraction_normal",
     "vedic_multiply_by_12_19", "vedic_special_products_base_100", "vedic_special_products_base_50",
@@ -49,6 +49,7 @@ class Constraints(BaseModel):
     
     digits: Optional[int] = Field(default=None, ge=1, le=30)  # Max 30 for vedic operations, but clamped appropriately in code for other operations
     rows: Optional[int] = Field(default=None, ge=3, le=30)  # Updated min to 3, max to 30
+    intlAddSubPreset: Optional[Literal["1_2", "2_3"]] = Field(default=None)
     allowBorrow: Optional[bool] = Field(default=True)
     allowCarry: Optional[bool] = Field(default=True)
     minAnswer: Optional[int] = None

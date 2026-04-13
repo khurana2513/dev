@@ -715,6 +715,9 @@ class StudentDashboardData(BaseModel):
     stats: StudentStats
     profile: Optional[StudentProfileResponse] = None
     paper_attempts: List[PaperAttemptResponse] = Field(default_factory=list)
+    # Pre-aggregated attempt counts keyed by "{seed}_{paper_title}".
+    # Eliminates the N+1 getPaperAttemptCount waterfall fired by the dashboard.
+    attempt_counts: Dict[str, int] = Field(default_factory=dict)
 
 
 class AdminDashboardData(BaseModel):

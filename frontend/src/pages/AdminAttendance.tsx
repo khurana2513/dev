@@ -310,13 +310,18 @@ function SessionItem({ session, isActive, onSelect, onDelete, isDeleting }: {
 // ── StatusToggle — tap cycles through states; same-status tap = unmark ──────
 // P cycle: null → present → present+shirt → null
 // A / B / L cycle: null → marked → null
-function StatusToggle({ status, tShirt, onChange }: {
+function StatusToggle({ status, tShirt, onChange, locked }: {
   status: AttendanceStatus | null;
   tShirt: boolean;
   onChange: (s: AttendanceStatus | null, t: boolean) => void;
+  locked?: boolean;
 }) {
   return (
-    <div style={{ display: "flex", gap: 3 }} onClick={e => e.stopPropagation()}>
+    <div
+      style={{ display: "flex", gap: 3, opacity: locked ? 0.4 : 1 }}
+      onClick={e => e.stopPropagation()}
+      title={locked ? "Max 3 attendance marks per day reached" : undefined}
+    >
       {STATUS_ORDER.map(s => {
         const cfg = STATUS_CFG[s];
         const active = status === s;
@@ -324,7 +329,9 @@ function StatusToggle({ status, tShirt, onChange }: {
         return (
           <button
             key={s}
+            disabled={locked}
             onClick={() => {
+              if (locked) return;
               if (s === "present") {
                 if (status !== "present")       onChange("present", false);  // null → present
                 else if (!tShirt)               onChange("present", true);   // present → present+shirt
@@ -335,6 +342,7 @@ function StatusToggle({ status, tShirt, onChange }: {
               }
             }}
             title={
+              locked ? "Max 3 attendance marks per day reached" :
               s === "present"
                 ? status !== "present" ? "Mark present"
                   : tShirt ? "Click to unmark"
@@ -347,7 +355,7 @@ function StatusToggle({ status, tShirt, onChange }: {
               background: active ? cfg.bg : "rgba(255,255,255,0.04)",
               color: active ? cfg.text : T.textMuted,
               border: `1px solid ${active ? cfg.bdr : "transparent"}`,
-              cursor: "pointer", transition: "all 0.1s ease",
+              cursor: locked ? "not-allowed" : "pointer", transition: "all 0.1s ease",
               display: "inline-flex", alignItems: "center", gap: 3,
             }}
           >
@@ -401,9 +409,31 @@ function StudentRow({ student, status, tShirt, rowState, isFocused, onFocus, onC
         <p style={{ fontSize: 10, color: T.textMuted }}>
           {student.public_id ?? `#${student.student_profile_id}`}
           {student.course && ` · ${student.course}`}
+          {student.today_attendance_count > 0 && (
+            <span
+              title={`Marked ${student.today_attendance_count}× today across sessions`}
+              style={{
+                marginLeft: 5,
+                padding: "1px 5px",
+                borderRadius: 4,
+                fontSize: 9,
+                fontWeight: 700,
+                background: student.today_attendance_count >= 3 ? "rgba(248,113,113,0.2)" : "rgba(245,158,11,0.2)",
+                color: student.today_attendance_count >= 3 ? T.red : T.amber,
+                border: `1px solid ${student.today_attendance_count >= 3 ? "rgba(248,113,113,0.35)" : "rgba(245,158,11,0.35)"}`,
+              }}
+            >
+              {student.today_attendance_count}× today
+            </span>
+          )}
         </p>
       </div>
-      <StatusToggle status={status} tShirt={tShirt} onChange={onChange} />
+      <StatusToggle
+        status={status}
+        tShirt={tShirt}
+        onChange={onChange}
+        locked={student.today_attendance_count >= 3 && student.attendance_record_id === null}
+      />
       <div style={{ width: 14, flexShrink: 0, display: "flex", justifyContent: "center" }}>
         {rowState === "saving" && <Loader2 style={{ width: 11, height: 11, color: T.textMuted, animation: "attn-spin 0.8s linear infinite" }} />}
         {rowState === "saved"  && <CheckCircle2 style={{ width: 11, height: 11, color: T.green }} />}
@@ -573,7 +603,15 @@ function SheetPanel({ session, isOnline, onSessionClose }: {
   }, [session.id, doFlush]);
 
   // ─ Status change (supports null = unmark) ─
+  const MAX_DAILY = 3;
   const handleChange = useCallback((studentId: number, status: AttendanceStatus | null, tShirt: boolean) => {
+    // Enforce daily limit: only block when CREATING a new record (no attendance_record_id)
+    if (status !== null && sheet) {
+      const studentEntry = sheet.students.find(s => s.student_profile_id === studentId);
+      if (studentEntry && studentEntry.attendance_record_id === null && studentEntry.today_attendance_count >= MAX_DAILY) {
+        return; // silently blocked — badge already shows the cap
+      }
+    }
     setLocalData(prev => { const n = new Map(prev); n.set(studentId, { status, tShirt }); return n; });
     if (status === null) {
       // Unmark: cancel any pending mark, then delete the server record (404 is OK)
@@ -603,7 +641,10 @@ function SheetPanel({ session, isOnline, onSessionClose }: {
       setPendingCount(0);
       return;
     }
-    const items: BulkAttendanceItem[] = sheet.students.map(s => ({ session_id: sessionIdRef.current, student_profile_id: s.student_profile_id, status, t_shirt_worn: false }));
+    // Filter out students already at their daily limit who have no record in this session
+    const items: BulkAttendanceItem[] = sheet.students
+      .filter(s => !(s.attendance_record_id === null && s.today_attendance_count >= MAX_DAILY))
+      .map(s => ({ session_id: sessionIdRef.current, student_profile_id: s.student_profile_id, status, t_shirt_worn: false }));
     setLocalData(() => { const m = new Map<number, LocalRec>(); sheet.students.forEach(s => m.set(s.student_profile_id, { status, tShirt: false })); return m; });
     items.forEach(i => pendingRef.current.set(i.student_profile_id, i));
     setPendingCount(pendingRef.current.size);

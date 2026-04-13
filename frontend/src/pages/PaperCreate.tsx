@@ -46,6 +46,10 @@ function generateSectionName(block: BlockConfig): string {
     return `Integer Add/Sub ${block.constraints.digits || 2}D ${block.constraints.rows || 3}R`;
   } else if (block.type === "decimal_add_sub") {
     return `Decimal Add/Sub ${block.constraints.digits || 2}D ${block.constraints.rows || 3}R`;
+  } else if (block.type === "intl_add_sub") {
+    const preset = block.constraints.intlAddSubPreset || "1_2";
+    const presetLabel = preset === "1_2" ? "1&2D" : "2&3D";
+    return `Intl Add/Sub Beta ${presetLabel} ${block.constraints.rows || 3}R`;
   } else if (block.type === "decimal_division") {
     const dividend = block.constraints.dividendDigits ?? 2;
     const divisor = block.constraints.divisorDigits ?? 1;
@@ -1097,6 +1101,9 @@ export default function PaperCreate() {
       } else if (updates.type === "vedic_duplex") {
         // Always reset to vedic_duplex default when switching to it
         updatedBlock.constraints.digits = 2;  // Duplex default: 2
+      } else if (updates.type === "intl_add_sub") {
+        updatedBlock.constraints.intlAddSubPreset = "1_2";
+        updatedBlock.constraints.rows = 3;
       } else if (["direct_add_sub", "small_friends_add_sub", "big_friends_add_sub", "mix_friends_add_sub"].includes(updates.type)) {
         // Junior types default to 3 rows and 1 digit
         if (!updatedBlock.constraints.rows || updatedBlock.constraints.rows > 10) {
@@ -1126,7 +1133,7 @@ export default function PaperCreate() {
                               'dividendDigits', 'divisorDigits', 'rootDigits', 'percentageMin', 
                               'percentageMax', 'numberDigits', 'base', 'firstDigits', 'secondDigits',
                               'multiplier', 'multiplierRange', 'divisor', 'tableNumber', 'tableNumberLarge',
-                              'powerOf10',
+                              'powerOf10', 'intlAddSubPreset',
                               'multiplicationCase', 'fractionCase', 'divisorCheck',
                               'funWith5Case', 'funWith10Case', 'divisibilityCase',
                               'division9_8_7_6Case', 'division91_121Case', 'bodmasDifficulty',
@@ -1343,6 +1350,18 @@ export default function PaperCreate() {
             hasErrors = true;
           }
         }
+      } else if (block.type === "intl_add_sub") {
+        const rows = block.constraints.rows;
+        if (rows !== undefined && rows !== -1) {
+          if (rows < 3 || rows > 30) {
+            blockErrors.rows = rows < 3 ? "Minimum value for Rows is 3" : "Maximum value for Rows is 30";
+            hasErrors = true;
+          }
+        }
+        if (block.constraints.intlAddSubPreset && !["1_2", "2_3"].includes(block.constraints.intlAddSubPreset)) {
+          blockErrors.intlAddSubPreset = "Select a valid digit range";
+          hasErrors = true;
+        }
       } else if (block.type === "multiplication" || block.type === "division") {
         const multiplicandDigits = block.type === "multiplication" ? block.constraints.multiplicandDigits : block.constraints.dividendDigits;
         const fieldName = block.type === "multiplication" ? "Multiplicand Digits" : "Dividend Digits";
@@ -1489,6 +1508,7 @@ export default function PaperCreate() {
           numberDigits: b.constraints.numberDigits === -1 ? undefined : b.constraints.numberDigits,
           // Vedic Maths constraints
           digits: b.constraints.digits === -1 ? undefined : b.constraints.digits,
+          intlAddSubPreset: b.constraints.intlAddSubPreset,
           base: b.constraints.base,
           firstDigits: b.constraints.firstDigits,
           secondDigits: b.constraints.secondDigits,
@@ -1514,6 +1534,9 @@ export default function PaperCreate() {
         // Add digits based on question type (for non-vedic operations)
         if (b.type === "addition" || b.type === "subtraction" || b.type === "add_sub" || b.type === "integer_add_sub" || b.type === "direct_add_sub" || b.type === "small_friends_add_sub" || b.type === "big_friends_add_sub" || b.type === "mix_friends_add_sub") {
           constraints.digits = b.constraints.digits || 2;
+        } else if (b.type === "intl_add_sub") {
+          constraints.rows = b.constraints.rows === -1 ? undefined : (b.constraints.rows || 3);
+          constraints.intlAddSubPreset = b.constraints.intlAddSubPreset || "1_2";
         } else {
           // For multiplication/division, digits is optional but provide default for backend
           constraints.digits = b.constraints.digits ?? 2;
@@ -2059,6 +2082,7 @@ export default function PaperCreate() {
                                 <>
                                   <optgroup label="Basic Operations">
                                     <option value="add_sub">Add/Sub</option>
+                                    <option value="intl_add_sub">Intl Add/Sub - Beta</option>
                                     <option value="multiplication">Multiplication</option>
                                     <option value="division">Division</option>
                                   </optgroup>
@@ -2077,6 +2101,7 @@ export default function PaperCreate() {
                               ) : (
                                 <optgroup label="Basic Operations">
                                   <option value="add_sub">Add/Sub</option>
+                                  <option value="intl_add_sub">Intl Add/Sub - Beta</option>
                                   <option value="multiplication">Multiplication</option>
                                   <option value="division">Division</option>
                                 </optgroup>
@@ -2450,6 +2475,75 @@ export default function PaperCreate() {
                           <p className="mt-1 text-sm text-red-600">{getFieldError(index, block.type === "vedic_tables" || block.type === "vedic_tables_large" ? "rows" : "count")}</p>
                         )}
                       </div>
+
+                      {block.type === "intl_add_sub" && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium  text-white mb-1">Digit Range</label>
+                            <select
+                              value={block.constraints.intlAddSubPreset || "1_2"}
+                              onChange={(e) => {
+                                setFieldError(index, "intlAddSubPreset", null);
+                                updateBlock(index, {
+                                  constraints: {
+                                    ...block.constraints,
+                                    intlAddSubPreset: e.target.value as "1_2" | "2_3",
+                                  },
+                                });
+                              }}
+                              className={`w-full px-3 py-2 border-0 rounded-lg focus:ring-2 transition-all outline-none  bg-slate-700  text-white ${
+                                getFieldError(index, "intlAddSubPreset")
+                                  ? "focus:ring-red-200"
+                                  : "focus:ring-blue-200"
+                              }`}
+                            >
+                              <option value="1_2">1 & 2 Digits</option>
+                              <option value="2_3">2 & 3 Digits</option>
+                            </select>
+                            {getFieldError(index, "intlAddSubPreset") && (
+                              <p className="mt-1 text-sm text-red-600">{getFieldError(index, "intlAddSubPreset")}</p>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium  text-white mb-1">Rows (3-30)</label>
+                            <input
+                              type="text"
+                              maxLength={10}
+                              value={block.constraints.rows === -1 || block.constraints.rows === undefined ? "" : String(block.constraints.rows)}
+                              placeholder="3"
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === "") {
+                                  setFieldError(index, "rows", null);
+                                  updateBlock(index, {
+                                    constraints: { ...block.constraints, rows: -1 as any },
+                                  });
+                                } else if (/^\d+$/.test(val)) {
+                                  const numVal = parseInt(val);
+                                  updateBlock(index, {
+                                    constraints: { ...block.constraints, rows: numVal },
+                                  });
+                                  if (numVal < 3) {
+                                    setFieldError(index, "rows", "Minimum value for Rows is 3");
+                                  } else if (numVal > 30) {
+                                    setFieldError(index, "rows", "Maximum value for Rows is 30");
+                                  } else {
+                                    setFieldError(index, "rows", null);
+                                  }
+                                }
+                              }}
+                              className={`w-full px-3 py-2 border-0 rounded-lg focus:ring-2 transition-all outline-none  bg-slate-700  text-white placeholder:text-slate-400 placeholder:text-slate-500 ${
+                                getFieldError(index, "rows")
+                                  ? "focus:ring-red-200"
+                                  : "focus:ring-blue-200"
+                              }`}
+                            />
+                            {getFieldError(index, "rows") && (
+                              <p className="mt-1 text-sm text-red-600">{getFieldError(index, "rows")}</p>
+                            )}
+                          </div>
+                        </>
+                      )}
 
                       {(block.type === "addition" || block.type === "subtraction" || block.type === "add_sub" || block.type === "integer_add_sub" || block.type === "decimal_add_sub" || block.type === "direct_add_sub" || block.type === "small_friends_add_sub" || block.type === "big_friends_add_sub" || block.type === "mix_friends_add_sub") && (
                         <>
