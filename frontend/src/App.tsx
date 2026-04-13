@@ -48,6 +48,8 @@ const StudentRewards = lazy(() => import("./pages/StudentRewards"));
 const AdminRewards = lazy(() => import("./pages/AdminRewards"));
 const LeaderboardComingSoon = lazy(() => import("./pages/LeaderboardComingSoon"));
 const DuelMode = lazy(() => import("./pages/DuelMode"));
+const AdminExams = lazy(() => import("./pages/AdminExams"));
+const ExamTake = lazy(() => import("./pages/ExamTake"));
 const BadgeUnlockCinematic = lazy(() => import("./components/rewards/BadgeUnlockCinematic"));
 const StreakCelebrationOverlay = lazy(() => import("./components/rewards/StreakCelebrationOverlay"));
 const SuperLetterCinematic = lazy(() => import("./components/rewards/SuperLetterCinematic"));
@@ -268,6 +270,16 @@ function AppContent() {
               </Route>
               <Route path="/paper/shared/:code" component={SharedPaperView} />
               <Route path="/paper/enter-code" component={EnterCode} />
+              <Route path="/admin/exams">
+                <AdminRoute>
+                  <AdminExams />
+                </AdminRoute>
+              </Route>
+              <Route path="/exam/:code">
+                <ProtectedRoute>
+                  <ExamTake />
+                </ProtectedRoute>
+              </Route>
               <Route component={NotFound} />
             </Switch>
             </Suspense>

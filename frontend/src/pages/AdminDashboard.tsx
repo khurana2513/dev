@@ -7,6 +7,8 @@ import {
   updateStudentPoints, getDatabaseStats, DatabaseStats,
   getStudentPracticeSessionDetailAdmin, PracticeSessionDetail,
   getStudentPaperAttemptDetailAdmin, User, AdminDashboardData,
+  getStudentEngagementAdmin, StudentEngagementResponse,
+  getAdminSiteInsights, AdminSiteInsightsResponse,
   getOverallLeaderboard, getWeeklyLeaderboard, LeaderboardEntry,
 } from "../lib/userApi";
 import { getAttendanceMetrics } from "../lib/attendanceApi";
@@ -31,6 +33,8 @@ export default function AdminDashboard() {
   const [selectedSession, setSelectedSession] = useState<PracticeSessionDetail | null>(null);
   const [selectedPaperAttempt, setSelectedPaperAttempt] = useState<PaperAttemptDetail | null>(null);
   const [leaderboardTab, setLeaderboardTab] = useState<"overall" | "weekly">("overall");
+  const [showActiveTodayModal, setShowActiveTodayModal] = useState(false);
+  const [selectedActiveDay, setSelectedActiveDay] = useState<string | null>(null);
 
   // ─── Leaderboard Queries ───────────────────────────────────────────────────
   const { data: overallLb = [], isLoading: lbOverallLoading, refetch: refetchOverall } = useQuery<LeaderboardEntry[]>({
@@ -54,6 +58,24 @@ export default function AdminDashboard() {
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
     retry: false,
+  });
+
+  const { data: siteInsights } = useQuery<AdminSiteInsightsResponse>({
+    queryKey: ["adminSiteInsights"],
+    queryFn: getAdminSiteInsights,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+    enabled: isAdmin,
+  });
+
+  const { data: studentEngagement } = useQuery<StudentEngagementResponse>({
+    queryKey: ["adminStudentEngagement", selectedStudent?.id],
+    queryFn: () => getStudentEngagementAdmin(selectedStudent!.id),
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+    enabled: !!selectedStudent?.id,
   });
 
   // ─── Combined Admin Dashboard Query (replaces 3 separate API calls) ────────
@@ -211,6 +233,14 @@ export default function AdminDashboard() {
     }
   };
 
+  const formatDuration = (seconds: number): string => {
+    if (!seconds || seconds <= 0) return "0m";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
   if (loading) {
     return <LoadingScreen />;
   }
@@ -275,12 +305,67 @@ export default function AdminDashboard() {
             <div className="text-2xl sm:text-3xl font-black italic text-card-foreground">{stats?.average_accuracy?.toFixed(1) || '0.0'}%</div>
           </div>
 
-          <div className="bg-card border border-border rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-xl hover:border-primary transition-all group">
+          <button
+            type="button"
+            onClick={() => setShowActiveTodayModal(true)}
+            className="text-left bg-card border border-border rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-xl hover:border-primary transition-all group"
+          >
             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center mb-4 sm:mb-6 shadow-lg group-hover:scale-110 transition-all">
               <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6  text-orange-400" />
             </div>
             <div className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Active Today</div>
             <div className="text-2xl sm:text-3xl font-black italic text-card-foreground">{stats.active_students_today}</div>
+            <div className="text-[11px] text-muted-foreground mt-1">Click to view who practiced today</div>
+          </button>
+        </div>
+
+        <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-card border border-border rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-7 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black tracking-tight text-card-foreground">Active Students - Last 7 Days</h3>
+              <div className="text-xs font-bold text-muted-foreground">
+                Unique: {stats.active_students_last_7_days_unique || 0}
+              </div>
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {(stats.active_students_last_7_days || []).map((day) => (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => setSelectedActiveDay(day.date)}
+                  className="bg-background/50 border border-border rounded-xl p-2 hover:border-primary hover:bg-primary/5 transition-all"
+                >
+                  <div className="text-[10px] text-muted-foreground">{new Date(day.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+                  <div className="text-lg font-black text-card-foreground">{day.count}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-7 shadow-xl">
+            <h3 className="text-lg font-black tracking-tight text-card-foreground mb-4">Site Activity Intelligence</h3>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-background/50 border border-border rounded-xl p-3">
+                <div className="text-xs text-muted-foreground uppercase tracking-widest">Active Now</div>
+                <div className="text-xl font-black text-card-foreground">{siteInsights?.active_currently_count ?? 0}</div>
+              </div>
+              <div className="bg-background/50 border border-border rounded-xl p-3">
+                <div className="text-xs text-muted-foreground uppercase tracking-widest">Active 6 Months</div>
+                <div className="text-xl font-black text-card-foreground">{siteInsights?.active_last_6_months_count ?? 0}</div>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground mb-2">Avg time per active user (6m)</div>
+            <div className="text-lg font-black text-card-foreground mb-4">
+              {formatDuration(siteInsights?.average_time_spent_seconds_per_user_6m ?? 0)}
+            </div>
+            <div className="space-y-2 max-h-36 overflow-y-auto scrollbar-premium">
+              {(siteInsights?.recent_activities || []).slice(0, 6).map((a, idx) => (
+                <div key={`${a.student_id}-${a.activity_at}-${idx}`} className="bg-background/40 border border-border rounded-lg p-2">
+                  <div className="text-xs font-bold text-card-foreground">{a.name} - {a.activity_label}</div>
+                  <div className="text-[11px] text-muted-foreground">{formatDateToIST(a.activity_at)}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -772,6 +857,53 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
+                  {/* Engagement Intelligence */}
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-primary" />
+                      Engagement (6 Months)
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="bg-background/50 border border-border rounded-xl p-3 text-center">
+                        <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Online Days</div>
+                        <div className="text-lg font-black italic text-card-foreground">{studentEngagement?.online_days_count_6m ?? 0}</div>
+                      </div>
+                      <div className="bg-background/50 border border-border rounded-xl p-3 text-center">
+                        <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Offline Days</div>
+                        <div className="text-lg font-black italic text-card-foreground">{studentEngagement?.offline_days_count_6m ?? 0}</div>
+                      </div>
+                      <div className="bg-background/50 border border-border rounded-xl p-3 text-center">
+                        <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Time Spent</div>
+                        <div className="text-lg font-black italic text-card-foreground">{formatDuration(studentEngagement?.total_time_spent_seconds_6m ?? 0)}</div>
+                      </div>
+                      <div className="bg-background/50 border border-border rounded-xl p-3 text-center">
+                        <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Avg/Active Day</div>
+                        <div className="text-lg font-black italic text-card-foreground">{formatDuration(studentEngagement?.average_time_spent_seconds_active_day_6m ?? 0)}</div>
+                      </div>
+                    </div>
+
+                    <div className="bg-background/50 border border-border rounded-xl p-3 mb-3">
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Streak Calendar (All Time)</div>
+                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto scrollbar-premium">
+                        {(studentEngagement?.streak_days_all_time || []).slice(-120).map((d) => (
+                          <div key={d} className="w-2.5 h-2.5 rounded-sm bg-emerald-500/70" title={d} />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-background/50 border border-border rounded-xl p-3">
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Recent Activity</div>
+                      <div className="space-y-2 max-h-32 overflow-y-auto scrollbar-premium">
+                        {(studentEngagement?.recent_activities || []).slice(0, 6).map((a, idx) => (
+                          <div key={`${a.activity_at}-${idx}`} className="text-xs">
+                            <div className="font-bold text-card-foreground">{a.activity_label}</div>
+                            <div className="text-muted-foreground">{formatDateToIST(a.activity_at)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
 
 
                   {/* Mental Math Sessions */}
@@ -912,6 +1044,56 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
+
+        {showActiveTodayModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowActiveTodayModal(false)}>
+            <div className="bg-card border border-border rounded-2xl sm:rounded-[2.5rem] max-w-2xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="p-5 border-b border-border flex items-center justify-between">
+                <h3 className="text-xl font-black text-card-foreground">Active Today ({stats.active_students_today})</h3>
+                <button onClick={() => setShowActiveTodayModal(false)} className="p-2 hover:bg-destructive/10 rounded-lg transition-colors">
+                  <X className="w-5 h-5 text-destructive" />
+                </button>
+              </div>
+              <div className="p-5 space-y-2 max-h-[60vh] overflow-y-auto scrollbar-premium">
+                {(stats.active_students_today_list || []).map((s) => (
+                  <div key={s.user_id} className="bg-background/50 border border-border rounded-xl p-3">
+                    <div className="font-bold text-card-foreground">{s.display_name || s.name}</div>
+                    <div className="text-xs text-muted-foreground">{s.public_id || "No ID"} • {s.branch || "No branch"}</div>
+                    {s.last_active_at && <div className="text-xs text-muted-foreground">Last active: {formatDateToIST(s.last_active_at)}</div>}
+                  </div>
+                ))}
+                {(stats.active_students_today_list || []).length === 0 && (
+                  <div className="text-sm text-muted-foreground">No active students today yet.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {selectedActiveDay && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedActiveDay(null)}>
+            <div className="bg-card border border-border rounded-2xl sm:rounded-[2.5rem] max-w-2xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="p-5 border-b border-border flex items-center justify-between">
+                <h3 className="text-xl font-black text-card-foreground">Active On {selectedActiveDay}</h3>
+                <button onClick={() => setSelectedActiveDay(null)} className="p-2 hover:bg-destructive/10 rounded-lg transition-colors">
+                  <X className="w-5 h-5 text-destructive" />
+                </button>
+              </div>
+              <div className="p-5 space-y-2 max-h-[60vh] overflow-y-auto scrollbar-premium">
+                {((stats.active_students_last_7_days || []).find((d) => d.date === selectedActiveDay)?.students || []).map((s) => (
+                  <div key={s.user_id} className="bg-background/50 border border-border rounded-xl p-3">
+                    <div className="font-bold text-card-foreground">{s.display_name || s.name}</div>
+                    <div className="text-xs text-muted-foreground">{s.public_id || "No ID"} • {s.course || "No course"}</div>
+                    {s.last_active_at && <div className="text-xs text-muted-foreground">Last active: {formatDateToIST(s.last_active_at)}</div>}
+                  </div>
+                ))}
+                {((stats.active_students_last_7_days || []).find((d) => d.date === selectedActiveDay)?.students || []).length === 0 && (
+                  <div className="text-sm text-muted-foreground">No active students for this day.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Session Detail Modal */}
         {selectedSession && selectedStudent && (

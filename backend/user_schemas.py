@@ -194,12 +194,79 @@ class LeaderboardEntry(BaseModel):
     branch: Optional[str] = None
 
 
+class ActiveStudentEntry(BaseModel):
+    user_id: int
+    name: str
+    display_name: Optional[str] = None
+    email: Optional[str] = None
+    avatar_url: Optional[str] = None
+    public_id: Optional[str] = None
+    branch: Optional[str] = None
+    course: Optional[str] = None
+    last_active_at: Optional[str] = None
+
+
+class ActiveStudentsDayRecord(BaseModel):
+    date: str
+    count: int
+    students: List[ActiveStudentEntry] = Field(default_factory=list)
+
+
+class AdminActivityEntry(BaseModel):
+    student_id: int
+    name: str
+    email: Optional[str] = None
+    public_id: Optional[str] = None
+    activity_type: str
+    activity_label: str
+    activity_at: str
+    duration_seconds: Optional[float] = None
+    correct_answers: Optional[int] = None
+    wrong_answers: Optional[int] = None
+
+
+class StudentOnlineDay(BaseModel):
+    date: str
+    online: bool
+    time_spent_seconds: float = 0.0
+
+
+class StudentEngagementResponse(BaseModel):
+    student_id: int
+    last_seen_at: Optional[str] = None
+    total_time_spent_seconds_6m: float
+    average_time_spent_seconds_active_day_6m: float
+    online_days_count_6m: int
+    offline_days_count_6m: int
+    online_offline_calendar_6m: List[StudentOnlineDay] = Field(default_factory=list)
+    streak_days_all_time: List[str] = Field(default_factory=list)
+    current_streak: int = 0
+    longest_streak: int = 0
+    recent_activities: List[AdminActivityEntry] = Field(default_factory=list)
+
+
+class AdminSiteInsightsResponse(BaseModel):
+    active_currently_count: int
+    active_currently_students: List[ActiveStudentEntry] = Field(default_factory=list)
+    active_today_count: int
+    active_today_students: List[ActiveStudentEntry] = Field(default_factory=list)
+    active_last_7_days_unique_count: int
+    active_last_7_days_by_day: List[ActiveStudentsDayRecord] = Field(default_factory=list)
+    active_last_6_months_count: int
+    active_last_6_months_students: List[ActiveStudentEntry] = Field(default_factory=list)
+    average_time_spent_seconds_per_user_6m: float = 0.0
+    recent_activities: List[AdminActivityEntry] = Field(default_factory=list)
+
+
 class AdminStats(BaseModel):
     total_students: int
     total_sessions: int
     total_questions: int
     average_accuracy: float
     active_students_today: int
+    active_students_today_list: List[ActiveStudentEntry] = Field(default_factory=list)
+    active_students_last_7_days: List[ActiveStudentsDayRecord] = Field(default_factory=list)
+    active_students_last_7_days_unique: int = 0
     top_students: List[LeaderboardEntry]
 
 

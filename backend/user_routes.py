@@ -6,14 +6,14 @@ from sqlalchemy import func, desc
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 import time
-from timezone_utils import get_ist_now, get_utc_now
+from timezone_utils import get_ist_now, get_utc_now, utc_to_ist
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
 
-from models import User, PracticeSession, Attempt, PaperAttempt, Paper, StudentProfile, ProfileAuditLog, VacantId, PointsLog, Certificate, get_db
+from models import User, PracticeSession, Attempt, PaperAttempt, Paper, StudentProfile, ProfileAuditLog, VacantId, PointsLog, Certificate, Organization, get_db
 from auth import (
     ACCESS_COOKIE_NAME,
     REFRESH_COOKIE_NAME,
@@ -42,6 +42,9 @@ from user_schemas import (
     StudentDashboardData, AdminDashboardData, DatabaseStatsSchema,
     AdminCreateStudentRequest, AdminUpdateStudentRequest, AdminStudentResponse,
     CertificateCreate, CertificateUpdate, CertificateResponse,
+    ActiveStudentEntry, ActiveStudentsDayRecord,
+    AdminSiteInsightsResponse, StudentEngagementResponse,
+    StudentOnlineDay, AdminActivityEntry,
 )
 from student_profile_utils import (
     validate_level, validate_course, validate_branch, validate_status,
@@ -66,6 +69,253 @@ from point_rule_engine import (
 from session_validator import session_validator
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _to_ist_iso(dt: Optional[datetime]) -> Optional[str]:
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return utc_to_ist(dt).isoformat()
+
+
+def _get_admin_owned_org_ids(admin: User, db: Session) -> List[str]:
+    rows = db.query(Organization.id).filter(Organization.owner_user_id == admin.id).all()
+    return [r[0] for r in rows]
+
+
+def _get_scoped_student_ids(admin: User, db: Session) -> Optional[List[int]]:
+    """Return student IDs visible to this admin.
+
+    - platform_admin → None (global scope)
+    - org owner      → only students in owned org(s)
+    - fallback       → None (legacy admins without org mapping keep old behavior)
+    """
+    if (admin.system_role or "") == "platform_admin":
+        return None
+
+    owned_org_ids = _get_admin_owned_org_ids(admin, db)
+    if not owned_org_ids:
+        return None
+
+    rows = (
+        db.query(User.id)
+        .join(StudentProfile, StudentProfile.user_id == User.id)
+        .filter(
+            User.role == "student",
+            StudentProfile.org_id.in_(owned_org_ids),
+        )
+        .all()
+    )
+    return [r[0] for r in rows]
+
+
+def _active_students_between(
+    db: Session,
+    scoped_ids: Optional[List[int]],
+    start_utc_naive: datetime,
+    end_utc_naive: datetime,
+) -> List[ActiveStudentEntry]:
+    ps_q = db.query(PracticeSession.user_id).filter(
+        PracticeSession.started_at >= start_utc_naive,
+        PracticeSession.started_at < end_utc_naive,
+    )
+    pa_q = db.query(PaperAttempt.user_id).filter(
+        PaperAttempt.started_at >= start_utc_naive,
+        PaperAttempt.started_at < end_utc_naive,
+    )
+    if scoped_ids is not None:
+        if not scoped_ids:
+            return []
+        ps_q = ps_q.filter(PracticeSession.user_id.in_(scoped_ids))
+        pa_q = pa_q.filter(PaperAttempt.user_id.in_(scoped_ids))
+
+    ps_ids = {r[0] for r in ps_q.distinct().all()}
+    pa_ids = {r[0] for r in pa_q.distinct().all()}
+    user_ids = sorted(ps_ids | pa_ids)
+    if not user_ids:
+        return []
+
+    latest_ps = dict(
+        db.query(PracticeSession.user_id, func.max(PracticeSession.started_at))
+        .filter(PracticeSession.user_id.in_(user_ids))
+        .group_by(PracticeSession.user_id)
+        .all()
+    )
+    latest_pa = dict(
+        db.query(PaperAttempt.user_id, func.max(PaperAttempt.started_at))
+        .filter(PaperAttempt.user_id.in_(user_ids))
+        .group_by(PaperAttempt.user_id)
+        .all()
+    )
+
+    rows = (
+        db.query(
+            User.id,
+            User.name,
+            User.display_name,
+            User.email,
+            User.avatar_url,
+            StudentProfile.public_id,
+            StudentProfile.branch,
+            StudentProfile.course,
+        )
+        .outerjoin(StudentProfile, StudentProfile.user_id == User.id)
+        .filter(User.id.in_(user_ids))
+        .all()
+    )
+
+    result: List[ActiveStudentEntry] = []
+    for r in rows:
+        last_ts = latest_ps.get(r.id)
+        pa_ts = latest_pa.get(r.id)
+        if pa_ts and (not last_ts or pa_ts > last_ts):
+            last_ts = pa_ts
+        result.append(
+            ActiveStudentEntry(
+                user_id=r.id,
+                name=r.name,
+                display_name=r.display_name,
+                email=r.email,
+                avatar_url=r.avatar_url,
+                public_id=r.public_id,
+                branch=r.branch,
+                course=r.course,
+                last_active_at=_to_ist_iso(last_ts),
+            )
+        )
+
+    result.sort(key=lambda s: s.last_active_at or "", reverse=True)
+    return result
+
+
+def _active_last_7_days(
+    db: Session,
+    scoped_ids: Optional[List[int]],
+    now_ist: datetime,
+) -> tuple[List[ActiveStudentsDayRecord], int]:
+    day_records: List[ActiveStudentsDayRecord] = []
+    unique_ids: set[int] = set()
+
+    for days_ago in range(6, -1, -1):
+        day_ist = (now_ist - timedelta(days=days_ago)).replace(hour=0, minute=0, second=0, microsecond=0)
+        next_day_ist = day_ist + timedelta(days=1)
+        day_start = day_ist.astimezone(timezone.utc).replace(tzinfo=None)
+        day_end = next_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
+        students = _active_students_between(db, scoped_ids, day_start, day_end)
+        unique_ids.update(s.user_id for s in students)
+        day_records.append(
+            ActiveStudentsDayRecord(
+                date=day_ist.date().isoformat(),
+                count=len(students),
+                students=students,
+            )
+        )
+
+    return day_records, len(unique_ids)
+
+
+def _assert_student_in_scope(admin: User, db: Session, student_id: int) -> None:
+    scoped_ids = _get_scoped_student_ids(admin, db)
+    if scoped_ids is not None and student_id not in set(scoped_ids):
+        raise HTTPException(status_code=404, detail="Student not found")
+
+
+def _build_recent_activity_entries(
+    db: Session,
+    scoped_ids: Optional[List[int]],
+    limit: int = 50,
+) -> List[AdminActivityEntry]:
+    practice_q = db.query(
+        PracticeSession.user_id,
+        PracticeSession.started_at,
+        PracticeSession.time_taken,
+        PracticeSession.correct_answers,
+        PracticeSession.wrong_answers,
+        PracticeSession.operation_type,
+    )
+    paper_q = db.query(
+        PaperAttempt.user_id,
+        PaperAttempt.started_at,
+        PaperAttempt.time_taken,
+        PaperAttempt.correct_answers,
+        PaperAttempt.wrong_answers,
+        PaperAttempt.paper_title,
+    )
+
+    if scoped_ids is not None:
+        if not scoped_ids:
+            return []
+        practice_q = practice_q.filter(PracticeSession.user_id.in_(scoped_ids))
+        paper_q = paper_q.filter(PaperAttempt.user_id.in_(scoped_ids))
+
+    practice_rows = practice_q.order_by(desc(PracticeSession.started_at)).limit(limit).all()
+    paper_rows = paper_q.order_by(desc(PaperAttempt.started_at)).limit(limit).all()
+
+    user_ids = {r.user_id for r in practice_rows} | {r.user_id for r in paper_rows}
+    if not user_ids:
+        return []
+
+    profiles = {
+        r.user_id: r
+        for r in db.query(StudentProfile.user_id, StudentProfile.public_id)
+        .filter(StudentProfile.user_id.in_(user_ids))
+        .all()
+    }
+    users = {
+        r.id: r
+        for r in db.query(User.id, User.name, User.email)
+        .filter(User.id.in_(user_ids))
+        .all()
+    }
+
+    merged: List[tuple[datetime, AdminActivityEntry]] = []
+    for row in practice_rows:
+        u = users.get(row.user_id)
+        if not u:
+            continue
+        p = profiles.get(row.user_id)
+        ts = row.started_at if row.started_at.tzinfo else row.started_at.replace(tzinfo=timezone.utc)
+        merged.append((
+            ts,
+            AdminActivityEntry(
+                student_id=row.user_id,
+                name=u.name,
+                email=u.email,
+                public_id=p.public_id if p else None,
+                activity_type="mental_math",
+                activity_label=row.operation_type or "Mental Math",
+                activity_at=_to_ist_iso(row.started_at) or "",
+                duration_seconds=row.time_taken,
+                correct_answers=row.correct_answers,
+                wrong_answers=row.wrong_answers,
+            ),
+        ))
+
+    for row in paper_rows:
+        u = users.get(row.user_id)
+        if not u:
+            continue
+        p = profiles.get(row.user_id)
+        ts = row.started_at if row.started_at.tzinfo else row.started_at.replace(tzinfo=timezone.utc)
+        merged.append((
+            ts,
+            AdminActivityEntry(
+                student_id=row.user_id,
+                name=u.name,
+                email=u.email,
+                public_id=p.public_id if p else None,
+                activity_type="practice_paper",
+                activity_label=row.paper_title or "Practice Paper",
+                activity_at=_to_ist_iso(row.started_at) or "",
+                duration_seconds=row.time_taken,
+                correct_answers=row.correct_answers,
+                wrong_answers=row.wrong_answers,
+            ),
+        ))
+
+    merged.sort(key=lambda x: x[0], reverse=True)
+    return [x[1] for x in merged[:limit]]
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -979,6 +1229,8 @@ async def get_practice_session_detail_admin(
     db: Session = Depends(get_db)
 ):
     """Admin: Get detailed practice session for a specific student, with all attempts."""
+    _assert_student_in_scope(admin, db, student_id)
+
     # Ensure the session belongs to the requested student
     session = db.query(PracticeSession).filter(
         PracticeSession.id == session_id,
@@ -1026,6 +1278,8 @@ async def get_paper_attempt_detail_admin(
     db: Session = Depends(get_db)
 ):
     """Admin: Get detailed practice paper attempt for a specific student."""
+    _assert_student_in_scope(admin, db, student_id)
+
     paper_attempt = db.query(PaperAttempt).filter(
         PaperAttempt.id == attempt_id,
         PaperAttempt.user_id == student_id
@@ -1042,34 +1296,57 @@ async def get_admin_stats(
     db: Session = Depends(get_db)
 ):
     """Get admin dashboard statistics."""
-    # Total students
-    total_students = db.query(User).filter(User.role == "student").count()
-    
-    # Total sessions (mental math + practice paper attempts)
-    total_mental_math_sessions = db.query(PracticeSession).count()
-    total_paper_attempts = db.query(PaperAttempt).count()
+    scoped_student_ids = _get_scoped_student_ids(admin, db)
+
+    student_query = db.query(User.id).filter(User.role == "student")
+    if scoped_student_ids is not None:
+        if not scoped_student_ids:
+            return AdminStats(
+                total_students=0,
+                total_sessions=0,
+                total_questions=0,
+                average_accuracy=0.0,
+                active_students_today=0,
+                active_students_today_list=[],
+                active_students_last_7_days=[],
+                active_students_last_7_days_unique=0,
+                top_students=[]
+            )
+        student_query = student_query.filter(User.id.in_(scoped_student_ids))
+
+    student_ids = [r[0] for r in student_query.all()]
+    total_students = len(student_ids)
+
+    mental_q = db.query(PracticeSession)
+    paper_q = db.query(PaperAttempt)
+    if scoped_student_ids is not None:
+        mental_q = mental_q.filter(PracticeSession.user_id.in_(student_ids))
+        paper_q = paper_q.filter(PaperAttempt.user_id.in_(student_ids))
+
+    total_mental_math_sessions = mental_q.count()
+    total_paper_attempts = paper_q.count()
     total_sessions = total_mental_math_sessions + total_paper_attempts
-    
-    # Total questions
-    total_questions = db.query(func.sum(PracticeSession.total_questions)).scalar() or 0
-    
-    # Average accuracy
-    avg_accuracy = db.query(func.avg(PracticeSession.accuracy)).scalar() or 0
-    
-    # Active students today (IST midnight → UTC for DB comparison)
+    total_questions = mental_q.with_entities(func.sum(PracticeSession.total_questions)).scalar() or 0
+    avg_accuracy = mental_q.with_entities(func.avg(PracticeSession.accuracy)).scalar() or 0
+
     ist_now = get_ist_now()
     _ist_midnight = ist_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    _ist_next_midnight = _ist_midnight + timedelta(days=1)
     today_start = _ist_midnight.astimezone(timezone.utc).replace(tzinfo=None)
-    active_today = db.query(func.count(func.distinct(PracticeSession.user_id))).filter(
-        PracticeSession.started_at >= today_start
-    ).scalar() or 0
+    today_end = _ist_next_midnight.astimezone(timezone.utc).replace(tzinfo=None)
+
+    active_today_students = _active_students_between(db, scoped_student_ids, today_start, today_end)
+    active_7_days, active_7_days_unique = _active_last_7_days(db, scoped_student_ids, ist_now)
     
     return AdminStats(
         total_students=total_students,
         total_sessions=total_sessions,
         total_questions=int(total_questions),
         average_accuracy=round(float(avg_accuracy), 2),
-        active_students_today=active_today,
+        active_students_today=len(active_today_students),
+        active_students_today_list=active_today_students,
+        active_students_last_7_days=active_7_days,
+        active_students_last_7_days_unique=active_7_days_unique,
         top_students=[]
     )
 
@@ -1081,9 +1358,13 @@ async def get_all_students(
 ):
     """Get all students (including admin-pre-created accounts)."""
     try:
-        students = db.query(User).filter(User.role == "student").order_by(
-            User.id.asc()
-        ).all()
+        scoped_student_ids = _get_scoped_student_ids(admin, db)
+        students_q = db.query(User).filter(User.role == "student")
+        if scoped_student_ids is not None:
+            if not scoped_student_ids:
+                return []
+            students_q = students_q.filter(User.id.in_(scoped_student_ids))
+        students = students_q.order_by(User.id.asc()).all()
 
         # Bulk-fetch all profiles in one query (was: separate query per student = N+1)
         student_ids = [s.id for s in students]
@@ -1302,6 +1583,8 @@ def get_student_stats_admin(
     ✓ Optimized: Uses SQL aggregates instead of loading all records
     ✓ Performance: Same 40-100x improvement as /users/stats
     """
+    _assert_student_in_scope(admin, db, student_id)
+
     student = db.query(User).filter(
         User.id == student_id,
         User.role == "student"
@@ -1381,6 +1664,155 @@ def get_student_stats_admin(
         paper_total_correct=paper_total_correct,
         paper_total_wrong=paper_total_wrong,
         paper_overall_accuracy=round(paper_overall_accuracy, 2)
+    )
+
+
+@router.get("/admin/site-insights", response_model=AdminSiteInsightsResponse)
+def get_admin_site_insights(
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Return scoped, site-level activity intelligence for admin dashboards."""
+    scoped_student_ids = _get_scoped_student_ids(admin, db)
+    now_ist = get_ist_now()
+
+    current_window_start_utc = (now_ist - timedelta(minutes=15)).astimezone(timezone.utc).replace(tzinfo=None)
+
+    day_start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end_ist = day_start_ist + timedelta(days=1)
+    day_start_utc = day_start_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    day_end_utc = day_end_ist.astimezone(timezone.utc).replace(tzinfo=None)
+
+    six_months_ago_ist = now_ist - timedelta(days=180)
+    six_months_ago_utc = six_months_ago_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    now_utc = now_ist.astimezone(timezone.utc).replace(tzinfo=None)
+
+    active_currently_students = _active_students_between(db, scoped_student_ids, current_window_start_utc, now_utc)
+    active_today_students = _active_students_between(db, scoped_student_ids, day_start_utc, day_end_utc)
+    active_7_days, active_7_days_unique = _active_last_7_days(db, scoped_student_ids, now_ist)
+    active_6_months_students = _active_students_between(db, scoped_student_ids, six_months_ago_utc, now_utc)
+
+    practice_time_q = db.query(func.coalesce(func.sum(PracticeSession.time_taken), 0.0)).filter(
+        PracticeSession.started_at >= six_months_ago_utc,
+        PracticeSession.started_at < now_utc,
+    )
+    paper_time_q = db.query(func.coalesce(func.sum(PaperAttempt.time_taken), 0.0)).filter(
+        PaperAttempt.started_at >= six_months_ago_utc,
+        PaperAttempt.started_at < now_utc,
+    )
+    if scoped_student_ids is not None:
+        if not scoped_student_ids:
+            practice_time_q = practice_time_q.filter(False)
+            paper_time_q = paper_time_q.filter(False)
+        else:
+            practice_time_q = practice_time_q.filter(PracticeSession.user_id.in_(scoped_student_ids))
+            paper_time_q = paper_time_q.filter(PaperAttempt.user_id.in_(scoped_student_ids))
+
+    total_time_6m = float(practice_time_q.scalar() or 0.0) + float(paper_time_q.scalar() or 0.0)
+    active_6m_count = len(active_6_months_students)
+    avg_time_per_user_6m = (total_time_6m / active_6m_count) if active_6m_count else 0.0
+
+    recent_activities = _build_recent_activity_entries(db, scoped_student_ids, limit=60)
+
+    return AdminSiteInsightsResponse(
+        active_currently_count=len(active_currently_students),
+        active_currently_students=active_currently_students,
+        active_today_count=len(active_today_students),
+        active_today_students=active_today_students,
+        active_last_7_days_unique_count=active_7_days_unique,
+        active_last_7_days_by_day=active_7_days,
+        active_last_6_months_count=active_6m_count,
+        active_last_6_months_students=active_6_months_students,
+        average_time_spent_seconds_per_user_6m=round(avg_time_per_user_6m, 2),
+        recent_activities=recent_activities,
+    )
+
+
+@router.get("/admin/students/{student_id}/engagement", response_model=StudentEngagementResponse)
+def get_student_engagement_admin(
+    student_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Get deep engagement metrics for a student (6-month activity + all-time streak calendar)."""
+    _assert_student_in_scope(admin, db, student_id)
+
+    student = db.query(User).filter(User.id == student_id, User.role == "student").first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    now_ist = get_ist_now()
+    start_6m_ist = (now_ist - timedelta(days=180)).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_6m_utc = start_6m_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    now_utc = now_ist.astimezone(timezone.utc).replace(tzinfo=None)
+
+    practice_rows = db.query(PracticeSession.started_at, PracticeSession.time_taken).filter(
+        PracticeSession.user_id == student_id,
+        PracticeSession.started_at >= start_6m_utc,
+        PracticeSession.started_at <= now_utc,
+    ).all()
+    paper_rows = db.query(PaperAttempt.started_at, PaperAttempt.time_taken).filter(
+        PaperAttempt.user_id == student_id,
+        PaperAttempt.started_at >= start_6m_utc,
+        PaperAttempt.started_at <= now_utc,
+    ).all()
+
+    per_day_seconds: dict[str, float] = {}
+    last_seen_dt: Optional[datetime] = None
+
+    for started_at, time_taken in practice_rows:
+        ts = started_at if started_at.tzinfo else started_at.replace(tzinfo=timezone.utc)
+        day_key = utc_to_ist(ts).date().isoformat()
+        per_day_seconds[day_key] = per_day_seconds.get(day_key, 0.0) + float(time_taken or 0.0)
+        if not last_seen_dt or ts > last_seen_dt:
+            last_seen_dt = ts
+
+    for started_at, time_taken in paper_rows:
+        ts = started_at if started_at.tzinfo else started_at.replace(tzinfo=timezone.utc)
+        day_key = utc_to_ist(ts).date().isoformat()
+        per_day_seconds[day_key] = per_day_seconds.get(day_key, 0.0) + float(time_taken or 0.0)
+        if not last_seen_dt or ts > last_seen_dt:
+            last_seen_dt = ts
+
+    total_time_6m = sum(per_day_seconds.values())
+    online_days_count_6m = sum(1 for v in per_day_seconds.values() if v > 0)
+
+    calendar_6m: List[StudentOnlineDay] = []
+    day_cursor = start_6m_ist
+    offline_days = 0
+    while day_cursor.date() <= now_ist.date():
+        key = day_cursor.date().isoformat()
+        secs = float(per_day_seconds.get(key, 0.0))
+        is_online = secs > 0
+        if not is_online:
+            offline_days += 1
+        calendar_6m.append(StudentOnlineDay(date=key, online=is_online, time_spent_seconds=secs))
+        day_cursor += timedelta(days=1)
+
+    avg_per_active_day = (total_time_6m / online_days_count_6m) if online_days_count_6m else 0.0
+
+    # All-time streak days are derived from days where at least one activity exists.
+    all_practice_days = [r[0] for r in db.query(PracticeSession.started_at).filter(PracticeSession.user_id == student_id).all()]
+    all_paper_days = [r[0] for r in db.query(PaperAttempt.started_at).filter(PaperAttempt.user_id == student_id).all()]
+    streak_days = set()
+    for ts in all_practice_days + all_paper_days:
+        stamp = ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+        streak_days.add(utc_to_ist(stamp).date().isoformat())
+
+    recent_activities = _build_recent_activity_entries(db, [student_id], limit=30)
+
+    return StudentEngagementResponse(
+        student_id=student_id,
+        last_seen_at=_to_ist_iso(last_seen_dt),
+        total_time_spent_seconds_6m=round(float(total_time_6m), 2),
+        average_time_spent_seconds_active_day_6m=round(float(avg_per_active_day), 2),
+        online_days_count_6m=online_days_count_6m,
+        offline_days_count_6m=offline_days,
+        online_offline_calendar_6m=calendar_6m,
+        streak_days_all_time=sorted(streak_days),
+        current_streak=student.current_streak or 0,
+        longest_streak=student.longest_streak or 0,
+        recent_activities=recent_activities,
     )
 
 
@@ -1706,32 +2138,61 @@ async def get_admin_dashboard_data(
     import time
     request_start = time.time()
     
+    scoped_student_ids = _get_scoped_student_ids(admin, db)
+    students_scope_q = db.query(User.id).filter(User.role == "student")
+    if scoped_student_ids is not None:
+        if scoped_student_ids:
+            students_scope_q = students_scope_q.filter(User.id.in_(scoped_student_ids))
+        else:
+            students_scope_q = students_scope_q.filter(False)
+    scoped_ids = [r[0] for r in students_scope_q.all()]
+
     # ── 1. Admin Stats ─────────────────────────────────────────────────────────
-    total_students = db.query(User).filter(User.role == "student").count()
-    total_mental_math_sessions = db.query(PracticeSession).count()
-    total_paper_attempts_count = db.query(PaperAttempt).count()
+    total_students = len(scoped_ids)
+    mental_q = db.query(PracticeSession)
+    paper_q = db.query(PaperAttempt)
+    if scoped_student_ids is not None:
+        if not scoped_ids:
+            mental_q = mental_q.filter(False)
+            paper_q = paper_q.filter(False)
+        else:
+            mental_q = mental_q.filter(PracticeSession.user_id.in_(scoped_ids))
+            paper_q = paper_q.filter(PaperAttempt.user_id.in_(scoped_ids))
+
+    total_mental_math_sessions = mental_q.count()
+    total_paper_attempts_count = paper_q.count()
     total_sessions = total_mental_math_sessions + total_paper_attempts_count
-    total_questions_val = db.query(func.sum(PracticeSession.total_questions)).scalar() or 0
-    avg_accuracy_val = db.query(func.avg(PracticeSession.accuracy)).scalar() or 0
+    total_questions_val = mental_q.with_entities(func.sum(PracticeSession.total_questions)).scalar() or 0
+    avg_accuracy_val = mental_q.with_entities(func.avg(PracticeSession.accuracy)).scalar() or 0
     
     ist_now = get_ist_now()
     _ist_midnight = ist_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    _ist_next_midnight = _ist_midnight + timedelta(days=1)
     today_start = _ist_midnight.astimezone(timezone.utc).replace(tzinfo=None)
-    active_today = db.query(func.count(func.distinct(PracticeSession.user_id))).filter(
-        PracticeSession.started_at >= today_start
-    ).scalar() or 0
+    today_end = _ist_next_midnight.astimezone(timezone.utc).replace(tzinfo=None)
+    active_today_students = _active_students_between(db, scoped_student_ids, today_start, today_end)
+    active_7_days, active_7_days_unique = _active_last_7_days(db, scoped_student_ids, ist_now)
     
     admin_stats = AdminStats(
         total_students=total_students,
         total_sessions=total_sessions,
         total_questions=int(total_questions_val),
         average_accuracy=round(float(avg_accuracy_val), 2),
-        active_students_today=active_today,
+        active_students_today=len(active_today_students),
+        active_students_today_list=active_today_students,
+        active_students_last_7_days=active_7_days,
+        active_students_last_7_days_unique=active_7_days_unique,
         top_students=[]
     )
 
     # ── 2. All Students (OPTIMIZED: single query for profiles instead of N+1) ──
-    students = db.query(User).filter(User.role == "student").order_by(User.id.asc()).all()
+    students_q = db.query(User).filter(User.role == "student")
+    if scoped_student_ids is not None:
+        if not scoped_ids:
+            students_q = students_q.filter(False)
+        else:
+            students_q = students_q.filter(User.id.in_(scoped_ids))
+    students = students_q.order_by(User.id.asc()).all()
     
     # Bulk-fetch all profiles in one query (was: separate query per student = N+1)
     student_ids = [s.id for s in students]
@@ -1769,8 +2230,8 @@ async def get_admin_dashboard_data(
         students_result.append(AdminStudentResponse.model_validate(student_dict))
 
     # ── 3. Database Stats ──────────────────────────────────────────────────────
-    total_users = db.query(User).count()
-    total_admins = db.query(User).filter(User.role == "admin").count()
+    total_users = total_students if scoped_student_ids is not None else db.query(User).count()
+    total_admins = 0 if scoped_student_ids is not None else db.query(User).filter(User.role == "admin").count()
     total_rewards = 0
     total_papers = db.query(Paper).count()
     

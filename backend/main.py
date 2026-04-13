@@ -136,6 +136,14 @@ except Exception as e:
     import traceback
     logger.exception("[IMPORT] duel_routes failed: %s", str(e))
 
+exam_router = None
+try:
+    from exam_routes import router as exam_router
+    logger.info("[IMPORT] exam_routes loaded")
+except Exception as e:
+    import traceback
+    logger.exception("[IMPORT] exam_routes failed: %s", str(e))
+
 app = FastAPI(title="Abacus Paper Generator", version="3.0.0")
 app_start_time = time.monotonic()
 
@@ -282,6 +290,7 @@ for _name, _rtr in [
     ("template_router", template_router),
     ("shared_paper_router", shared_paper_router),
     ("duel_router", duel_router),
+    ("exam_router", exam_router),
 ]:
     if _rtr:
         try:
@@ -304,6 +313,7 @@ async def startup_event() -> None:
         import org_routes as _org_mod  # noqa: F401  — ensures Organization/OrgInviteLink registered
         import template_routes as _tpl_mod  # noqa: F401  — ensures UserPaperTemplate table is created
         import shared_paper_routes as _sp_mod  # noqa: F401  — ensures SharedPaper table is created
+        import exam_models as _exam_mod  # noqa: F401  — ensures exam tables are created
         init_db()
         logger.info("[STARTUP] database initialized")
 

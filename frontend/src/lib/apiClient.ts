@@ -625,6 +625,9 @@ export const apiClient = {
   put: <T>(endpoint: string, body?: any, options?: { requireAuth?: boolean; timeout?: number }) =>
     apiRequest<T>('PUT', endpoint, { body, ...options }),
 
+  patch: <T>(endpoint: string, body?: any, options?: { requireAuth?: boolean; timeout?: number }) =>
+    apiRequest<T>('PATCH', endpoint, { body, ...options }),
+
   delete: <T>(endpoint: string, options?: { requireAuth?: boolean; timeout?: number }) =>
     apiRequest<T>('DELETE', endpoint, { ...options }),
 

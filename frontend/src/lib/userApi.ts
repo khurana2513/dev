@@ -128,6 +128,9 @@ export interface AdminStats {
   total_questions: number;
   average_accuracy: number;
   active_students_today: number;
+  active_students_today_list?: ActiveStudentEntry[];
+  active_students_last_7_days?: ActiveStudentsDayRecord[];
+  active_students_last_7_days_unique?: number;
   top_students: Array<{
     rank: number;
     user_id: number;
@@ -136,6 +139,70 @@ export interface AdminStats {
     avatar_url?: string;
     total_points: number;
   }>;
+}
+
+export interface ActiveStudentEntry {
+  user_id: number;
+  name: string;
+  display_name?: string | null;
+  email?: string | null;
+  avatar_url?: string | null;
+  public_id?: string | null;
+  branch?: string | null;
+  course?: string | null;
+  last_active_at?: string | null;
+}
+
+export interface ActiveStudentsDayRecord {
+  date: string;
+  count: number;
+  students: ActiveStudentEntry[];
+}
+
+export interface AdminActivityEntry {
+  student_id: number;
+  name: string;
+  email?: string | null;
+  public_id?: string | null;
+  activity_type: string;
+  activity_label: string;
+  activity_at: string;
+  duration_seconds?: number | null;
+  correct_answers?: number | null;
+  wrong_answers?: number | null;
+}
+
+export interface StudentOnlineDay {
+  date: string;
+  online: boolean;
+  time_spent_seconds: number;
+}
+
+export interface StudentEngagementResponse {
+  student_id: number;
+  last_seen_at?: string | null;
+  total_time_spent_seconds_6m: number;
+  average_time_spent_seconds_active_day_6m: number;
+  online_days_count_6m: number;
+  offline_days_count_6m: number;
+  online_offline_calendar_6m: StudentOnlineDay[];
+  streak_days_all_time: string[];
+  current_streak: number;
+  longest_streak: number;
+  recent_activities: AdminActivityEntry[];
+}
+
+export interface AdminSiteInsightsResponse {
+  active_currently_count: number;
+  active_currently_students: ActiveStudentEntry[];
+  active_today_count: number;
+  active_today_students: ActiveStudentEntry[];
+  active_last_7_days_unique_count: number;
+  active_last_7_days_by_day: ActiveStudentsDayRecord[];
+  active_last_6_months_count: number;
+  active_last_6_months_students: ActiveStudentEntry[];
+  average_time_spent_seconds_per_user_6m: number;
+  recent_activities: AdminActivityEntry[];
 }
 
 // ─── Combined Dashboard Interfaces ──────────────────────────────────────────
@@ -331,6 +398,14 @@ export async function getAdminStats(): Promise<AdminStats> {
 // Admin: Get student stats
 export async function getStudentStatsAdmin(studentId: number): Promise<StudentStats> {
   return apiClient.get<StudentStats>(`/users/admin/students/${studentId}/stats`);
+}
+
+export async function getStudentEngagementAdmin(studentId: number): Promise<StudentEngagementResponse> {
+  return apiClient.get<StudentEngagementResponse>(`/users/admin/students/${studentId}/engagement`);
+}
+
+export async function getAdminSiteInsights(): Promise<AdminSiteInsightsResponse> {
+  return apiClient.get<AdminSiteInsightsResponse>("/users/admin/site-insights", { timeout: 20000 });
 }
 
 // Admin: Delete student
