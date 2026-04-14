@@ -42,12 +42,14 @@ const AboutUs = lazy(() => import("./pages/AboutUs"));
 const AccountDeletion = lazy(() => import("./pages/AccountDeletion"));
 const GridMaster = lazy(() => import("./pages/GridMaster"));
 const SorobanAbacus = lazy(() => import("./pages/SorobanAbacus"));
+const AbacusFlashCards = lazy(() => import("./pages/AbacusFlashCards"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const AdminAccessControl = lazy(() => import("./pages/AdminAccessControl"));
 const StudentRewards = lazy(() => import("./pages/StudentRewards"));
 const AdminRewards = lazy(() => import("./pages/AdminRewards"));
 const LeaderboardComingSoon = lazy(() => import("./pages/LeaderboardComingSoon"));
 const DuelMode = lazy(() => import("./pages/DuelMode"));
+const NumberNinja = lazy(() => import("./pages/NumberNinja"));
 const AdminExams = lazy(() => import("./pages/AdminExams"));
 const ExamTake = lazy(() => import("./pages/ExamTake"));
 const BadgeUnlockCinematic = lazy(() => import("./components/rewards/BadgeUnlockCinematic"));
@@ -256,6 +258,8 @@ function AppContent() {
               <Route path="/about" component={AboutUs} />
               <Route path="/tools/gridmaster" component={GridMaster} />
               <Route path="/tools/gridmaster/magic" component={GridMaster} />
+              <Route path="/tools/number-ninja" component={NumberNinja} />
+              <Route path="/tools/soroban/flashcards" component={AbacusFlashCards} />
               <Route path="/tools/soroban" component={SorobanAbacus} />
               <Route path="/pricing" component={Pricing} />
               <Route path="/admin/access-control">

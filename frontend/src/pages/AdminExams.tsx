@@ -10,6 +10,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import {
   examAdminApi,
   ExamPaper,
@@ -166,6 +167,12 @@ function CreateExamModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 ))}
               </select>
             )}
+            <p className="text-zinc-500 text-xs mt-2">
+              Saved papers are created in the paper builder, then reused here for exams.
+              {papers.length === 0 && (
+                <span> No saved papers yet. <Link href="/create/basic" className="text-indigo-400 hover:text-indigo-300 underline">Open Paper Builder</Link>.</span>
+              )}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

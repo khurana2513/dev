@@ -340,14 +340,15 @@ export default function DuelMode() {
   const [showBoard,     setShowBoard]     = useState(false);
   const [myPoints,      setMyPoints]      = useState(0);
 
-  const timerRef        = useRef<ReturnType<typeof setInterval> | null>(null);
-  const inputRef        = useRef<HTMLInputElement | null>(null);
-  const correctRef      = useRef(0);
-  const wrongRef        = useRef(0);
-  const resultsRef      = useRef<DuelResult[]>([]);
-  const qStartRef       = useRef(Date.now());
-  const sessionStartRef = useRef(Date.now());
-  const pendingScoreRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerRef           = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inputRef           = useRef<HTMLInputElement | null>(null);
+  const correctRef         = useRef(0);
+  const wrongRef           = useRef(0);
+  const resultsRef         = useRef<DuelResult[]>([]);
+  const qStartRef          = useRef(Date.now());
+  const sessionStartRef    = useRef(Date.now());
+  const pendingScoreRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onTimerExpiredRef  = useRef<() => void>(() => {});
 
   // ── CSS injection (animations) ──────────────────────────────────────────
   useEffect(() => {
@@ -541,7 +542,7 @@ export default function DuelMode() {
         if (t <= 1) {
           clearInterval(timerRef.current!);
           timerRef.current = null;
-          onTimerExpired();
+          onTimerExpiredRef.current();
           return 0;
         }
         return t - 1;
@@ -604,6 +605,9 @@ export default function DuelMode() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, room]);
+
+  // Keep the ref always pointing at the latest onTimerExpired
+  useEffect(() => { onTimerExpiredRef.current = onTimerExpired; }, [onTimerExpired]);
 
   // ── Answer submission ───────────────────────────────────────────────────
   function handleAnswer(value: string) {
@@ -745,6 +749,7 @@ export default function DuelMode() {
       selectedOp={selectedOp}
       selectedOption={selectedOption}
       selectedCombos={selectedCombos}
+      error={error}
       onSetOption={setSelectedOption}
       onToggleCombo={(c) => setSelectedCombos(prev => prev.some(x => x.opType === c.opType && x.optionValue === c.optionValue) ? prev.filter(x => !(x.opType === c.opType && x.optionValue === c.optionValue)) : [...prev, c])}
       onBack={() => setPhase("host-select")}
@@ -929,12 +934,13 @@ function HostSelectScreen({ onBack, onSelectOp, onMix }: {
 
 function HostConfigScreen({
   step, selectedOp, selectedOption, selectedCombos,
-  onSetOption, onToggleCombo, onBack, onCreate,
+  error, onSetOption, onToggleCombo, onBack, onCreate,
 }: {
   step:            HostConfigStep;
   selectedOp:      BurstOperationType | null;
   selectedOption:  string;
   selectedCombos:  SelectedCombo[];
+  error:           string;
   onSetOption:     (v: string) => void;
   onToggleCombo:   (c: SelectedCombo) => void;
   onBack:          () => void;
@@ -1027,6 +1033,9 @@ function HostConfigScreen({
         >
           ⚔️ Create Duel Room
         </button>
+        {error && (
+          <p className="text-red-400 text-sm text-center mt-4">{error}</p>
+        )}
       </div>
     </div>
   );
@@ -1121,7 +1130,8 @@ function LobbyScreen({ room, isHost, isConnected, myId, error, onStart, onBack }
   onBack:      () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const canStart = room.players.length >= 2 && isConnected;
+  const hasMinPlayers = room.players.length >= 2;
+  const canStart = hasMinPlayers && isConnected;
 
   function copyCode() {
     navigator.clipboard.writeText(`${window.location.origin}/duel/${room.code}`).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -1200,7 +1210,7 @@ function LobbyScreen({ room, isHost, isConnected, myId, error, onStart, onBack }
               animation:  canStart ? "dm-pulse 2.5s ease infinite" : "none",
             }}
           >
-            {canStart ? "⚔️ Start Duel!" : `Waiting for more players… (${room.players.length}/2 min)`}
+            {canStart ? "⚔️ Start Duel!" : !hasMinPlayers ? `Waiting for more players… (${room.players.length}/2 min)` : "Connecting to duel server…"}
           </button>
         ) : (
           <div className="w-full py-4 rounded-2xl text-center text-white/40 font-semibold text-sm" style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)" }}>

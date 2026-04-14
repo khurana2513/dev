@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, Plus, Trash2, Eye, EyeOff, FileDown, XCircle, GripVertical, Copy, ChevronUp, ChevronDown, Play, ChevronDown as ChevronDownIcon, Save, Pencil, BookmarkPlus, Check, Share2, Link as LinkIcon, MessageCircle, Clock } from "lucide-react";
-import { previewPaper, generatePdf, PaperConfig, BlockConfig, GeneratedBlock, getUserPaperTemplates, createUserPaperTemplate, updateUserPaperTemplate, deleteUserPaperTemplate, UserPaperTemplate, sharePaper, SharedPaper } from "@/lib/api";
+import { previewPaper, createPaper, generatePdf, PaperConfig, BlockConfig, GeneratedBlock, getUserPaperTemplates, createUserPaperTemplate, updateUserPaperTemplate, deleteUserPaperTemplate, UserPaperTemplate, sharePaper, SharedPaper } from "@/lib/api";
 import { buildApiUrl, looksLikeHtmlDocument } from "@/lib/apiBase";
 import { useAuth } from "@/contexts/AuthContext";
 import MathQuestion from "@/components/MathQuestion";
@@ -452,6 +452,19 @@ export default function PaperCreate() {
     },
   });
 
+  // Mutation: save paper for exams
+  const savePaperMutation = useMutation({
+    mutationFn: createPaper,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-exams"] });
+      showToast("Paper saved for exams!");
+    },
+    onError: (err: any) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(msg || "Failed to save paper.", false);
+    },
+  });
+
   // Mutation: share paper
   const shareMutation = useMutation({
     mutationFn: sharePaper,
@@ -483,6 +496,16 @@ export default function PaperCreate() {
       },
       generated_blocks: previewData.blocks,
       seed: previewData.seed,
+    });
+  };
+
+  const handleSavePaper = () => {
+    savePaperMutation.mutate({
+      level: level || "Custom",
+      title: title || "Practice Paper",
+      totalQuestions: "20",
+      blocks,
+      orientation: "portrait",
     });
   };
 
@@ -4690,6 +4713,20 @@ export default function PaperCreate() {
             <div style={{paddingTop:24,borderTop:'1px solid rgba(255,255,255,0.06)',marginTop:8}}>
               {/* Save-as-template row */}
               <div style={{display:'flex',gap:10,marginBottom:12,flexWrap:'wrap'}}>
+                {/* Save as exam-source paper */}
+                <button
+                  onClick={handleSavePaper}
+                  disabled={blocks.length === 0 || savePaperMutation.isPending}
+                  title={
+                    blocks.length === 0
+                      ? "Add at least one block to save a paper"
+                      : "Save this paper so it appears in Admin Exams"
+                  }
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'10px 18px',background:blocks.length===0||savePaperMutation.isPending?'rgba(255,255,255,0.04)':'rgba(16,185,129,0.10)',border:`1px solid ${blocks.length===0||savePaperMutation.isPending?'rgba(255,255,255,0.07)':'rgba(16,185,129,0.30)'}`,borderRadius:10,color:blocks.length===0||savePaperMutation.isPending?'#525870':'#6EE7B7',fontFamily:'DM Sans, sans-serif',fontWeight:600,fontSize:13,cursor:blocks.length===0||savePaperMutation.isPending?'not-allowed':'pointer',transition:'all 0.2s',flex:'0 0 auto'}}
+                >
+                  <BookmarkPlus style={{width:15,height:15}} />
+                  {savePaperMutation.isPending ? 'Saving Paper…' : 'Save Paper'}
+                </button>
                 {/* Save as NEW template */}
                 <button
                   onClick={handleOpenSaveModal}

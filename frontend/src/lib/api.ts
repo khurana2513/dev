@@ -107,6 +107,14 @@ export interface PreviewResponse {
   seed: number;
 }
 
+export interface SavedPaper {
+  id: number;
+  title: string;
+  level: string;
+  config: PaperConfig;
+  createdAt: string;
+}
+
 import apiClient from "./apiClient";
 // Use same API base as userApi for consistency
 import { buildApiUrl, looksLikeHtmlDocument } from "./apiBase";
@@ -174,6 +182,14 @@ export async function previewPaper(config: PaperConfig): Promise<PreviewResponse
     console.error("[PREVIEW] error:", error instanceof Error ? error.message : String(error));
     throw error;
   }
+}
+
+export async function createPaper(config: PaperConfig): Promise<SavedPaper> {
+  return apiClient.post<SavedPaper>("/papers", {
+    title: config.title,
+    level: config.level,
+    config,
+  });
 }
 
 export async function generatePdf(

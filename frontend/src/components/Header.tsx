@@ -277,8 +277,26 @@ export default function Header() {
                   style={CARD_STYLE} onMouseEnter={handleGamesEnter} onMouseLeave={handleGamesLeave}>
                   <div className="p-1.5">
                     <Link href="/tools/soroban">
-                      <div className={navItem(isActive("/tools/soroban"))} onClick={() => setGamesOpen(false)}>
+                      <div className={navItem(isActive("/tools/soroban") && !isActive("/tools/soroban/flashcards"))} onClick={() => setGamesOpen(false)}>
                         <Calculator className="w-4 h-4" />Abacus Soroban
+                      </div>
+                    </Link>
+                    <Link href="/tools/soroban/flashcards">
+                      <div className={navItem(isActive("/tools/soroban/flashcards"))} onClick={() => setGamesOpen(false)}>
+                        <span style={{ fontSize: 15 }}>🎴</span>Abacus Flashcards
+                        <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
+                        </span>
+                      </div>
+                    </Link>
+                    <Link href="/tools/number-ninja">
+                      <div className={navItem(isActive("/tools/number-ninja"))} onClick={() => setGamesOpen(false)}>
+                        <span style={{ fontSize: 15 }}>🥷</span>Number Ninja
+                        <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                        </span>
                       </div>
                     </Link>
                     <Link href="/tools/gridmaster">
@@ -445,6 +463,11 @@ export default function Header() {
                                     <Award className="w-4 h-4" />Rewards Admin
                                   </div>
                                 </Link>
+                                <Link href="/admin/exams" onClick={() => setUserMenuOpen(false)}>
+                                  <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
+                                    <FileText className="w-4 h-4" />Exam Management
+                                  </div>
+                                </Link>
                               </>
                             )}
                           </div>
@@ -538,12 +561,51 @@ export default function Header() {
                   <Link href="/rewards" onClick={() => setMobileMenuOpen(false)}>
                     <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Award className="w-4 h-4" />My Rewards</div>
                   </Link>
+                  {isAdmin && (
+                    <>
+                      <div className="border-t border-border my-2" />
+                      <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Admin</div>
+                      <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
+                        <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Shield className="w-4 h-4" />Dashboard</div>
+                      </Link>
+                      <Link href="/admin/attendance" onClick={() => setMobileMenuOpen(false)}>
+                        <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Calendar className="w-4 h-4" />Attendance</div>
+                      </Link>
+                      <Link href="/admin/exams" onClick={() => setMobileMenuOpen(false)}>
+                        <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><FileText className="w-4 h-4" />Exam Management</div>
+                      </Link>
+                      <Link href="/admin/access-control" onClick={() => setMobileMenuOpen(false)}>
+                        <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Lock className="w-4 h-4" />Access Control</div>
+                      </Link>
+                      <Link href="/admin/rewards" onClick={() => setMobileMenuOpen(false)}>
+                        <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Award className="w-4 h-4" />Rewards Admin</div>
+                      </Link>
+                    </>
+                  )}
                 </>
               )}
               <div className="border-t border-border my-2" />
               <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Games</div>
               <Link href="/tools/soroban" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Calculator className="w-4 h-4" />Abacus Soroban</div>
+              </Link>
+              <Link href="/tools/soroban/flashcards" onClick={() => setMobileMenuOpen(false)}>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors">
+                  <span style={{ fontSize: 15 }}>🎴</span>Abacus Flashcards
+                  <span className="ml-auto relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
+                  </span>
+                </div>
+              </Link>
+              <Link href="/tools/number-ninja" onClick={() => setMobileMenuOpen(false)}>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors">
+                  <span style={{ fontSize: 15 }}>🥷</span>Number Ninja
+                  <span className="ml-auto relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                  </span>
+                </div>
               </Link>
               <Link href="/tools/gridmaster" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Grid3X3 className="w-4 h-4" />Vedic Grid</div>
