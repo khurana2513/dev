@@ -27,12 +27,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useAuth } from "../contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 import { savePracticeSession, PracticeSessionData } from "../lib/userApi";
 
 import {
   BurstOperationType, SelectedCombo, DuelConfig,
   DuelPlayer, DuelRoomState, DuelRanking, DuelMsg,
+  DuelRoomSummary,
   createDuelRoom, getDuelRoom, joinDuelRoom, requestWsTicket, buildDuelWsUrl,
+  listActiveDuelRooms,
 } from "../lib/duelApi";
 
 // ── Local types ──────────────────────────────────────────────────────────────
@@ -302,7 +305,7 @@ function playBeep(freq: number, vol: number, dur: number): void {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function DuelMode() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { code: urlCode } = useParams<{ code?: string }>();
   const [, setLocation]   = useLocation();
 
@@ -432,14 +435,45 @@ export default function DuelMode() {
         setLiveScores(roomScoresToLiveScores(r));
         setFinishedIds(roomFinishedIds(r));
         if (r.state === "playing" && r.start_ts && r.seed) {
-          // Reconnected mid-game: resume
+          // Reconnected mid-game: resume with correct remaining time
           const elapsed = Date.now() - r.start_ts * 1000;
           const remaining = Math.max(0, 60 - Math.floor(elapsed / 1000));
           startGame(r.config, r.seed, r.start_ts * 1000, remaining);
         } else if (r.state === "lobby" || r.state === "countdown") {
           setPhase("lobby");
         } else if (r.state === "finishing") {
-          setPhase(prev => prev === "results" ? prev : "waiting");
+          // At least one player finished. Handle phase carefully:
+          // - "results" → already done, don't regress
+          // - "waiting" → we already finished locally, stay waiting
+          // - "playing" → we are still actively playing, do NOT interrupt!
+          //   (only move to waiting on reconnection if our own score is marked finished)
+          // - anything else → treat as waiting (e.g. reconnection after we finished)
+          const myId = user?.id ?? 0;
+          const myScore = (r.scores as Record<number, { finished?: boolean }>)[myId];
+          const iAlreadyFinished =
+            myScore?.finished ||
+            r.players.find((p: DuelPlayer) => p.id === myId)?.is_finished;
+          setPhase(prev => {
+            if (prev === "results") return prev;
+            if (prev === "playing") {
+              // Still actively playing – only switch to waiting if our own record
+              // says we finished (e.g. we reconnected mid-"finishing" after submitting).
+              return iAlreadyFinished ? "waiting" : prev;
+            }
+            if (prev === "waiting") return prev; // already waiting
+            // Reconnected in a pre-game phase during finishing – if we finished, wait;
+            // otherwise resume below via start_ts logic.
+            if (iAlreadyFinished) return "waiting";
+            // Resume playing with remaining time
+            if (r.start_ts && r.seed) {
+              const elapsed = Date.now() - r.start_ts * 1000;
+              const remaining = Math.max(0, 60 - Math.floor(elapsed / 1000));
+              if (remaining > 0) {
+                startGame(r.config, r.seed, r.start_ts * 1000, remaining);
+              }
+            }
+            return "playing";
+          });
         } else if (r.state === "results") {
           // Already finished when we (re)connected or we missed ALL_FINISHED.
           setFinalRankings(buildRankingsFromRoom(r));
@@ -551,9 +585,16 @@ export default function DuelMode() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle GAME_START when room wasn't set yet
+  // Rescue handler: GAME_START arrived before room state was populated (rare race).
+  // IMPORTANT: only fire during lobby/countdown. Never restart a game that is already
+  // playing / waiting / finished — that was the root cause of the restart bug.
   useEffect(() => {
-    if (gameSeed && gameStartTs && room && phase !== "playing") {
+    // We read `phase` from the closure here. Because `setRoom` and `setPhase` are
+    // batched together in the same event handler, the closure will already hold the
+    // updated phase by the time this effect runs. So checking phase === "lobby" here
+    // is safe and prevents the effect from re-triggering after the game has started.
+    if (gameSeed !== null && gameStartTs !== null && room !== null &&
+        (phase === "lobby" || phase === "countdown")) {
       startGame(room.config, gameSeed, gameStartTs, 60);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -733,7 +774,7 @@ export default function DuelMode() {
 
   // ── Render ──────────────────────────────────────────────────────────────
 
-  if (phase === "entry") return <EntryScreen onHost={() => setPhase("host-select")} onJoin={() => setPhase("join-input")} />;
+  if (phase === "entry") return <EntryScreen isAdmin={isAdmin} onHost={() => setPhase("host-select")} onJoin={() => setPhase("join-input")} />;
 
   if (phase === "host-select") return (
     <HostSelectScreen
@@ -842,7 +883,89 @@ function LoadingScreen({ label }: { label: string }) {
 
 // ── Entry ────────────────────────────────────────────────────────────────────
 
-function EntryScreen({ onHost, onJoin }: { onHost: () => void; onJoin: () => void }) {
+function AdminLiveRoomsPanel({ onJoin }: { onJoin: (code: string) => void }) {
+  const { data: rooms = [], isLoading, refetch } = useQuery<DuelRoomSummary[]>({
+    queryKey: ["duel-admin-rooms"],
+    queryFn:  listActiveDuelRooms,
+    refetchInterval: 8_000,
+    staleTime: 5_000,
+  });
+
+  const STATE_COLOR: Record<string, string> = {
+    lobby:     "text-blue-400",
+    countdown: "text-yellow-400",
+    playing:   "text-green-400",
+    finishing: "text-orange-400",
+    results:   "text-purple-400",
+  };
+
+  if (isLoading) return null;
+  if (rooms.length === 0) return (
+    <div className="w-full max-w-md mt-8 border border-white/[.06] rounded-2xl px-4 py-3">
+      <p className="text-white/30 text-xs text-center">No active duel rooms</p>
+    </div>
+  );
+
+  return (
+    <div className="w-full max-w-md mt-8">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-white/40 text-xs font-bold uppercase tracking-widest">Live Rooms</span>
+        <button onClick={() => refetch()} className="text-white/20 hover:text-white/60 text-xs transition-colors">↻ Refresh</button>
+      </div>
+      <div className="space-y-2">
+        {rooms.map(r => (
+          <div key={r.code}
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer hover:bg-white/[.04] transition-colors"
+            style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.07)" }}
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-black text-white font-mono tracking-widest text-sm">{r.code}</span>
+                <span className={`text-xs font-semibold ${STATE_COLOR[r.state] ?? "text-zinc-400"}`}>
+                  {r.state.toUpperCase()}
+                </span>
+              </div>
+              <div className="text-xs text-white/30 mt-0.5">
+                {r.config.type === "mix"
+                  ? `Mix · ${r.config.combos?.length ?? 0} ops`
+                  : `${r.config.opType?.replace("burst_", "")} · ${r.config.optionValue}`}
+                {" · "}
+                {r.connected_players}/{r.total_players} players
+                {r.state === "playing" && r.start_ts && (
+                  <span className="ml-1 text-green-400/60">
+                    {Math.max(0, 60 - Math.round((Date.now() / 1000) - r.start_ts))}s left
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {r.players.map(p => (
+                  <span key={p.id} className={`text-xs px-1.5 py-0.5 rounded-full ${p.is_finished ? "text-zinc-600 line-through" : "text-white/50"}`}
+                    style={{ background: "rgba(255,255,255,.05)" }}>
+                    {p.name.split(" ")[0]}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {r.state === "lobby" && (
+              <button
+                onClick={() => onJoin(r.code)}
+                className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-orange-400 hover:text-white transition-colors"
+                style={{ background: "rgba(249,115,22,.12)", border: "1px solid rgba(249,115,22,.2)" }}
+              >
+                Join
+              </button>
+            )}
+            {(r.state === "playing" || r.state === "finishing") && (
+              <span className="text-green-500 text-lg shrink-0">⚡</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EntryScreen({ isAdmin, onHost, onJoin }: { isAdmin: boolean; onHost: () => void; onJoin: () => void }) {
   return (
     <div className={BG} style={{ gap: 0 }}>
       <div className="text-center mb-10">
@@ -875,6 +998,7 @@ function EntryScreen({ onHost, onJoin }: { onHost: () => void; onJoin: () => voi
       <Link href="/burst" className="mt-8 text-white/30 text-xs hover:text-white/60 transition-colors">
         ← Back to Burst Mode
       </Link>
+      {isAdmin && <AdminLiveRoomsPanel onJoin={code => { onJoin(); /* navigate to join-input */ window.location.href = `/duel/${code}`; }} />}
     </div>
   );
 }

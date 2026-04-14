@@ -285,29 +285,51 @@ def create_exam(
     seed = int((time.time() * 1000) % (2**31)) + random.randint(1, 999999)
     seed = seed % (2**31)
 
-    exam = ExamPaper(
-        exam_code=body.exam_code,
-        title=body.title,
-        paper_id=body.paper_id,
-        created_by_admin_id=admin.id,
-        scheduled_start_at=body.scheduled_start_at.replace(tzinfo=None),
-        scheduled_end_at=body.scheduled_end_at.replace(tzinfo=None),
-        duration_seconds=body.duration_seconds,
-        late_join_cutoff_minutes=body.late_join_cutoff_minutes,
-        fixed_seed=seed,
-        shuffle_questions=body.shuffle_questions,
-        allow_back_navigation=body.allow_back_navigation,
-        auto_submit_on_expiry=body.auto_submit_on_expiry,
-        grace_window_seconds=body.grace_window_seconds,
-        org_id=body.org_id,
-        is_open=body.is_open,
-        is_published=body.is_published if hasattr(body, "is_published") else False,
-        results_release_mode=body.results_release_mode,
-        status="draft",
-    )
-    db.add(exam)
-    db.commit()
-    db.refresh(exam)
+    # Warn (but allow) if exam is scheduled in the past
+    now = _utc_now()
+    start_utc = body.scheduled_start_at.replace(tzinfo=None)
+    if start_utc < now:
+        logger.warning(
+            "[EXAM] creating exam with past start time: code=%s start=%s now=%s",
+            body.exam_code, start_utc, now
+        )
+
+    try:
+        exam = ExamPaper(
+            exam_code=body.exam_code,
+            title=body.title,
+            paper_id=body.paper_id,
+            created_by_admin_id=admin.id,
+            scheduled_start_at=body.scheduled_start_at.replace(tzinfo=None),
+            scheduled_end_at=body.scheduled_end_at.replace(tzinfo=None),
+            duration_seconds=body.duration_seconds,
+            late_join_cutoff_minutes=body.late_join_cutoff_minutes,
+            fixed_seed=seed,
+            shuffle_questions=body.shuffle_questions,
+            allow_back_navigation=body.allow_back_navigation,
+            auto_submit_on_expiry=body.auto_submit_on_expiry,
+            grace_window_seconds=body.grace_window_seconds,
+            org_id=body.org_id,
+            is_open=body.is_open,
+            is_published=False,
+            results_release_mode=body.results_release_mode,
+            status="draft",
+        )
+        db.add(exam)
+        db.commit()
+        db.refresh(exam)
+    except Exception as exc:
+        db.rollback()
+        logger.exception("[EXAM] create_exam DB error: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Database error creating exam. "
+                f"If this is a fresh deployment, ensure exam tables are up to date. "
+                f"Error: {type(exc).__name__}: {exc}"
+            ),
+        ) from exc
+
     logger.info("[EXAM] created code=%s paper=%s admin=%s", exam.exam_code, paper.id, admin.id)
     return _build_exam_response(exam, db)
 

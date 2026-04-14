@@ -317,6 +317,35 @@ async def startup_event() -> None:
         init_db()
         logger.info("[STARTUP] database initialized")
 
+        # Ensure exam_papers table has all required columns (handles unmigrated deployments)
+        try:
+            from sqlalchemy import inspect, text
+            from models import engine as _engine
+            _ins = inspect(_engine)
+            if "exam_papers" in _ins.get_table_names():
+                _existing_cols = {c["name"] for c in _ins.get_columns("exam_papers")}
+                _needed_cols = [
+                    ("grace_window_seconds", "INTEGER DEFAULT 10 NOT NULL"),
+                    ("late_join_cutoff_minutes", "INTEGER DEFAULT 5 NOT NULL"),
+                    ("results_release_mode", "VARCHAR(10) DEFAULT 'manual' NOT NULL"),
+                    ("show_answers_to_students", "BOOLEAN DEFAULT FALSE NOT NULL"),
+                    ("is_open", "BOOLEAN DEFAULT FALSE NOT NULL"),
+                    ("is_published", "BOOLEAN DEFAULT FALSE NOT NULL"),
+                    ("fixed_seed", "INTEGER"),
+                ]
+                with _engine.connect() as _conn:
+                    for _col_name, _col_def in _needed_cols:
+                        if _col_name not in _existing_cols:
+                            try:
+                                _conn.execute(text(f"ALTER TABLE exam_papers ADD COLUMN {_col_name} {_col_def}"))
+                                _conn.commit()
+                                logger.info("[STARTUP] exam migration: added column %s", _col_name)
+                            except Exception as _ce:
+                                logger.warning("[STARTUP] exam migration: could not add %s: %s", _col_name, _ce)
+            logger.info("[STARTUP] exam table columns verified")
+        except Exception as _exam_mig_err:
+            logger.warning("[STARTUP] exam column migration failed: %s", _exam_mig_err)
+
         # Run point system migration + seed (idempotent)
         try:
             from migrations.add_point_system_columns import migrate as _migrate_pts

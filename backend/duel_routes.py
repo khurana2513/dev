@@ -106,6 +106,20 @@ async def get_ws_ticket(
     return {"ticket": ticket, "expires_in": 60}
 
 
+@router.get("/admin/rooms")
+async def list_active_rooms(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Admin-only: list all duel rooms that currently have at least one active WebSocket
+    connection. Returns summary info (code, state, players, config).
+    """
+    if current_user.role not in ("admin", "org_admin", "teacher"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    rooms = await duel_manager.list_active_rooms()
+    return {"rooms": rooms}
+
+
 # ── WebSocket Endpoint ───────────────────────────────────────────────────────
 
 @router.websocket("/ws/{code}")
@@ -212,17 +226,18 @@ async def duel_websocket(
                     await duel_manager.mark_player_finished(code, user_id)
                     await duel_manager.update_state(code, "finishing")
 
+                    # Notify all clients which user just finished.
+                    # NOTE: We intentionally do NOT broadcast a full ROOM_STATE here.
+                    # A full ROOM_STATE with state="finishing" was causing the frontend
+                    # to restart the game for players who were still actively playing
+                    # (the rescue useEffect would fire again because room changed).
+                    # PLAYER_FINISHED is sufficient for the live leaderboard update.
                     await duel_manager.broadcast(code, {
                         "type":    "PLAYER_FINISHED",
                         "payload": {"userId": user_id},
                     })
 
                     refreshed = await duel_manager.get_room(code)
-                    if refreshed:
-                        await duel_manager.broadcast(code, {
-                            "type":    "ROOM_STATE",
-                            "payload": refreshed,
-                        })
 
                     # If every *connected* player has finished → emit ALL_FINISHED
                     if refreshed:

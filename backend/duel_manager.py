@@ -389,6 +389,31 @@ class DuelManager:
     def get_connected_ids(self, code: str) -> List[int]:
         return list(self._connections.get(code, {}).keys())
 
+    async def list_active_rooms(self) -> List[dict]:
+        """Return summary info for all rooms that have at least one active WS connection."""
+        summaries = []
+        for code in list(self._connections.keys()):
+            connected_count = len(self._connections.get(code, {}))
+            if connected_count == 0:
+                continue
+            room = await self.get_room(code)
+            if not room:
+                continue
+            summaries.append({
+                "code":              code,
+                "state":             room["state"],
+                "connected_players": connected_count,
+                "total_players":     len(room["players"]),
+                "config":            room["config"],
+                "start_ts":          room["start_ts"],
+                "players":           [
+                    {"id": p["id"], "name": p["name"], "is_finished": p["is_finished"]}
+                    for p in room["players"]
+                ],
+            })
+        summaries.sort(key=lambda r: (r["state"] != "playing", r["state"] != "finishing", r["code"]))
+        return summaries
+
     async def broadcast(self, code: str, message: dict, exclude: Optional[int] = None) -> None:
         """Send message to all connected clients in a room."""
         payload  = json.dumps(message)

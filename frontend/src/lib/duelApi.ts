@@ -105,6 +105,21 @@ export async function requestWsTicket(code: string): Promise<{ ticket: string; e
   return apiClient.post(`/duel/rooms/${code.toUpperCase()}/ws-ticket`, {});
 }
 
+export interface DuelRoomSummary {
+  code:              string;
+  state:             DuelRoomState["state"];
+  connected_players: number;
+  total_players:     number;
+  config:            DuelConfig;
+  start_ts:          number | null;
+  players:           { id: number; name: string; is_finished: boolean }[];
+}
+
+export async function listActiveDuelRooms(): Promise<DuelRoomSummary[]> {
+  const res = await apiClient.get<{ rooms: DuelRoomSummary[] }>("/duel/admin/rooms");
+  return res.rooms;
+}
+
 // ── WebSocket URL construction ────────────────────────────────────────────────
 
 /**
