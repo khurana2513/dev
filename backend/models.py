@@ -689,16 +689,17 @@ if DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgres
     # Create engine with connection pooling for PostgreSQL
     engine = create_engine(
         DATABASE_URL,
-        # Railway PostgreSQL Hobby allows ~25 open connections total.
-        # pool_size=5 + max_overflow=10 = 15 max per process (safe headroom for 1 worker).
-        # For 5000 concurrent users, use PgBouncer or Railway Pro (100+ conn limit).
+        # Railway Hobby Postgres allows ~25 total connections.
+        # pool_size=5 + max_overflow=10 = 15 max checked-out connections per process.
+        # Keeps headroom for admin tools, migrations, PgBouncer, and Railway internals.
+        # On Pro plan (100 connections) you can raise to pool_size=20, max_overflow=40.
         pool_size=5,
         max_overflow=10,
         # pool_pre_ping validates connections on checkout; avoids stale-connection errors
         # after Railway's idle timeout. Cost is negligible (1 round trip on checkout only).
         pool_pre_ping=True,
         pool_recycle=300,   # 5 minutes: hard recycle regardless of health
-        pool_timeout=30,
+        pool_timeout=10,    # Fail fast instead of blocking requests for 30s
         connect_args={
             "keepalives": 1,           # Enable TCP keepalives
             "keepalives_idle": 30,     # Send keepalive after 30s idle

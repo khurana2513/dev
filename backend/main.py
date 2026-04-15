@@ -1,5 +1,5 @@
 """FastAPI main application."""
-from fastapi import FastAPI, Depends, HTTPException, status, Request, Query, Response
+from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, status, Request, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -143,6 +143,14 @@ try:
 except Exception as e:
     import traceback
     logger.exception("[IMPORT] exam_routes failed: %s", str(e))
+
+fee_router = None
+try:
+    from fee_routes import router as fee_router
+    logger.info("[IMPORT] fee_routes loaded")
+except Exception as e:
+    import traceback
+    logger.exception("[IMPORT] fee_routes failed: %s", str(e))
 
 app = FastAPI(title="Abacus Paper Generator", version="3.0.0")
 app_start_time = time.monotonic()
@@ -291,6 +299,7 @@ for _name, _rtr in [
     ("shared_paper_router", shared_paper_router),
     ("duel_router", duel_router),
     ("exam_router", exam_router),
+    ("fee_router", fee_router),
 ]:
     if _rtr:
         try:
@@ -337,10 +346,11 @@ async def startup_event() -> None:
                     for _col_name, _col_def in _needed_cols:
                         if _col_name not in _existing_cols:
                             try:
-                                _conn.execute(text(f"ALTER TABLE exam_papers ADD COLUMN {_col_name} {_col_def}"))
+                                _conn.execute(text(f"ALTER TABLE exam_papers ADD COLUMN IF NOT EXISTS {_col_name} {_col_def}"))
                                 _conn.commit()
                                 logger.info("[STARTUP] exam migration: added column %s", _col_name)
                             except Exception as _ce:
+                                _conn.rollback()
                                 logger.warning("[STARTUP] exam migration: could not add %s: %s", _col_name, _ce)
             logger.info("[STARTUP] exam table columns verified")
         except Exception as _exam_mig_err:
@@ -550,9 +560,9 @@ async def resolve_point_rule(
 
 
 @app.get("/papers", response_model=List[PaperResponse])
-async def list_papers(db: Session = Depends(get_db)):
+async def list_papers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Get all papers."""
-    papers = db.query(Paper).order_by(Paper.created_at.desc()).all()
+    papers = db.query(Paper).order_by(Paper.created_at.desc()).offset(skip).limit(min(limit, 500)).all()
     return papers
 
 
@@ -754,22 +764,24 @@ async def preview_paper(config: PaperConfig):
         question_id_counter = 1
         generated_blocks = []
 
-        for block in blocks:
-            try:
-                logger.debug("[PREVIEW] generating block_id=%s type=%s count=%s", block.id, block.type, block.count)
-                gen_block = generate_block(block, question_id_counter, seed)
-                logger.debug("[PREVIEW] generated block_id=%s questions=%s", block.id, len(gen_block.questions))
-                generated_blocks.append(gen_block)
-                question_id_counter += block.count
-            except Exception as e:
-                import traceback
-                error_detail = f"Failed to generate block '{block.id}': {str(e)}"
-                logger.exception("[PREVIEW] %s", error_detail)
-                logger.debug(traceback.format_exc())
-                raise HTTPException(
-                    status_code=500,
-                    detail=error_detail
-                )
+        def _generate_all_blocks():
+            nonlocal question_id_counter
+            _blocks = []
+            _qid = question_id_counter
+            for block in blocks:
+                gen_block = generate_block(block, _qid, seed)
+                _blocks.append(gen_block)
+                _qid += block.count
+            return _blocks
+
+        try:
+            loop = asyncio.get_event_loop()
+            generated_blocks = await loop.run_in_executor(None, _generate_all_blocks)
+        except Exception as e:
+            import traceback
+            error_detail = f"Failed to generate blocks: {str(e)}"
+            logger.exception("[PREVIEW] %s", error_detail)
+            raise HTTPException(status_code=500, detail=error_detail)
 
         logger.info("[PREVIEW] generated_blocks=%s", len(generated_blocks))
         return PreviewResponse(blocks=generated_blocks, seed=seed)
@@ -1066,11 +1078,16 @@ async def start_paper_attempt(
                 detail="Shared paper not found or has expired. Ask the sender to share a new link.",
             )
 
-        # One attempt per user per share code
-        already_attempted = db.query(PaperAttempt).filter(
-            PaperAttempt.user_id == current_user.id,
-            PaperAttempt.shared_paper_code == code,
-        ).first()
+        # One attempt per user per share code — lock the row to prevent concurrent duplicate inserts
+        already_attempted = (
+            db.query(PaperAttempt)
+            .filter(
+                PaperAttempt.user_id == current_user.id,
+                PaperAttempt.shared_paper_code == code,
+            )
+            .with_for_update()
+            .first()
+        )
         if already_attempted:
             raise HTTPException(
                 status_code=400,
@@ -1078,12 +1095,17 @@ async def start_paper_attempt(
             )
     else:
         # ── Direct attempt path ───────────────────────────────────────────
-        existing_attempts = db.query(PaperAttempt).filter(
-            PaperAttempt.user_id == current_user.id,
-            PaperAttempt.seed == attempt_data.seed,
-            PaperAttempt.paper_title == attempt_data.paper_title,
-            PaperAttempt.shared_paper_code == None,  # noqa: E711 — SQLAlchemy IS NULL
-        ).count()
+        existing_attempts = (
+            db.query(PaperAttempt)
+            .filter(
+                PaperAttempt.user_id == current_user.id,
+                PaperAttempt.seed == attempt_data.seed,
+                PaperAttempt.paper_title == attempt_data.paper_title,
+                PaperAttempt.shared_paper_code == None,  # noqa: E711 — SQLAlchemy IS NULL
+            )
+            .with_for_update()
+            .count()
+        )
 
         if existing_attempts >= 2:
             raise HTTPException(
@@ -1112,10 +1134,45 @@ async def start_paper_attempt(
 
     return PaperAttemptResponse.model_validate(paper_attempt)
 
+
+def _bg_reward_paper_attempt(
+    attempt_id: int,
+    user_id: int,
+    source_tool: str,
+    points_earned: int,
+    correct_answers: int,
+    metadata: dict,
+) -> None:
+    """
+    Background task: record reward events (badge evaluation, streak update) after
+    the HTTP response for a paper-attempt submission has already been sent.
+    Uses its own DB session so it never holds up the request lifecycle.
+    """
+    from models import SessionLocal
+    from reward_engine import reward_engine
+    _db = SessionLocal()
+    try:
+        reward_engine.record_session_completed(
+            db=_db,
+            student_id=user_id,
+            source_tool=source_tool,
+            points_earned=points_earned,
+            correct_answers=correct_answers,
+            metadata=metadata,
+        )
+        _db.commit()
+    except Exception as _exc:
+        _db.rollback()
+        logger.warning("[BG_REWARD] paper_attempt attempt_id=%s failed: %s", attempt_id, _exc)
+    finally:
+        _db.close()
+
+
 @app.put("/papers/attempt/{attempt_id}", response_model=PaperAttemptResponse)
 async def submit_paper_attempt(
     attempt_id: int,
     submit_data: PaperAttemptSubmit,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -1286,49 +1343,35 @@ async def submit_paper_attempt(
             }
         )
 
-        # ── Reward Events (streak, badge evaluation) ──────────────────────────
-        reward_result = None
-        try:
-            from reward_engine import reward_engine
-            reward_result = reward_engine.record_session_completed(
-                db=db,
-                student_id=current_user.id,
-                source_tool="practice_paper",
-                points_earned=points_earned,
-                correct_answers=correct_count,
-                metadata={
-                    "paper_title": paper_attempt.paper_title,
-                    "paper_level": paper_attempt.paper_level,
-                    "per_correct": per_correct,
-                    "rule_id": rule_id,
-                    "attempted_questions": attempted_questions,
-                    "total_questions": total,
-                    "session_id": paper_attempt.id,
-                },
-            )
-        except Exception as _rwd_err:
-            logger.warning("[REWARD] paper_attempt reward failed: %s", _rwd_err)
-        
         db.commit()
         db.refresh(paper_attempt)
-        db.refresh(current_user)  # Reload so total_points reflects the committed ADD
-        
+
+        # Schedule reward events (badge evaluation, streak update) as a background task.
+        # The HTTP response is returned immediately; gamification runs after it is sent,
+        # freeing the DB connection from the hot critical path (reduces lock contention
+        # under high concurrency without changing any visible data or response fields).
+        background_tasks.add_task(
+            _bg_reward_paper_attempt,
+            paper_attempt.id,
+            current_user.id,
+            "practice_paper",
+            points_earned,
+            correct_count,
+            {
+                "paper_title":        paper_attempt.paper_title,
+                "paper_level":        paper_attempt.paper_level,
+                "per_correct":        per_correct,
+                "rule_id":            rule_id,
+                "attempted_questions": attempted_questions,
+                "total_questions":    total,
+                "session_id":         paper_attempt.id,
+            },
+        )
+
         elapsed = time.time() - request_start
         logger.info("[SUBMIT] path=/papers/attempt/%s duration_s=%.2f", attempt_id, elapsed)
-        
-        response = PaperAttemptResponse.model_validate(paper_attempt)
 
-        # Attach reward data to response if available
-        if reward_result and (reward_result.badges_unlocked or reward_result.streak_updated):
-            response_dict = response.model_dump()
-            response_dict["reward_data"] = {
-                "badges_unlocked": reward_result.badges_unlocked,
-                "streak_updated": reward_result.streak_updated,
-                "bonus_points": reward_result.points_awarded if reward_result.points_awarded != points_earned else 0,
-            }
-            return response_dict
-
-        return response
+        return PaperAttemptResponse.model_validate(paper_attempt)
     except HTTPException:
         # Re-raise HTTP exceptions as-is
         raise

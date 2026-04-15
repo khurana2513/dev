@@ -1,6 +1,6 @@
 """API routes for user authentication, progress tracking, and dashboards."""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Response, status, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status, Query, Request
 from sqlalchemy.orm import Session, load_only
 from sqlalchemy import func, desc
 from typing import List, Optional
@@ -340,9 +340,13 @@ async def login(
         print(f"🟢 [LOGIN] Login attempt received, token length: {len(token)}")
         print(f"🟢 [LOGIN] Token source: {'credential' if login_data.credential else 'token'}")
         
-        # Verify Google token
+        # Verify Google token — run the sync/blocking call in a thread pool so it
+        # does not block the async event loop (verify_google_token_impl uses time.sleep
+        # for retry back-off, which would stall all concurrent requests otherwise).
         try:
-            user_info = verify_google_token(token)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            user_info = await loop.run_in_executor(None, verify_google_token, token)
             print(f"✅ [LOGIN] Token verified, user info: {user_info.get('email', 'N/A')}")
         except HTTPException as e:
             # Re-raise HTTP exceptions from verify_google_token
@@ -646,9 +650,53 @@ async def update_display_name(
     return UserResponse.model_validate(current_user)
 
 
+def _bg_reward_practice_session(
+    session_id: int,
+    user_id: int,
+    tool: str,
+    points_earned: int,
+    correct_answers: int,
+    metadata: dict,
+) -> None:
+    """
+    Background task: record reward events (badge evaluation, streak update, burst bonus)
+    after the HTTP response for a practice session has already been sent.
+    Uses its own DB session so it never blocks the request lifecycle.
+    """
+    from models import SessionLocal
+    from reward_engine import reward_engine
+    _db = SessionLocal()
+    try:
+        reward_engine.record_session_completed(
+            db=_db,
+            student_id=user_id,
+            source_tool=tool,
+            points_earned=points_earned,
+            correct_answers=correct_answers,
+            metadata=metadata,
+        )
+        if tool == "burst_mode":
+            reward_engine.record_burst_completion(
+                db=_db,
+                student_id=user_id,
+                score=correct_answers,
+                session_id=session_id,
+            )
+        _db.commit()
+    except Exception as _exc:
+        _db.rollback()
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            "[BG_REWARD] practice_session session_id=%s failed: %s", session_id, _exc
+        )
+    finally:
+        _db.close()
+
+
 @router.post("/practice-session", response_model=PracticeSessionResponse)
 async def save_practice_session(
     session_data: PracticeSessionCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -806,71 +854,39 @@ async def save_practice_session(
         )
 
         # ── Reward Events (streak, badge evaluation, burst bonus) ─────────────
-        reward_result = None
-        try:
-            from reward_engine import reward_engine
+        # Moved to background: runs after response is sent, owns its own DB session.
+        background_tasks.add_task(
+            _bg_reward_practice_session,
+            session.id,
+            current_user.id,
+            tool,
+            points_earned,
+            session_data.correct_answers,
+            {
+                "config_mode":         config_mode,
+                "operation":           operation,
+                "preset_key":          preset_key,
+                "per_correct":         per_correct,
+                "rule_id":             rule_id,
+                "attempted_questions": attempted_questions,
+                "total_questions":     session_data.total_questions,
+                "session_id":          session.id,
+            },
+        )
 
-            reward_result = reward_engine.record_session_completed(
-                db=db,
-                student_id=current_user.id,
-                source_tool=tool,
-                points_earned=points_earned,
-                correct_answers=session_data.correct_answers,
-                metadata={
-                    "config_mode": config_mode,
-                    "operation": operation,
-                    "preset_key": preset_key,
-                    "per_correct": per_correct,
-                    "rule_id": rule_id,
-                    "attempted_questions": attempted_questions,
-                    "total_questions": session_data.total_questions,
-                    "session_id": session.id,
-                },
-            )
-
-            # Burst mode completion bonus (+15)
-            if tool == "burst_mode":
-                burst_result = reward_engine.record_burst_completion(
-                    db=db,
-                    student_id=current_user.id,
-                    score=session_data.correct_answers,
-                    session_id=session.id,
-                )
-                # Merge badges from burst bonus
-                if burst_result.badges_unlocked:
-                    if reward_result:
-                        reward_result.badges_unlocked.extend(burst_result.badges_unlocked)
-        except Exception as _rwd_err:
-            import traceback
-            logger.warning("[REWARD] session reward failed: %s", _rwd_err)
-            logger.debug(traceback.format_exc())
-        
         db.commit()
         db.refresh(session)
-        db.refresh(current_user)  # Reload so current_user.total_points is accurate
-        
-        # Ensure datetimes are treated as IST (SQLAlchemy returns naive datetimes)
+
+        # Ensure datetimes are treated as UTC (SQLAlchemy returns naive datetimes)
         if session.started_at and session.started_at.tzinfo is None:
             session.started_at = session.started_at.replace(tzinfo=timezone.utc)
         if session.completed_at and session.completed_at.tzinfo is None:
             session.completed_at = session.completed_at.replace(tzinfo=timezone.utc)
-        
+
         elapsed = time.time() - request_start
         print(f"⏱ [PRACTICE_SESSION] POST /users/practice-session took {elapsed:.2f}s (fast path)")
-        
-        response = PracticeSessionResponse.model_validate(session)
 
-        # Attach reward data to response if available (badges unlocked, streak update)
-        if reward_result and (reward_result.badges_unlocked or reward_result.streak_updated):
-            response_dict = response.model_dump()
-            response_dict["reward_data"] = {
-                "badges_unlocked": reward_result.badges_unlocked,
-                "streak_updated": reward_result.streak_updated,
-                "bonus_points": reward_result.points_awarded if reward_result.points_awarded != points_earned else 0,
-            }
-            return response_dict
-
-        return response
+        return PracticeSessionResponse.model_validate(session)
     except HTTPException:
         # Re-raise HTTP exceptions as-is
         raise
