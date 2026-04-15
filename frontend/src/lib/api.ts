@@ -22,8 +22,8 @@ export interface Constraints {
   multiplier?: number;  // For multiply by 12-19
   multiplierRange?: number;  // For multiply by 21-91
   divisor?: number;  // For divide by single digit
-  tableNumber?: number;  // For tables (111-999)
-  tableNumberLarge?: number;  // For large tables (1111-9999)
+  tableNumber?: number;  // For tables (11-99)
+  tableNumberLarge?: number;  // For large tables (101-999)
   // Vedic Maths Level 2 constraints
   powerOf10?: number;  // For subtraction from powers of 10 (2-6)
   // Vedic Maths Level 3 constraints
@@ -184,11 +184,16 @@ export async function previewPaper(config: PaperConfig): Promise<PreviewResponse
   }
 }
 
-export async function createPaper(config: PaperConfig): Promise<SavedPaper> {
+export async function createPaper(
+  config: PaperConfig,
+  options?: { fixed_seed?: number; is_exam_paper?: boolean }
+): Promise<SavedPaper> {
   return apiClient.post<SavedPaper>("/papers", {
     title: config.title,
     level: config.level,
     config,
+    fixed_seed: options?.fixed_seed ?? null,
+    is_exam_paper: options?.is_exam_paper ?? false,
   });
 }
 

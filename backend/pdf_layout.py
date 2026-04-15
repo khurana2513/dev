@@ -106,7 +106,7 @@ def draw_page_header(canvas, title: str, level: str):
     
     # Brand name (top right)
     apply_typography(canvas, Typography(FONT_BOLD, 10, colors.HexColor('#666666'), 1.0))
-    canvas.drawRightString(MARGIN_LEFT + USABLE_WIDTH, y, "Talent Hub")
+    canvas.drawRightString(MARGIN_LEFT + USABLE_WIDTH, y, "BlackMonkey")
     
     # Paper title
     leading = apply_typography(canvas, TYPO_PAPER_TITLE)

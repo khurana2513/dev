@@ -2539,11 +2539,13 @@ def generate_question(
         digits = max(2, min(30, digits))
         
         num = generate_num(digits)
-        # Use multiplier from constraints if specified, otherwise random 21-91
+        # Multiplier must be one of the x1 series: 21, 31, 41, 51, 61, 71, 81, 91
+        _SERIES_21_91 = [21, 31, 41, 51, 61, 71, 81, 91]
         if constraints.multiplierRange is not None:
-            multiplier = max(21, min(91, constraints.multiplierRange))
+            # Clamp to the nearest valid series member
+            multiplier = min(_SERIES_21_91, key=lambda v: abs(v - constraints.multiplierRange))
         else:
-            multiplier = int(random_func() * 71) + 21  # 21 to 91
+            multiplier = _SERIES_21_91[int(random_func() * 8)]  # random pick from the 8 options
         
         answer = float(num * multiplier)
         operands = [num, multiplier]
@@ -2688,12 +2690,12 @@ def generate_question(
     elif question_type == "vedic_tables":
         operator = "×"
         is_vertical = False
-        # Table number: only 111-999 range (removed tableNumberLarge support)
+        # Table number: 11-99 range (double-digit tables)
         if constraints.tableNumber is not None:
-            table_num = max(111, min(999, constraints.tableNumber))
+            table_num = max(11, min(99, constraints.tableNumber))
         else:
-            # Default to 111-999 range if not specified
-            table_num = int(random_func() * (999 - 111 + 1)) + 111  # 111 to 999
+            # Default to 11-99 range if not specified
+            table_num = int(random_func() * (99 - 11 + 1)) + 11  # 11 to 99
         
         # For tables, the question_id determines which row (multiplier) we're on
         # multiplier ranges from 1 to rows (where rows comes from constraints.rows or count)
@@ -2706,12 +2708,12 @@ def generate_question(
     elif question_type == "vedic_tables_large":
         operator = "×"
         is_vertical = False
-        # Table number: only 1111-9999 range
+        # Table number: 101-999 range (triple-digit tables)
         if constraints.tableNumberLarge is not None:
-            table_num = max(1111, min(9999, constraints.tableNumberLarge))
+            table_num = max(101, min(999, constraints.tableNumberLarge))
         else:
-            # Default to 1111-9999 range if not specified
-            table_num = int(random_func() * (9999 - 1111 + 1)) + 1111  # 1111 to 9999
+            # Default to 101-999 range if not specified
+            table_num = int(random_func() * (999 - 101 + 1)) + 101  # 101 to 999
         
         # For tables, the question_id determines which row (multiplier) we're on
         # multiplier ranges from 1 to rows (where rows comes from constraints.rows or count)
@@ -4327,10 +4329,10 @@ def generate_block(block_config: BlockConfig, start_id: int, seed: Optional[int]
             rows = block_config.constraints.rows if block_config.constraints.rows is not None else (block_config.count if block_config.count else 10)
             rows = max(2, min(100, rows))  # For vedic_tables, rows means multiplier count (2-100), not questions
             
-            # Get table number: only 111-999 range (removed tableNumberLarge support)
+            # Get table number: 11-99 range
             table_num = None
             if block_config.constraints.tableNumber is not None:
-                table_num = max(111, min(999, block_config.constraints.tableNumber))
+                table_num = max(11, min(99, block_config.constraints.tableNumber))
             
             if table_num is None:
                 # Generate a random table number if not specified (will be consistent with seed)
@@ -4340,7 +4342,7 @@ def generate_block(block_config: BlockConfig, start_id: int, seed: Optional[int]
                 else:
                     import random
                     random_func = random.random
-                table_num = int(random_func() * (999 - 111 + 1)) + 111  # 111 to 999
+                table_num = int(random_func() * (99 - 11 + 1)) + 11  # 11 to 99
             
             # Generate table rows: table_num × 1, table_num × 2, ..., table_num × rows
             for i in range(rows):
@@ -4359,9 +4361,9 @@ def generate_block(block_config: BlockConfig, start_id: int, seed: Optional[int]
         except Exception as e:
             # Fallback for vedic_tables
             if block_config.constraints.tableNumber is not None:
-                table_num = max(111, min(999, block_config.constraints.tableNumber))
+                table_num = max(11, min(99, block_config.constraints.tableNumber))
             else:
-                table_num = 111  # Default fallback
+                table_num = 11  # Default fallback
             rows = block_config.constraints.rows if block_config.constraints.rows is not None else (block_config.count if block_config.count else 10)
             rows = max(2, min(100, rows))  # For vedic_tables, rows means multiplier count (2-100), not questions
             for i in range(min(rows, 10)):  # Limit to 10 questions on error
@@ -4380,10 +4382,10 @@ def generate_block(block_config: BlockConfig, start_id: int, seed: Optional[int]
             rows = block_config.constraints.rows if block_config.constraints.rows is not None else (block_config.count if block_config.count else 10)
             rows = max(2, min(100, rows))  # For vedic_tables_large, rows means multiplier count (2-100), not questions
             
-            # Get table number: only 1111-9999 range
+            # Get table number: 101-999 range
             table_num = None
             if block_config.constraints.tableNumberLarge is not None:
-                table_num = max(1111, min(9999, block_config.constraints.tableNumberLarge))
+                table_num = max(101, min(999, block_config.constraints.tableNumberLarge))
             
             if table_num is None:
                 # Generate a random table number if not specified (will be consistent with seed)
@@ -4393,7 +4395,7 @@ def generate_block(block_config: BlockConfig, start_id: int, seed: Optional[int]
                 else:
                     import random
                     random_func = random.random
-                table_num = int(random_func() * (9999 - 1111 + 1)) + 1111  # 1111 to 9999
+                table_num = int(random_func() * (999 - 101 + 1)) + 101  # 101 to 999
             
             # Generate table rows: table_num × 1, table_num × 2, ..., table_num × rows
             for i in range(rows):
@@ -4412,9 +4414,9 @@ def generate_block(block_config: BlockConfig, start_id: int, seed: Optional[int]
         except Exception as e:
             # Fallback for vedic_tables_large
             if block_config.constraints.tableNumberLarge is not None:
-                table_num = max(1111, min(9999, block_config.constraints.tableNumberLarge))
+                table_num = max(101, min(999, block_config.constraints.tableNumberLarge))
             else:
-                table_num = 1111  # Default fallback
+                table_num = 101  # Default fallback
             rows = block_config.constraints.rows if block_config.constraints.rows is not None else (block_config.count if block_config.count else 10)
             rows = max(2, min(100, rows))  # For vedic_tables_large, rows means multiplier count (2-100), not questions
             for i in range(min(rows, 10)):  # Limit to 10 questions on error
