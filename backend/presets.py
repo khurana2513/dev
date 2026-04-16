@@ -372,7 +372,7 @@ PRESETS = {
             type="vedic_tables",
             count=10,
             constraints=Constraints(rows=10),
-            title="Tables - 10 Ques"
+            title="Tables (11-99) - 10 Ques"
         ),
     ],
     "Vedic-Level-2": [
@@ -555,8 +555,8 @@ PRESETS = {
             id="vm2-26",
             type="vedic_tables_large",
             count=10,
-            constraints=Constraints(rows=10, tableNumberLarge=1111),
-            title="Tables (1111-9999) - 10 Ques"
+            constraints=Constraints(rows=10, tableNumberLarge=101),
+            title="Tables (101-999) - 10 Ques"
         ),
     ]
 }

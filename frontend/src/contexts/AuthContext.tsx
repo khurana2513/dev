@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { User, loginWithGoogle, getCurrentUser, removeAuthToken, setAuthToken, refreshAccessToken, logoutUser } from "../lib/userApi";
 import { setAuthReady, setAuthToken as setApiAuthToken } from "../lib/apiClient";
 
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void restoreSession();
   }, []);
 
-  const login = async (token: string) => {
+  const login = useCallback(async (token: string) => {
     console.log("🟡 [AUTH] Login function called");
     try {
       console.log("🟡 [AUTH] Calling loginWithGoogle...");
@@ -109,9 +109,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setApiAuthToken(null);
       throw error;
     }
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     void logoutUser();
     removeAuthToken();
     localStorage.removeItem("user_data");
@@ -121,9 +121,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Without this, ProtectedRoute re-renders Login in-place while setAuthReady(false)
     // causes waitForAuth() to stall pending requests, freezing the UI.
     window.location.replace("/login");
-  };
+  }, []);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const userData = await getCurrentUser();
       setUser(userData);
@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout();
       }
     }
-  };
+  }, [logout]);
 
   return (
     <AuthContext.Provider

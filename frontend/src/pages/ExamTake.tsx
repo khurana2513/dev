@@ -113,7 +113,7 @@ export default function ExamTake() {
   const [, setLocation] = useLocation();
   const { isAuthenticated, loading: authLoading } = useAuth();
 
-  injectStyles();
+  useEffect(() => { injectStyles(); }, []);
 
   // ── Phase & data ────────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>("auth-check");
@@ -369,13 +369,20 @@ export default function ExamTake() {
 
   // ── Load result ──────────────────────────────────────────────────────────────
   async function loadResult() {
-    if (!sessionId) return;
     try {
-      const r = await examStudentApi.getResult(examCode, sessionId);
+      const r = await examStudentApi.getMyResult(examCode);
       setResult(r);
       setPhase("result");
-    } catch {
-      setErrorMsg("Results have not been released yet. Check back soon.");
+    } catch (err: unknown) {
+      // 403 = results not yet released; stay on result phase but show not-released screen
+      const status = (err as { status?: number })?.status;
+      setResult(null);
+      setPhase("result");
+      if (status === 403) {
+        setErrorMsg("Results haven't been released yet. Check back after the exam is graded.");
+      } else {
+        setErrorMsg("Could not load results. Please try again.");
+      }
     }
   }
 
@@ -579,10 +586,11 @@ export default function ExamTake() {
             <CheckCircle2 size={36} className="text-green-400" />
           </div>
           <h2 className="text-white text-2xl font-bold mb-2">Submitted!</h2>
-          <p className="text-zinc-400 mb-6">
-            Your answers have been saved.<br />
-            Results will be available after your teacher grades the exam.
+          <p className="text-zinc-400 mb-1">
+            Your answers have been saved.
           </p>
+          <p className="text-zinc-600 text-xs mb-1">Exam code: <span className="text-zinc-400 font-mono">{examCode}</span></p>
+          <p className="text-zinc-600 text-xs mb-6">You can return to this page anytime to check results.</p>
           <div className="space-y-3">
             <button onClick={loadResult}
               className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors">
@@ -674,11 +682,18 @@ export default function ExamTake() {
         <div className="text-center max-w-xs ex-card">
           <Clock size={40} className="text-yellow-400 mx-auto mb-4" />
           <h2 className="text-white text-xl font-semibold mb-2">Results not yet available</h2>
-          <p className="text-zinc-400 text-sm mb-5">{errorMsg || "Your teacher hasn't released results yet."}</p>
-          <button onClick={() => setLocation("/dashboard")}
-            className="px-5 py-2.5 bg-zinc-800 text-zinc-300 rounded-xl text-sm hover:bg-zinc-700 transition-colors">
-            Go to Dashboard
-          </button>
+          <p className="text-zinc-400 text-sm mb-1">{errorMsg || "Your teacher hasn't released results yet."}</p>
+          <p className="text-zinc-600 text-xs mb-5">Exam code: <span className="text-zinc-400 font-mono">{examCode}</span></p>
+          <div className="space-y-2">
+            <button onClick={loadResult}
+              className="w-full px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition-colors">
+              Try Again
+            </button>
+            <button onClick={() => setLocation("/dashboard")}
+              className="w-full px-5 py-2.5 bg-zinc-800 text-zinc-300 rounded-xl text-sm hover:bg-zinc-700 transition-colors">
+              Go to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );

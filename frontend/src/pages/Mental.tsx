@@ -1237,6 +1237,16 @@ export default function Mental() {
     } catch (_) {}
   }, []);
 
+  // Close AudioContext on unmount to prevent resource leak
+  useEffect(() => {
+    return () => {
+      if (countdownAudioRef.current) {
+        countdownAudioRef.current.close().catch(() => {});
+        countdownAudioRef.current = null;
+      }
+    };
+  }, []);
+
   const startCountdown = () => {
     // Validate name is provided
     if (!studentName || studentName.trim() === "") {
@@ -1844,16 +1854,19 @@ export default function Mental() {
         };
         
         console.log("🟢 [PRACTICE] Session data prepared, calling savePracticeSession...");
-        let streakUpdated = false;
+        // Capture streak BEFORE save so we can detect if it changed
+        const prevStreak = (user as any)?.current_streak ?? 0;
+        let savedPoints = 0;
         try {
           const savedSession = await savePracticeSession(sessionData);
           console.log("✅ [PRACTICE] Session saved successfully!", savedSession);
           // Always sync points with what the backend actually stored
           if (savedSession.points_earned != null) {
             setPointsEarned(savedSession.points_earned);
+            savedPoints = savedSession.points_earned;
           }
           // Trigger badge cinematic for any newly unlocked badges
-          const rewardBadges = savedSession?.reward_data?.badges_unlocked;
+          const rewardBadges = (savedSession as any)?.reward_data?.badges_unlocked;
           if (rewardBadges && rewardBadges.length > 0) {
             useBadgeUnlockStore.getState().enqueue(rewardBadges);
           }
@@ -1867,7 +1880,6 @@ export default function Mental() {
               isAllDone: b.badge_key === "super_letter_r",
             })));
           }
-          streakUpdated = savedSession?.reward_data?.streak_updated ?? false;
           setSessionSaved(true);
         } catch (saveError) {
           // Save failed, but still show points
@@ -1876,17 +1888,31 @@ export default function Mental() {
           // Points already set above, so they'll still display
         }
         
-        // Refresh user data to update points in header
+        // Refresh user data to update points in header.
+        // Wait briefly so the background reward task (streak/badge eval) can commit.
         if (refreshUser) {
           console.log("🟢 [PRACTICE] Refreshing user data to update points...");
           try {
+            await new Promise((r) => setTimeout(r, 900));
             await refreshUser();
             console.log("✅ [PRACTICE] User data refreshed!");
-            // Fire streak celebration AFTER refresh so current_streak is up-to-date
-            if (streakUpdated) {
-              const freshUser = JSON.parse(localStorage.getItem("user_data") || "{}");
-              const newStreak = freshUser?.current_streak ?? 1;
-              useStreakCelebrationStore.getState().trigger(newStreak);
+            // Compare before/after streak to trigger celebration
+            const freshUser = JSON.parse(localStorage.getItem("user_data") || "{}");
+            const newStreak = freshUser?.current_streak ?? 0;
+            if (newStreak > prevStreak) {
+              const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+              const newBadgeDays = STREAK_MILESTONES.find((m) => m === newStreak) ?? null;
+              const MILESTONE_NAMES: Record<number, string> = {
+                3: "Starter Flame", 7: "Week Warrior", 14: "Two Week Legend",
+                30: "Monthly Master", 60: "Mythic Warrior", 100: "Eternal Champion",
+              };
+              useStreakCelebrationStore.getState().trigger(newStreak, {
+                prevStreak,
+                pointsEarned: savedPoints,
+                newBadge: newBadgeDays
+                  ? { name: MILESTONE_NAMES[newBadgeDays] ?? `${newBadgeDays}-Day Badge`, days: newBadgeDays, emoji: "🔥" }
+                  : null,
+              });
             }
           } catch (refreshError) {
             console.error("⚠️ [PRACTICE] Failed to refresh user data:", refreshError);
@@ -2153,18 +2179,18 @@ export default function Mental() {
     s.id = id;
     s.textContent = `
       @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700;1,800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
-      :root{--mm-bg:#07070F;--mm-bg2:#0B0D1A;--mm-surf:#0F1120;--mm-surf2:#141729;--mm-surf3:#1C2040;--mm-bdr:rgba(255,255,255,0.06);--mm-bdr2:rgba(255,255,255,0.10);--mm-pur:#7B5CE5;--mm-pur2:#9D7FF0;--mm-pur3:#C4ADFF;--mm-pglow:rgba(123,92,229,0.22);--mm-pdim:rgba(123,92,229,0.10);--mm-grn:#10B981;--mm-rdim:rgba(239,68,68,0.12);--mm-red:#EF4444;--mm-gld:#F59E0B;--mm-whi:#F0F2FF;--mm-whi2:#B8BDD8;--mm-muted:#525870;--mm-fd:'Playfair Display',Georgia,serif;--mm-fb:'DM Sans',sans-serif;--mm-fm:'JetBrains Mono',monospace;}
+      :root{--mm-bg:#05050F;--mm-bg2:#08091A;--mm-surf:#0C0E20;--mm-surf2:#101328;--mm-surf3:#161A3C;--mm-bdr:rgba(255,255,255,0.06);--mm-bdr2:rgba(255,255,255,0.10);--mm-pur:#6366F1;--mm-pur2:#818CF8;--mm-pur3:#C7D2FE;--mm-pglow:rgba(99,102,241,0.25);--mm-pdim:rgba(99,102,241,0.10);--mm-blue:#3B82F6;--mm-blue2:#60A5FA;--mm-grn:#10B981;--mm-rdim:rgba(239,68,68,0.12);--mm-red:#EF4444;--mm-gld:#F59E0B;--mm-whi:#F0F2FF;--mm-whi2:#B8BDD8;--mm-muted:#525870;--mm-fd:'Playfair Display',Georgia,serif;--mm-fb:'DM Sans',sans-serif;--mm-fm:'JetBrains Mono',monospace;}
       @keyframes mm-fade-up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
       @keyframes mm-fade-in{from{opacity:0}to{opacity:1}}
       @keyframes mm-scale-in{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
       @keyframes mm-scale-pop{0%{transform:scale(1)}40%{transform:scale(1.06)}100%{transform:scale(1)}}
       @keyframes mm-number-slam{0%{opacity:0;transform:scale(.6) translateY(24px)}60%{transform:scale(1.08) translateY(-4px)}100%{opacity:1;transform:scale(1) translateY(0)}}
-      @keyframes mm-pulse-ring{0%{box-shadow:0 0 0 0 rgba(123,92,229,0.22)}70%{box-shadow:0 0 0 12px transparent}100%{box-shadow:0 0 0 0 transparent}}
+      @keyframes mm-pulse-ring{0%{box-shadow:0 0 0 0 rgba(99,102,241,0.22)}70%{box-shadow:0 0 0 12px transparent}100%{box-shadow:0 0 0 0 transparent}}
       @keyframes mm-timer-urgent{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.75;transform:scale(1.05)}}
       @keyframes mm-countdown-in{0%{opacity:0;transform:scale(2.5)}30%{opacity:1;transform:scale(1)}80%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.8)}}
       @keyframes mm-row-reveal{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
       @keyframes mm-count-up{from{opacity:0;transform:translateY(10px) scale(.85)}to{opacity:1;transform:none}}
-      @keyframes mm-glow-border{0%,100%{border-color:rgba(123,92,229,.3)}50%{border-color:rgba(123,92,229,.7)}}
+      @keyframes mm-glow-border{0%,100%{border-color:rgba(99,102,241,.3)}50%{border-color:rgba(99,102,241,.7)}}
       @keyframes mm-correct-flash{0%{background:rgba(16,185,129,.25)}100%{background:transparent}}
       @keyframes mm-wrong-flash{0%{background:rgba(239,68,68,.25)}100%{background:transparent}}
       @keyframes mm-progress-drain{from{width:100%}to{width:0%}}
@@ -2177,18 +2203,18 @@ export default function Mental() {
       .mm-count-up{animation:mm-count-up .4s ease both}
       .mm-timer-urgent{animation:mm-timer-urgent .6s ease infinite}
       .mm-drain{animation:mm-progress-drain linear both}
-      .mm-answer-input:focus{border-color:rgba(123,92,229,.6)!important;box-shadow:0 0 0 4px rgba(123,92,229,.08)!important;animation:mm-glow-border 2s ease infinite!important}
+      .mm-answer-input:focus{border-color:rgba(99,102,241,.6)!important;box-shadow:0 0 0 4px rgba(99,102,241,.08)!important;animation:mm-glow-border 2s ease infinite!important}
       @keyframes mm-correct-ring{0%{outline-color:rgba(16,185,129,0)}40%{outline-color:rgba(16,185,129,.5)}100%{outline-color:rgba(16,185,129,0)}}
       @keyframes mm-wrong-ring{0%{outline-color:rgba(239,68,68,0)}40%{outline-color:rgba(239,68,68,.6)}100%{outline-color:rgba(239,68,68,0)}}
       .mm-input{background:var(--mm-surf);border:2px solid var(--mm-bdr2);border-radius:16px;padding:18px 22px;font-family:var(--mm-fm);font-size:24px;font-weight:700;color:var(--mm-whi);text-align:center;outline:none;outline-offset:3px;outline-width:3px;outline-style:solid;outline-color:transparent;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease;width:100%;box-sizing:border-box;}
       .mm-input::placeholder{color:rgba(255,255,255,.1);font-size:20px;font-weight:400}
-      .mm-input:focus{border-color:rgba(123,92,229,.45);box-shadow:0 0 0 3px rgba(123,92,229,.08)}
+      .mm-input:focus{border-color:rgba(99,102,241,.45);box-shadow:0 0 0 3px rgba(99,102,241,.08)}
       .mm-input.correct{border-color:rgba(16,185,129,.6);background:rgba(16,185,129,.06);animation:mm-correct-ring .4s ease both}
       .mm-input.wrong{border-color:rgba(239,68,68,.6);background:rgba(239,68,68,.06);animation:mm-wrong-ring .4s ease both}
       .mm-fade-up{animation:mm-fade-up .35s ease both}
       .mm-preset-pop{animation:mm-scale-pop .25s ease}
       .mm-form-input{background:var(--mm-surf2)!important;border:1px solid var(--mm-bdr2)!important;border-radius:12px!important;padding:13px 16px!important;color:var(--mm-whi)!important;font-family:var(--mm-fm)!important;font-size:16px!important;font-weight:500!important;width:100%!important;transition:border-color .2s,box-shadow .2s!important;outline:none!important;}
-      .mm-form-input:focus{border-color:rgba(123,92,229,.5)!important;box-shadow:0 0 0 3px rgba(123,92,229,.07)!important;}
+      .mm-form-input:focus{border-color:rgba(99,102,241,.5)!important;box-shadow:0 0 0 3px rgba(99,102,241,.07)!important;}
       .mm-form-input::placeholder{color:rgba(255,255,255,.2)!important;font-weight:400!important;font-size:14px!important;}
       .mm-form-select{background:#141729!important;appearance:none;padding-right:36px!important;background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239D7FF0' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>")!important;background-repeat:no-repeat!important;background-position:right 14px center!important;}
       .mm-stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
@@ -2209,8 +2235,8 @@ export default function Mental() {
     return (
       <div style={{minHeight:"100vh",background:"var(--mm-bg)",display:"flex",alignItems:"center",justifyContent:"center",position:"relative",overflowX:"hidden"}}>
         {/* Background glow */}
-        <div style={{position:"absolute",width:400,height:400,borderRadius:"50%",background:"radial-gradient(circle, rgba(123,92,229,.15) 0%, transparent 70%)",pointerEvents:"none"}} />
-        <div className="mm-pulse-ring" style={{position:"absolute",width:300,height:300,borderRadius:"50%",border:"1px solid rgba(123,92,229,.12)",pointerEvents:"none"}} />
+        <div style={{position:"absolute",width:400,height:400,borderRadius:"50%",background:"radial-gradient(circle, rgba(99,102,241,.18) 0%, rgba(59,130,246,.08) 50%, transparent 70%)",pointerEvents:"none"}} />
+        <div className="mm-pulse-ring" style={{position:"absolute",width:300,height:300,borderRadius:"50%",border:"1px solid rgba(99,102,241,.15)",pointerEvents:"none"}} />
         <div style={{textAlign:"center",position:"relative",zIndex:1}}>
           <div key={countdown} className="mm-countdown-num"
             style={{fontFamily:"var(--mm-fm)",fontSize:"clamp(120px,20vw,200px)",fontWeight:800,lineHeight:1,
@@ -2283,12 +2309,12 @@ export default function Mental() {
     return (
       <div style={{minHeight:"100vh",background:"var(--mm-bg)",position:"relative",overflowX:"hidden"}}>
         {/* Background glow */}
-        <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse 60% 50% at 50% 15%, rgba(123,92,229,.06) 0%, rgba(16,185,129,.04) 50%, transparent 70%)",pointerEvents:"none"}} />
+        <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse 60% 50% at 50% 15%, rgba(99,102,241,.08) 0%, rgba(59,130,246,.05) 50%, transparent 70%)",pointerEvents:"none"}} />
 
         <div style={{maxWidth:700,margin:"0 auto",padding:"clamp(24px,5vw,40px) clamp(14px,3vw,24px) 60px",position:"relative",zIndex:1}}>
           {/* Completion header */}
           <div style={{textAlign:"center",marginBottom:32}}>
-            <div className="mm-count-up" style={{width:64,height:64,borderRadius:20,margin:"0 auto 20px",background:"linear-gradient(135deg, var(--mm-pur), #5535C0)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 12px 40px rgba(123,92,229,.35), 0 0 0 1px rgba(123,92,229,.2)"}}>
+            <div className="mm-count-up" style={{width:64,height:64,borderRadius:20,margin:"0 auto 20px",background:"linear-gradient(135deg, var(--mm-pur), #4338CA)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 12px 40px rgba(99,102,241,.35), 0 0 0 1px rgba(99,102,241,.2)"}}>
               <Trophy style={{width:28,height:28,color:"#fff"}} />
             </div>
             <h1 style={{fontFamily:"var(--mm-fd)",fontSize:"clamp(28px,4vw,44px)",fontWeight:800,letterSpacing:"-.03em",color:"var(--mm-whi)",margin:"0 0 6px"}}>Practice Completed!</h1>
@@ -2307,8 +2333,8 @@ export default function Mental() {
               {label:"CORRECT",value:actualCorrect,color:"var(--mm-grn)",bg:"rgba(16,185,129,.08)",bdr:"rgba(16,185,129,.2)",delay:".05s"},
               {label:"WRONG",value:wrongCount_r,color:"var(--mm-red)",bg:"rgba(239,68,68,.08)",bdr:"rgba(239,68,68,.2)",delay:".1s"},
               {label:"MISSED",value:numQuestions-results.length,color:"var(--mm-gld)",bg:"rgba(245,158,11,.08)",bdr:"rgba(245,158,11,.2)",delay:".15s"},
-              {label:"ACCURACY",value:`${percentage.toFixed(1)}%`,color:"var(--mm-pur2)",bg:"rgba(123,92,229,.08)",bdr:"rgba(123,92,229,.2)",delay:".2s"},
-              {label:"POINTS",value:`+${pointsEarned||0}`,color:"var(--mm-pur2)",bg:"rgba(123,92,229,.08)",bdr:"rgba(123,92,229,.2)",delay:".25s"},
+              {label:"ACCURACY",value:`${percentage.toFixed(1)}%`,color:"var(--mm-pur2)",bg:"rgba(99,102,241,.08)",bdr:"rgba(99,102,241,.2)",delay:".2s"},
+              {label:"POINTS",value:`+${pointsEarned||0}`,color:"var(--mm-pur2)",bg:"rgba(99,102,241,.08)",bdr:"rgba(99,102,241,.2)",delay:".25s"},
             ].map(({label,value,color,bg,bdr,delay})=>(
               <div key={label} className="mm-count-up" style={{background:bg,border:`1px solid ${bdr}`,borderRadius:14,padding:"14px 8px",textAlign:"center",animationDelay:delay}}>
                 <div style={{fontFamily:"var(--mm-fm)",fontSize:"clamp(18px,2.5vw,26px)",fontWeight:700,color,lineHeight:1}}>{value}</div>
@@ -2320,7 +2346,7 @@ export default function Mental() {
           {/* Secondary stats — two icon boxes like Burst Mode */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
             <div style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr2)",borderRadius:16,padding:"clamp(12px,2.5vw,18px) clamp(14px,3vw,22px)",display:"flex",alignItems:"center",gap:"clamp(10px,2vw,14px)"}}>
-              <div style={{width:38,height:38,borderRadius:11,background:"rgba(123,92,229,.12)",border:"1px solid rgba(123,92,229,.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <div style={{width:38,height:38,borderRadius:11,background:"rgba(99,102,241,.12)",border:"1px solid rgba(99,102,241,.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 <Clock style={{width:18,height:18,color:"var(--mm-pur2)"}} />
               </div>
               <div>
@@ -2354,9 +2380,9 @@ export default function Mental() {
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 140px), 1fr))",gap:12,marginBottom:24}}>
             <button
               onClick={() => { resetGame(); setTimeout(() => startCountdown(), 0); }}
-              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"14px 10px",background:"linear-gradient(135deg, var(--mm-pur), #5535C0)",border:"none",borderRadius:14,fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",transition:"all .25s ease",boxShadow:"0 6px 24px rgba(123,92,229,.25)"}}
-              onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 12px 36px rgba(123,92,229,.4)"}}
-              onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform="";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 6px 24px rgba(123,92,229,.25)"}}
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"14px 10px",background:"linear-gradient(135deg, var(--mm-pur), #4338CA)",border:"none",borderRadius:14,fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",transition:"all .25s ease",boxShadow:"0 6px 24px rgba(99,102,241,.25)"}}
+              onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 12px 36px rgba(99,102,241,.4)"}}
+              onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform="";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 6px 24px rgba(99,102,241,.25)"}}
             >
               <RotateCcw style={{width:15,height:15}} />
               Re-Attempt
@@ -2364,7 +2390,7 @@ export default function Mental() {
             <button
               onClick={resetGame}
               style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"14px 10px",background:"var(--mm-surf2)",border:"1px solid var(--mm-bdr2)",borderRadius:14,fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,color:"var(--mm-whi2)",cursor:"pointer",letterSpacing:"-.01em",transition:"all .2s"}}
-              onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(123,92,229,.3)";(e.currentTarget as HTMLButtonElement).style.color="var(--mm-whi)"}}
+              onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(99,102,241,.3)";(e.currentTarget as HTMLButtonElement).style.color="var(--mm-whi)"}}
               onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor="var(--mm-bdr2)";(e.currentTarget as HTMLButtonElement).style.color="var(--mm-whi2)"}}
             >
               <Zap style={{width:15,height:15}} />
@@ -2484,7 +2510,7 @@ export default function Mental() {
             onClick={handleBack}
             title="Exit Practice"
             style={{width:36,height:36,borderRadius:10,background:"var(--mm-surf2)",border:"1px solid var(--mm-bdr)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--mm-muted)",cursor:"pointer",transition:"all .2s"}}
-            onMouseEnter={e=>{const b=e.currentTarget as HTMLButtonElement;b.style.borderColor="rgba(123,92,229,.3)";b.style.color="var(--mm-pur2)";b.style.background="rgba(123,92,229,.06)";}}
+            onMouseEnter={e=>{const b=e.currentTarget as HTMLButtonElement;b.style.borderColor="rgba(99,102,241,.3)";b.style.color="var(--mm-pur2)";b.style.background="rgba(99,102,241,.06)";}}
             onMouseLeave={e=>{const b=e.currentTarget as HTMLButtonElement;b.style.borderColor="var(--mm-bdr)";b.style.color="var(--mm-muted)";b.style.background="var(--mm-surf2)";}}
           >
             <ArrowLeft style={{width:16,height:16}} />
@@ -2503,7 +2529,7 @@ export default function Mental() {
               onClick={toggleFullScreen}
               title={isFullScreen ? "Exit Fullscreen (F)" : "Fullscreen (F)"}
               style={{width:32,height:32,borderRadius:8,background:"var(--mm-surf2)",border:"1px solid var(--mm-bdr)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--mm-muted)",cursor:"pointer",transition:"all .2s"}}
-              onMouseEnter={e=>{const b=e.currentTarget as HTMLButtonElement;b.style.borderColor="rgba(123,92,229,.3)";b.style.color="var(--mm-pur2)";}}
+              onMouseEnter={e=>{const b=e.currentTarget as HTMLButtonElement;b.style.borderColor="rgba(99,102,241,.3)";b.style.color="var(--mm-pur2)";}}
               onMouseLeave={e=>{const b=e.currentTarget as HTMLButtonElement;b.style.borderColor="var(--mm-bdr)";b.style.color="var(--mm-muted)";}}
             >
               {isFullScreen ? <Minimize style={{width:14,height:14}} /> : <Maximize style={{width:14,height:14}} />}
@@ -2573,7 +2599,7 @@ export default function Mental() {
     if (isAddSubFamily(currentQuestion.type) && !isShowingAnswerTime) {
       return (
         <div style={{minHeight:"100vh",background:"var(--mm-bg)",position:"relative",display:"flex",flexDirection:"column"}}>
-          <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse 50% 40% at 50% 20%, rgba(123,92,229,.05), transparent 70%)",pointerEvents:"none"}} />
+          <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse 50% 40% at 50% 20%, rgba(99,102,241,.05), transparent 70%)",pointerEvents:"none"}} />
           {exitWarningModal}
           {stickyHeader}
 
@@ -2703,7 +2729,7 @@ export default function Mental() {
     return (
       <div style={{minHeight:"100vh",background:"var(--mm-bg)",display:"flex",flexDirection:"column",position:"relative",overflowX:"hidden"}}>
         {/* Background atmosphere */}
-        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 50% 40% at 50% 60%, rgba(123,92,229,.04) 0%, transparent 65%)",pointerEvents:"none"}} />
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 50% 40% at 50% 60%, rgba(99,102,241,.04) 0%, transparent 65%)",pointerEvents:"none"}} />
         {exitWarningModal}
         {stickyHeader}
 
@@ -2805,7 +2831,7 @@ export default function Mental() {
             <div style={{padding:"28px 32px 0",flexShrink:0}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{width:36,height:36,borderRadius:10,background:"rgba(123,92,229,.15)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:"rgba(99,102,241,.15)",display:"flex",alignItems:"center",justifyContent:"center"}}>
                     <BookOpen style={{width:18,height:18,color:"var(--mm-pur2)"}} />
                   </div>
                   <h3 style={{fontFamily:"var(--mm-fd)",fontSize:20,fontWeight:800,color:"var(--mm-whi)",margin:0}}>How to Practice</h3>
@@ -2824,7 +2850,7 @@ export default function Mental() {
                 {step:"7",title:"Fullscreen & Review",desc:"Press F during a session to toggle fullscreen for distraction-free practice. After finishing, review your results — correct, wrong, and missed answers are shown with the right answers."},
               ].map(({step,title,desc}) => (
                 <div key={step} style={{display:"flex",gap:14,marginBottom:18}}>
-                  <div style={{width:28,height:28,borderRadius:8,background:"rgba(123,92,229,.12)",border:"1px solid rgba(123,92,229,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"var(--mm-fm)",fontSize:12,fontWeight:700,color:"var(--mm-pur2)",flexShrink:0}}>{step}</div>
+                  <div style={{width:28,height:28,borderRadius:8,background:"rgba(99,102,241,.12)",border:"1px solid rgba(99,102,241,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"var(--mm-fm)",fontSize:12,fontWeight:700,color:"var(--mm-pur2)",flexShrink:0}}>{step}</div>
                   <div>
                     <div style={{fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:700,color:"var(--mm-whi)",marginBottom:3}}>{title}</div>
                     <div style={{fontFamily:"var(--mm-fb)",fontSize:13,color:"var(--mm-muted)",lineHeight:1.5}}>{desc}</div>
@@ -2837,19 +2863,23 @@ export default function Mental() {
       )}
 
       {/* Hero banner — Glow Crown */}
-      <div style={{position:"relative",overflow:"hidden",borderRadius:"0 0 28px 28px",padding:"clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)",background:"linear-gradient(145deg,#12103A 0%,#1A1050 40%,#0E0B28 100%)",borderBottom:"1px solid rgba(123,92,229,.2)"}}>
-        {/* Atmospheric glow */}
-        <div style={{position:"absolute",top:"-20%",left:"50%",transform:"translateX(-50%)",width:500,height:400,background:"radial-gradient(ellipse at center, rgba(123,92,229,.15) 0%, rgba(123,92,229,.04) 50%, transparent 70%)",pointerEvents:"none"}} />
+      <div style={{position:"relative",overflow:"hidden",borderRadius:"0 0 28px 28px",padding:"clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)",background:"linear-gradient(145deg, #06071A 0%, #0D0F38 35%, #130E40 65%, #080720 100%)",borderBottom:"1px solid rgba(99,102,241,.25)"}}>
+        {/* Atmospheric glow — blue-violet blend */}
+        <div style={{position:"absolute",top:"-20%",left:"40%",transform:"translateX(-50%)",width:500,height:400,background:"radial-gradient(ellipse at center, rgba(99,102,241,.18) 0%, rgba(99,102,241,.06) 50%, transparent 70%)",pointerEvents:"none"}} />
+        <div style={{position:"absolute",top:"-10%",right:"10%",width:300,height:300,background:"radial-gradient(ellipse at center, rgba(59,130,246,.12) 0%, transparent 70%)",pointerEvents:"none"}} />
         {/* Grid pattern layer */}
-        <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(123,92,229,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(123,92,229,.05) 1px, transparent 1px)",backgroundSize:"48px 48px",WebkitMaskImage:"radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%)"}} />
+        <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(99,102,241,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,.06) 1px, transparent 1px)",backgroundSize:"48px 48px",WebkitMaskImage:"radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%)"}} />
         {/* Bottom fade */}
         <div style={{position:"absolute",bottom:0,left:0,right:0,height:40,background:"linear-gradient(to bottom, transparent, var(--mm-bg))"}} />
         <div style={{position:"relative",zIndex:1,textAlign:"center"}}>
-          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:60,height:60,borderRadius:18,background:"rgba(123,92,229,.2)",marginBottom:20,boxShadow:"0 8px 32px rgba(123,92,229,.15)"}}>
-            <Sparkles style={{width:28,height:28,color:"var(--mm-pur2)"}} />
+          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:60,height:60,borderRadius:18,background:"linear-gradient(135deg, rgba(99,102,241,.3), rgba(59,130,246,.2))",marginBottom:20,boxShadow:"0 8px 32px rgba(99,102,241,.2), 0 0 0 1px rgba(99,102,241,.15)"}}>
+            <Sparkles style={{width:28,height:28,color:"var(--mm-pur3)"}} />
           </div>
-          <h1 style={{fontFamily:"var(--mm-fd)",fontSize:"clamp(28px,4vw,44px)",fontWeight:800,color:"var(--mm-whi)",margin:"0 0 10px",letterSpacing:"-.03em"}}>Mental Math Practice</h1>
-          <p style={{fontFamily:"var(--mm-fb)",fontSize:16,fontWeight:300,color:"rgba(255,255,255,.5)",margin:0}}>Challenge yourself with timed questions</p>
+          <h1 style={{fontFamily:"var(--mm-fd)",fontSize:"clamp(28px,4vw,44px)",fontWeight:800,margin:"0 0 10px",letterSpacing:"-.03em",background:"linear-gradient(135deg, #C7D2FE 0%, #818CF8 35%, #6366F1 70%, #4F46E5 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>Mental Math Practice</h1>
+          <p style={{fontFamily:"var(--mm-fb)",fontSize:16,fontWeight:300,color:"rgba(255,255,255,.5)",margin:0}}>Challenge yourself with timed questions · Earn points · Build speed</p>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(99,102,241,.12)",border:"1px solid rgba(99,102,241,.25)",borderRadius:100,padding:"6px 16px",fontFamily:"var(--mm-fm)",fontSize:12,color:"var(--mm-pur2)",marginTop:14}}>
+            🧠 12 operations · Timed · Points · Fullscreen
+          </div>
         </div>
       </div>
 
@@ -2864,9 +2894,9 @@ export default function Mental() {
           </Link>
           <button
             onClick={() => setShowGuide(true)}
-            style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:10,border:"1px solid rgba(123,92,229,.3)",background:"rgba(123,92,229,.1)",fontFamily:"var(--mm-fm)",fontSize:12,fontWeight:600,color:"var(--mm-pur2)",cursor:"pointer",transition:"all .2s",letterSpacing:".02em"}}
-            onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="rgba(123,92,229,.2)";(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(123,92,229,.5)"}}
-            onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="rgba(123,92,229,.1)";(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(123,92,229,.3)"}}
+            style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:10,border:"1px solid rgba(99,102,241,.35)",background:"rgba(99,102,241,.12)",fontFamily:"var(--mm-fm)",fontSize:12,fontWeight:600,color:"var(--mm-pur2)",cursor:"pointer",transition:"all .2s",letterSpacing:".02em"}}
+            onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="rgba(99,102,241,.22)";(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(99,102,241,.55)"}}
+            onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="rgba(99,102,241,.12)";(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(99,102,241,.35)"}}
           >
             <BookOpen style={{width:14,height:14}} />
             How to Use
@@ -2958,7 +2988,7 @@ export default function Mental() {
                     transition:"all .2s",
                     background: configMode===m ? "var(--mm-pur)" : "transparent",
                     color: configMode===m ? "#fff" : "var(--mm-muted)",
-                    boxShadow: configMode===m ? "0 2px 8px rgba(123,92,229,.35)" : "none",
+                    boxShadow: configMode===m ? "0 2px 8px rgba(99,102,241,.35)" : "none",
                   }}>
                     {m === "standard" ? "Standard" : "Custom"}
                   </button>
@@ -3023,11 +3053,11 @@ export default function Mental() {
                                   padding:"14px 10px",
                                   borderRadius:14,
                                   border: active ? "2px solid var(--mm-pur2)" : "1.5px solid var(--mm-bdr2)",
-                                  background: active ? "rgba(123,92,229,.15)" : "var(--mm-surf2)",
+                                  background: active ? "rgba(99,102,241,.15)" : "var(--mm-surf2)",
                                   cursor:"pointer",
                                   transition:"all .2s",
                                   textAlign:"center" as const,
-                                  boxShadow: active ? "0 0 16px rgba(123,92,229,.25)" : "none",
+                                  boxShadow: active ? "0 0 16px rgba(99,102,241,.25)" : "none",
                                 }}
                               >
                                 <div style={{fontFamily:"var(--mm-fd)",fontSize:15,fontWeight:800,color: active ? "var(--mm-pur2)" : "var(--mm-whi)",letterSpacing:"-.01em"}}>{p === "1_2" ? "1 & 2 Digits" : "2 & 3 Digits"}</div>
@@ -3097,11 +3127,11 @@ export default function Mental() {
                                 padding:"16px 10px 14px",
                                 borderRadius:14,
                                 border: active ? "2px solid var(--mm-pur2)" : "1.5px solid var(--mm-bdr2)",
-                                background: active ? "rgba(123,92,229,.15)" : "var(--mm-surf2)",
+                                background: active ? "rgba(99,102,241,.15)" : "var(--mm-surf2)",
                                 cursor:"pointer",
                                 transition:"all .2s",
                                 textAlign:"center",
-                                boxShadow: active ? "0 0 16px rgba(123,92,229,.25)" : "none",
+                                boxShadow: active ? "0 0 16px rgba(99,102,241,.25)" : "none",
                               }}
                             >
                               <div style={{fontFamily:"var(--mm-fd)",fontSize:16,fontWeight:800,color: active ? "var(--mm-pur2)" : "var(--mm-whi)",letterSpacing:"-.01em"}}>{p.label}</div>
@@ -3109,7 +3139,7 @@ export default function Mental() {
                                 position:"absolute",top:6,right:8,
                                 padding:"2px 7px",borderRadius:8,
                                 fontSize:10,fontWeight:700,fontFamily:"var(--mm-fm)",
-                                background: pts >= 8 ? "rgba(245,158,11,.18)" : pts >= 5 ? "rgba(16,185,129,.18)" : "rgba(123,92,229,.18)",
+                                background: pts >= 8 ? "rgba(245,158,11,.18)" : pts >= 5 ? "rgba(16,185,129,.18)" : "rgba(99,102,241,.18)",
                                 color: pts >= 8 ? "#F59E0B" : pts >= 5 ? "#10B981" : "var(--mm-pur2)",
                               }}>
                                 +{pts}
@@ -3502,11 +3532,11 @@ export default function Mental() {
                             padding:"14px 10px",
                             borderRadius:14,
                             border: active ? "2px solid var(--mm-pur2)" : "1.5px solid var(--mm-bdr2)",
-                            background: active ? "rgba(123,92,229,.15)" : "var(--mm-surf2)",
+                            background: active ? "rgba(99,102,241,.15)" : "var(--mm-surf2)",
                             cursor:"pointer",
                             transition:"all .2s",
                             textAlign:"center" as const,
-                            boxShadow: active ? "0 0 16px rgba(123,92,229,.25)" : "none",
+                            boxShadow: active ? "0 0 16px rgba(99,102,241,.25)" : "none",
                           }}
                         >
                           <div style={{fontFamily:"var(--mm-fd)",fontSize:15,fontWeight:800,color: active ? "var(--mm-pur2)" : "var(--mm-whi)",letterSpacing:"-.01em"}}>{p === "1_2" ? "1 & 2 Digits" : "2 & 3 Digits"}</div>
@@ -3547,9 +3577,9 @@ export default function Mental() {
         <div style={{position:"sticky",bottom:0,background:"linear-gradient(to top, var(--mm-bg) 65%, transparent)",padding:"16px clamp(12px,3vw,20px) 24px",maxWidth:900,margin:"0 auto"}}>
           <button
             onClick={startCountdown}
-            style={{width:"100%",padding:"18px",background:"linear-gradient(135deg, var(--mm-pur) 0%, #5535C0 50%, #4428A8 100%)",border:"none",borderRadius:16,fontFamily:"var(--mm-fd)",fontSize:17,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 8px 32px rgba(123,92,229,.3), inset 0 1px 0 rgba(255,255,255,.1)",transition:"transform .2s, box-shadow .2s"}}
-            onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.transform="translateY(-3px)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 16px 48px rgba(123,92,229,.45), inset 0 1px 0 rgba(255,255,255,.1)"}}
-            onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform="";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 8px 32px rgba(123,92,229,.3), inset 0 1px 0 rgba(255,255,255,.1)"}}
+            style={{width:"100%",padding:"18px",background:"linear-gradient(135deg, #6366F1 0%, #4F46E5 30%, #7C3AED 70%, #6D28D9 100%)",border:"none",borderRadius:16,fontFamily:"var(--mm-fd)",fontSize:17,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 8px 32px rgba(99,102,241,.35), 0 0 0 1px rgba(99,102,241,.2), inset 0 1px 0 rgba(255,255,255,.12)",transition:"transform .2s, box-shadow .2s"}}
+            onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.transform="translateY(-3px)";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 16px 48px rgba(99,102,241,.5), 0 0 0 1px rgba(99,102,241,.3), inset 0 1px 0 rgba(255,255,255,.12)"}}
+            onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.transform="";(e.currentTarget as HTMLButtonElement).style.boxShadow="0 8px 32px rgba(99,102,241,.35), 0 0 0 1px rgba(99,102,241,.2), inset 0 1px 0 rgba(255,255,255,.12)"}}
           >
             <Play style={{width:20,height:20}} />
             Start Practice
@@ -3586,7 +3616,7 @@ export default function Mental() {
         <div className="w-full max-w-6xl">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold text-gradient">Mental Math</h1>
-            <Link href="/student-dashboard">
+            <Link href="/dashboard">
               <button className="flex items-center gap-2 px-4 py-2 rounded-lg  text-gray-300  hover:bg-slate-700 transition-colors">
                 <ArrowLeft className="w-5 h-5" />
                 Back

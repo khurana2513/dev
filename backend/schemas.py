@@ -69,10 +69,10 @@ class Constraints(BaseModel):
     firstDigits: Optional[int] = Field(default=None, ge=1, le=30)  # Updated min to 1, max to 30 for vedic addition
     secondDigits: Optional[int] = Field(default=None, ge=1, le=30)  # Updated min to 1, max to 30 for vedic addition
     multiplier: Optional[int] = Field(default=None, ge=12, le=19)  # For multiply by 12-19
-    multiplierRange: Optional[int] = Field(default=None, ge=21, le=91)  # For multiply by 21-91
+    multiplierRange: Optional[int] = Field(default=None, ge=21, le=91)  # For multiply by 21-91: pin to a specific value from {21,31,41,51,61,71,81,91}
     divisor: Optional[int] = Field(default=None, ge=2, le=9)  # For divide by single digit
-    tableNumber: Optional[int] = Field(default=None, ge=111, le=999)  # Tables: 111-999 (for vedic_tables)
-    tableNumberLarge: Optional[int] = Field(default=None, ge=1111, le=9999)  # Large tables: 1111-9999 (for vedic_tables_large)
+    tableNumber: Optional[int] = Field(default=None, ge=11, le=99)  # Tables (Level 1): 11-99 double-digit tables
+    tableNumberLarge: Optional[int] = Field(default=None, ge=101, le=999)  # Tables (Level 2): 101-999 triple-digit tables
     # For Vedic Maths Level 2 operations
     powerOf10: Optional[int] = Field(default=None, ge=2, le=6)  # For subtraction from powers of 10 (2-6)
     # For Vedic Maths Level 3 operations
@@ -139,6 +139,9 @@ class PaperCreate(BaseModel):
     title: str
     level: str
     config: PaperConfig
+    # Locked seed from preview — when set the paper always generates the exact same questions
+    fixed_seed: Optional[int] = None
+    is_exam_paper: Optional[bool] = False
 
 
 class PaperResponse(BaseModel):
@@ -150,6 +153,9 @@ class PaperResponse(BaseModel):
     level: str
     config: PaperConfig
     createdAt: datetime = Field(alias="created_at")
+    fixed_seed: Optional[int] = None
+    is_exam_paper: Optional[bool] = None
+    num_questions: Optional[int] = None
 
 
 class PreviewResponse(BaseModel):

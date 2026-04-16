@@ -7,10 +7,10 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from auth import get_current_admin, get_current_user
-from models import Organization, OrgInviteLink, User, get_db
+from models import Organization, OrgInviteLink, StudentProfile, User, get_db
 from org_schemas import (
     InviteLinkCreate,
     InviteLinkResponse,
@@ -138,6 +138,93 @@ def get_my_org(
     org = db.query(Organization).filter(Organization.owner_user_id == current_user.id).first()
     if not org:
         raise HTTPException(status_code=404, detail="You do not own any organization")
+    return OrgResponse.model_validate(org)
+
+
+# ─── Public: preview invite code info (no auth needed) ────────────────────────
+
+@router.get("/invite-info")
+def get_invite_info(
+    code: str = Query(..., min_length=4, max_length=12, description="The invite code to preview"),
+    db: Session = Depends(get_db),
+):
+    """Return org info for an invite code without requiring authentication."""
+    normalized = code.upper().strip()
+    link = db.query(OrgInviteLink).filter(OrgInviteLink.code == normalized).first()
+    if not link:
+        raise HTTPException(status_code=404, detail="Invite code not found")
+    org = db.query(Organization).filter(Organization.id == link.org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    is_expired = link.expires_at is not None and link.expires_at < datetime.utcnow()
+    is_full = link.uses_count >= link.max_uses
+    is_valid = link.is_active and not is_expired and not is_full and org.is_active
+    return {
+        "org_id": org.id,
+        "org_name": org.name,
+        "org_city": org.city,
+        "org_description": org.description,
+        "org_logo_url": org.logo_url,
+        "role": link.role,
+        "expires_at": link.expires_at.isoformat() if link.expires_at else None,
+        "uses_count": link.uses_count,
+        "max_uses": link.max_uses,
+        "is_active": link.is_active,
+        "is_valid": is_valid,
+        "error": (
+            None if is_valid
+            else "expired" if is_expired
+            else "max_uses_reached" if is_full
+            else "inactive"
+        ),
+    }
+
+
+# ─── Join org via invite code (authenticated) ─────────────────────────────────
+
+@router.post("/join", response_model=OrgResponse)
+def join_org(
+    code: str = Query(..., min_length=4, max_length=12),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Join an organization using an invite code. Links StudentProfile.org_id."""
+    import uuid as _uuid_mod
+    normalized = code.upper().strip()
+    link = db.query(OrgInviteLink).filter(
+        OrgInviteLink.code == normalized,
+        OrgInviteLink.is_active == True,  # noqa: E712
+    ).first()
+    if not link:
+        raise HTTPException(status_code=404, detail="Invite code not found or deactivated")
+    if link.expires_at and link.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="This invite link has expired")
+    if link.uses_count >= link.max_uses:
+        raise HTTPException(status_code=400, detail="This invite link has reached its maximum uses")
+    org = _get_org_or_404(link.org_id, db)
+    if not org.is_active:
+        raise HTTPException(status_code=400, detail="This organization is currently inactive")
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+    if profile and profile.org_id == link.org_id:
+        raise HTTPException(status_code=409, detail="You are already a member of this organization")
+    if profile:
+        profile.org_id = link.org_id
+    else:
+        profile = StudentProfile(
+            user_id=current_user.id,
+            org_id=link.org_id,
+            internal_uuid=str(_uuid_mod.uuid4()),
+            status="active",
+        )
+        db.add(profile)
+    link.uses_count += 1
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("join_org: DB error: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to join organization")
+    db.refresh(org)
     return OrgResponse.model_validate(org)
 
 
@@ -282,3 +369,43 @@ def deactivate_invite_link(
         raise HTTPException(status_code=404, detail="Invite link not found")
     link.is_active = False
     db.commit()
+
+
+# ─── List org members ─────────────────────────────────────────────────────────
+
+@router.get("/{org_id}/members")
+def list_org_members(
+    org_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return all users whose StudentProfile.org_id matches org_id."""
+    org = _get_org_or_404(org_id, db)
+    _require_org_access(org, current_user)
+    profiles = (
+        db.query(StudentProfile)
+        .options(joinedload(StudentProfile.user))
+        .filter(StudentProfile.org_id == org_id)
+        .order_by(StudentProfile.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "user_id": p.user.id,
+            "name": p.user.name,
+            "email": p.user.email,
+            "avatar_url": p.user.avatar_url,
+            "total_points": p.user.total_points,
+            "current_streak": p.user.current_streak,
+            "public_id": p.public_id,
+            "class_name": p.class_name,
+            "course": p.course,
+            "level": p.level,
+            "branch": p.branch,
+            "status": p.status,
+            "join_date": p.join_date.isoformat() if p.join_date else None,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in profiles
+        if p.user is not None
+    ]

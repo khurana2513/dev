@@ -3,11 +3,13 @@ import { Link, useLocation } from "wouter";
 import {
   ChevronDown, LogOut, BarChart3, Shield, GraduationCap,
   Calculator, Menu, X, Brain, FileText,
-  User, ArrowRight, Lock, Zap, Calendar, Grid3X3,
-  Gamepad2, Sparkles, Award, Hash, Swords
+  User, ArrowRight, Zap, Calendar, Grid3X3,
+  Gamepad2, Sparkles, Award, Hash, Swords, IndianRupee, Receipt, Building2, BookOpen,
+  AlertCircle
 } from "lucide-react";
 import { useAuthSafe } from "../contexts/AuthContext";
 import { motion } from "framer-motion";
+import StreakBadge from "./StreakBadge";
 
 export default function Header() {
   const [practiceOpen, setPracticeOpen]       = useState(false);
@@ -32,17 +34,6 @@ export default function Header() {
   const logout          = auth?.logout ?? (() => {});
   const isAuthenticated = auth?.isAuthenticated ?? false;
   const isAdmin         = auth?.isAdmin ?? false;
-
-  // Track streak changes for the pop-in animation on the badge number
-  const [streakAnimKey, setStreakAnimKey] = useState(0);
-  const prevStreakRef = useRef<number | null>(null);
-  useEffect(() => {
-    const currentStreak = (user as any)?.current_streak ?? 0;
-    if (prevStreakRef.current !== null && prevStreakRef.current !== currentStreak) {
-      setStreakAnimKey((k) => k + 1);
-    }
-    prevStreakRef.current = currentStreak;
-  }, [(user as any)?.current_streak]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 40);
@@ -116,7 +107,7 @@ export default function Header() {
 
   useEffect(() => {
     return () => {
-      [coursesTimeoutRef, practiceTimeoutRef, gamesTimeoutRef, userMenuTimeoutRef]
+      [practiceTimeoutRef, gamesTimeoutRef, userMenuTimeoutRef]
         .forEach(r => { if (r.current) clearTimeout(r.current); });
     };
   }, []);
@@ -170,7 +161,7 @@ export default function Header() {
     <header
       className={`sticky top-0 z-[200] transition-all duration-500 backdrop-blur-md ${
         scrolled
-          ? "border-b border-border/50 shadow-lg"
+          ? "shadow-lg"
           : ""
       }`}
       style={{
@@ -211,7 +202,7 @@ export default function Header() {
             {/* PRACTICE */}
             <div ref={practiceDropdownRef} className="relative" onMouseEnter={handlePracticeEnter} onMouseLeave={handlePracticeLeave}>
               <button className={`flex items-center gap-1.5 px-5 py-2.5 text-xs font-black uppercase tracking-widest rounded-full transition-all duration-200 ${
-                isActive("/create") || isActive("/vedic-maths") || isActive("/mental") || isActive("/burst") || isActive("/duel")
+                isActive("/create") || isActive("/vedic-maths") || isActive("/mental") || isActive("/burst")
                   ? "text-primary bg-card/70 shadow-sm" : "text-foreground/70 hover:text-primary hover:bg-card/60"
               }`}>
                 <Brain className="w-3.5 h-3.5" />Practice
@@ -229,13 +220,6 @@ export default function Header() {
                       </div>
                     </Link>
 
-                    {/* Enter shared paper code */}
-                    <Link href="/paper/enter-code">
-                      <div className={navItem(isActive("/paper/enter-code"))} onClick={() => setPracticeOpen(false)}>
-                        <Hash className="w-4 h-4" />Enter Code
-                      </div>
-                    </Link>
-
                     <Link href="/mental">
                       <div className={navItem(isActive("/mental"))} onClick={() => setPracticeOpen(false)}>
                         <Brain className="w-4 h-4" />Mental Math
@@ -244,19 +228,6 @@ export default function Header() {
                     <Link href="/burst">
                       <div className={navItem(isActive("/burst"))} onClick={() => setPracticeOpen(false)}>
                         <Zap className="w-4 h-4 text-amber-500" />Burst Mode
-                        <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
-                        </span>
-                      </div>
-                    </Link>
-                    <Link href="/duel">
-                      <div className={navItem(isActive("/duel"))} onClick={() => setPracticeOpen(false)}>
-                        <Swords className="w-4 h-4 text-violet-400" />Duel Mode
-                        <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
-                        </span>
                       </div>
                     </Link>
                   </div>
@@ -281,24 +252,6 @@ export default function Header() {
                         <Calculator className="w-4 h-4" />Abacus Soroban
                       </div>
                     </Link>
-                    <Link href="/tools/soroban/flashcards">
-                      <div className={navItem(isActive("/tools/soroban/flashcards"))} onClick={() => setGamesOpen(false)}>
-                        <span style={{ fontSize: 15 }}>🎴</span>Abacus Flashcards
-                        <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
-                        </span>
-                      </div>
-                    </Link>
-                    <Link href="/tools/number-ninja">
-                      <div className={navItem(isActive("/tools/number-ninja"))} onClick={() => setGamesOpen(false)}>
-                        <span style={{ fontSize: 15 }}>🥷</span>Number Ninja
-                        <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
-                        </span>
-                      </div>
-                    </Link>
                     <Link href="/tools/gridmaster">
                       <div className={navItem(isActiveExact("/tools/gridmaster"))} onClick={() => setGamesOpen(false)}>
                         <Grid3X3 className="w-4 h-4" />Vedic Grid
@@ -309,10 +262,62 @@ export default function Header() {
                         <Sparkles className="w-4 h-4" />Magic Square
                       </div>
                     </Link>
+                    <Link href="/tools/soroban/flashcards">
+                      <div className={navItem(isActive("/tools/soroban/flashcards"))} onClick={() => setGamesOpen(false)}>
+                        <BookOpen className="w-4 h-4" />Abacus Flashcards
+                        <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
+                        </span>
+                      </div>
+                    </Link>
+                    {isAdmin ? (
+                      <Link href="/tools/number-ninja">
+                        <div className={navItem(isActive("/tools/number-ninja"))} onClick={() => setGamesOpen(false)}>
+                          <Swords className="w-4 h-4" />Number Ninja
+                          <span className="ml-auto relative flex h-2.5 w-2.5 flex-shrink-0">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                          </span>
+                        </div>
+                      </Link>
+                    ) : (
+                      <div className={navItem(false)} style={{ opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }}>
+                        <Swords className="w-4 h-4" />Number Ninja
+                        <span className="ml-auto text-[10px] font-bold tracking-widest px-1.5 py-0.5 rounded border" style={{ color: 'rgb(251 191 36 / 0.7)', background: 'rgb(245 158 11 / 0.1)', borderColor: 'rgb(245 158 11 / 0.2)' }}>SOON</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
             </div>
+
+            {/* DUEL MODE — standalone violet pill button */}
+            <Link href="/duel">
+              <button className={`relative flex items-center gap-1.5 px-5 py-2.5 text-xs font-black uppercase tracking-widest rounded-full transition-all duration-200 ${
+                isActive("/duel")
+                  ? "text-violet-300 bg-violet-500/20 shadow-lg shadow-violet-500/10"
+                  : "text-violet-400/70 hover:text-violet-300 hover:bg-violet-500/10"
+              }`}>
+                <Swords className="w-3.5 h-3.5" />
+                Duel
+                <span className="relative flex h-1.5 w-1.5 ml-0.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-violet-500" />
+                </span>
+              </button>
+            </Link>
+
+            {/* ENTER CODE — standalone pill button */}
+            <Link href="/enter-code">
+              <button className={`flex items-center gap-1.5 px-5 py-2.5 text-xs font-black uppercase tracking-widest rounded-full transition-all duration-200 ${
+                isActive("/enter-code")
+                  ? "text-primary bg-card/70 shadow-sm"
+                  : "text-foreground/70 hover:text-primary hover:bg-card/60"
+              }`}>
+                <Hash className="w-3.5 h-3.5" />Enter Code
+              </button>
+            </Link>
 
           </nav>
 
@@ -321,93 +326,50 @@ export default function Header() {
 
             {isAuthenticated && user ? (
               <>
+                {/* ── Points pill ────────────────────────────────── */}
+                <motion.button
+                  onClick={() => setLocation("/rewards?tab=history")}
+                  title={`${user.total_points} total points — click to view history`}
+                  whileHover={{ scale: 1.07, y: -1 }}
+                  whileTap={{ scale: 0.94 }}
+                  transition={{ type: "spring", stiffness: 380, damping: 22 }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    padding: "0.2rem 0.3rem",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    userSelect: "none",
+                  }}
+                >
+                  <motion.span
+                    animate={{ scale: [1, 1.18, 1] }}
+                    transition={{ duration: 2.6, repeat: Infinity, repeatDelay: 3.5, ease: "easeInOut" }}
+                    style={{ fontSize: "0.88rem", lineHeight: 1, filter: "drop-shadow(0 0 5px rgba(250,204,21,0.9))" }}
+                  >✦</motion.span>
+                  <span style={{
+                    fontSize: "0.8rem",
+                    fontWeight: 700,
+                    color: "#facc15",
+                    letterSpacing: "-0.02em",
+                    lineHeight: 1,
+                    textShadow: "0 0 12px rgba(250,204,21,0.55)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>
+                    {user.total_points.toLocaleString()}
+                  </span>
+                  <span style={{ fontSize: "0.66rem", color: "rgba(250,204,21,0.4)", fontWeight: 600, letterSpacing: "0.04em" }}>pts</span>
+                </motion.button>
+
                 {/* ── Streak Fire Badge ─────────────────────────────── */}
-                {(() => {
-                  const streak = (user as any).current_streak ?? 0;
-                  const hasStreak = streak > 0;
-                  const flameColor =
-                    streak >= 60 ? "#c084fc" :
-                    streak >= 30 ? "#facc15" :
-                    streak >= 14 ? "#fb923c" :
-                    streak >= 7  ? "#f97316" :
-                    streak >= 3  ? "#ef4444" :
-                    streak >= 1  ? "#f97316" : "#64748b";
-                  return (
-                    <motion.button
-                      onClick={() => setLocation("/rewards?tab=streak")}
-                      title={`${streak}-day streak — click to view`}
-                      whileHover={{ scale: 1.08, y: -1 }}
-                      whileTap={{ scale: 0.94 }}
-                      transition={{ type: "spring", stiffness: 380, damping: 22 }}
-                      className={hasStreak ? "streak-badge-active" : "streak-badge-zero"}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.3rem",
-                        padding: "0.3rem 0.65rem 0.3rem 0.5rem",
-                        borderRadius: "999px",
-                        border: `1.5px solid ${flameColor}55`,
-                        background: hasStreak
-                          ? `linear-gradient(135deg, ${flameColor}26 0%, ${flameColor}14 100%)`
-                          : "rgba(100,116,139,0.10)",
-                        cursor: "pointer",
-                        userSelect: "none",
-                        backdropFilter: "blur(4px)",
-                        WebkitBackdropFilter: "blur(4px)",
-                        position: "relative",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {/* Ambient glow layer */}
-                      {hasStreak && (
-                        <motion.span
-                          animate={{ opacity: [0.12, 0.28, 0.12] }}
-                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                          style={{
-                            position: "absolute",
-                            inset: 0,
-                            borderRadius: "999px",
-                            background: `radial-gradient(circle at 35% 50%, ${flameColor}55 0%, transparent 70%)`,
-                            pointerEvents: "none",
-                          }}
-                        />
-                      )}
-                      {/* Fire icon with flicker animation */}
-                      <span
-                        className="streak-fire-icon"
-                        style={{
-                          fontSize: "1.05rem",
-                          filter: hasStreak ? `drop-shadow(0 0 5px ${flameColor}cc)` : undefined,
-                          lineHeight: 1,
-                        }}
-                      >
-                        🔥
-                      </span>
-                      {/* Streak number */}
-                      <span
-                        key={streakAnimKey}
-                        className={streakAnimKey > 0 ? "streak-number-pop" : ""}
-                        style={{
-                          fontSize: "0.875rem",
-                          fontWeight: 800,
-                          color: hasStreak ? flameColor : "#64748b",
-                          letterSpacing: "-0.02em",
-                          lineHeight: 1,
-                          textShadow: hasStreak ? `0 0 10px ${flameColor}88` : undefined,
-                          fontVariantNumeric: "tabular-nums",
-                          minWidth: "1ch",
-                        }}
-                      >
-                        {streak}
-                      </span>
-                    </motion.button>
-                  );
-                })()}
+                <StreakBadge streak={(user as any).current_streak ?? 0} />
 
                 {(() => {
                   const displayName = (user as any).display_name || user.name;
                   return (
-                    <div ref={userMenuRef} className="relative" onMouseEnter={handleUserMenuEnter} onMouseLeave={handleUserMenuLeave}>
+                    <div ref={userMenuRef} className="relative hidden lg:block" onMouseEnter={handleUserMenuEnter} onMouseLeave={handleUserMenuLeave}>
                       <button onClick={toggleUserMenu} className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-secondary/80 transition-colors">
                         {user.avatar_url ? (
                           <img src={user.avatar_url} alt={displayName} className="w-9 h-9 rounded-full ring-2 ring-border" />
@@ -425,7 +387,6 @@ export default function Header() {
                             <div style={{ color: "rgba(255,255,255,0.48)", fontSize: 12, marginBottom: 10 }}>{user.email}</div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 2 }}>
                               {user.public_id && <span style={{ fontSize: 11, fontFamily: "monospace", fontWeight: 700, color: "#a78bfa", background: "rgba(167,139,250,0.13)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 6, padding: "2px 9px" }}>{user.public_id}</span>}
-                              <span style={{ fontSize: 11, fontWeight: 600, color: "#a78bfa", background: "rgba(167,139,250,0.13)", border: "1px solid rgba(167,139,250,0.25)", borderRadius: 6, padding: "2px 9px" }}>{user.total_points} pts</span>
                               {user.course && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.62)", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "2px 9px" }}>{user.course}</span>}
                               {user.level && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.62)", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "2px 9px" }}>Lvl {user.level}</span>}
                             </div>
@@ -440,6 +401,16 @@ export default function Header() {
                             <Link href="/rewards" onClick={() => setUserMenuOpen(false)}>
                               <div className={navItem(isActive("/rewards"))}><Award className="w-4 h-4" />Rewards</div>
                             </Link>
+                            {isAdmin ? (
+                              <Link href="/fees" onClick={() => setUserMenuOpen(false)}>
+                                <div className={navItem(isActive("/fees"))}><IndianRupee className="w-4 h-4" />My Fees</div>
+                              </Link>
+                            ) : (
+                              <div className={navItem(false)} style={{ opacity: 0.45, cursor: 'not-allowed', pointerEvents: 'none' }}>
+                                <IndianRupee className="w-4 h-4" />My Fees
+                                <span className="ml-auto text-[10px] font-bold tracking-widest px-1.5 py-0.5 rounded border" style={{ color: 'rgb(251 191 36 / 0.7)', background: 'rgb(245 158 11 / 0.1)', borderColor: 'rgb(245 158 11 / 0.2)' }}>SOON</span>
+                              </div>
+                            )}
                             {isAdmin && (
                               <>
                                 <div className="mx-4 my-1 border-t border-border/50" />
@@ -453,19 +424,24 @@ export default function Header() {
                                     <Calendar className="w-4 h-4" />Attendance
                                   </div>
                                 </Link>
-                                <Link href="/admin/access-control" onClick={() => setUserMenuOpen(false)}>
-                                  <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
-                                    <Lock className="w-4 h-4" />Access Control
-                                  </div>
-                                </Link>
-                                <Link href="/admin/rewards" onClick={() => setUserMenuOpen(false)}>
-                                  <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
-                                    <Award className="w-4 h-4" />Rewards Admin
-                                  </div>
-                                </Link>
                                 <Link href="/admin/exams" onClick={() => setUserMenuOpen(false)}>
                                   <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
                                     <FileText className="w-4 h-4" />Exam Management
+                                  </div>
+                                </Link>
+                                <Link href="/admin/fees" onClick={() => setUserMenuOpen(false)}>
+                                  <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
+                                    <IndianRupee className="w-4 h-4" />Fee Management
+                                  </div>
+                                </Link>
+                                <Link href="/admin/quotations" onClick={() => setUserMenuOpen(false)}>
+                                  <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
+                                    <Receipt className="w-4 h-4" />Quotations
+                                  </div>
+                                </Link>
+                                <Link href="/admin/orgs" onClick={() => setUserMenuOpen(false)}>
+                                  <div className="px-4 py-3 text-sm font-medium text-card-foreground  hover:bg-purple-900/30 hover:shadow-sm flex items-center gap-2 cursor-pointer transition-all rounded-xl">
+                                    <Building2 className="w-4 h-4" />Org Management
                                   </div>
                                 </Link>
                               </>
@@ -492,7 +468,7 @@ export default function Header() {
             )}
 
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg hover:bg-secondary/80 transition-colors" aria-label="Toggle menu">
+              className="hidden p-2 rounded-lg hover:bg-secondary/80 transition-colors" aria-label="Toggle menu">
               {mobileMenuOpen ? <X className="w-6 h-6 text-foreground" /> : <Menu className="w-6 h-6 text-foreground" />}
             </button>
           </div>
@@ -519,6 +495,28 @@ export default function Header() {
               }}
             >
             <div className="flex flex-col gap-1 px-2 py-3">
+              {/* Enter Code — prominent top action */}
+              <Link href="/enter-code" onClick={() => setMobileMenuOpen(false)}>
+                <div style={{
+                  margin: "4px 0 8px",
+                  padding: "14px 18px",
+                  borderRadius: 14,
+                  background: isActive("/enter-code")
+                    ? "linear-gradient(135deg, rgba(124,58,237,0.3), rgba(59,130,246,0.2))"
+                    : "linear-gradient(135deg, rgba(124,58,237,0.12), rgba(59,130,246,0.08))",
+                  border: `1.5px solid ${isActive("/enter-code") ? "rgba(139,92,246,0.5)" : "rgba(139,92,246,0.2)"}`,
+                  display: "flex", alignItems: "center", gap: 12,
+                }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#7C3AED,#3B82F6)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Hash style={{ width: 16, height: 16, color: "white" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "#E2E8F0" }}>Enter Code</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>Paper · Duel · Exam</div>
+                  </div>
+                  <ArrowRight style={{ width: 15, height: 15, color: "rgba(139,92,246,0.6)", marginLeft: "auto", flexShrink: 0 }} />
+                </div>
+              </Link>
               <div className="border-t border-border my-2" />
               <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Practice</div>
               <Link href="/create/basic" onClick={() => setMobileMenuOpen(false)}>
@@ -527,31 +525,24 @@ export default function Header() {
                     ? "text-primary bg-primary/10" : "text-card-foreground hover:bg-secondary"
                 }`}><FileText className="w-4 h-4" />Create Paper</div>
               </Link>
-              <Link href="/paper/enter-code" onClick={() => setMobileMenuOpen(false)}>
-                <div className={`px-4 py-2.5 text-sm font-medium rounded-lg flex items-center gap-3 transition-colors ${
-                  isActive("/paper/enter-code")
-                    ? "text-primary bg-primary/10" : "text-card-foreground hover:bg-secondary"
-                }`}><Hash className="w-4 h-4" />Enter Code</div>
-              </Link>
               <Link href="/mental" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Brain className="w-4 h-4" />Mental Math</div>
               </Link>
               <Link href="/burst" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors">
                   <Zap className="w-4 h-4 text-amber-500" /><span>Burst Mode</span>
-                  <span className="ml-auto relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
-                  </span>
                 </div>
               </Link>
               <Link href="/duel" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors">
-                  <Swords className="w-4 h-4 text-violet-400" /><span>Duel Mode</span>
-                  <span className="ml-auto relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
-                  </span>
+                <div style={{margin:"4px 0 8px",padding:"14px 18px",borderRadius:14,background:isActive("/duel")?"linear-gradient(135deg, rgba(139,92,246,0.25), rgba(109,40,217,0.18))":"linear-gradient(135deg, rgba(139,92,246,0.1), rgba(109,40,217,0.06))",border:`1.5px solid ${isActive("/duel")?"rgba(167,139,250,0.5)":"rgba(167,139,250,0.2)"}`,display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#7C3AED,#8B5CF6)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <Swords style={{width:16,height:16,color:"white"}} />
+                  </div>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:800,color:"#E2E8F0"}}>Duel Mode</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:1}}>Real-time · Multiplayer · Live</div>
+                  </div>
+                  <ArrowRight style={{width:15,height:15,color:"rgba(167,139,250,0.6)",marginLeft:"auto",flexShrink:0}} />
                 </div>
               </Link>
               {isAuthenticated && (
@@ -561,6 +552,16 @@ export default function Header() {
                   <Link href="/rewards" onClick={() => setMobileMenuOpen(false)}>
                     <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Award className="w-4 h-4" />My Rewards</div>
                   </Link>
+                  {isAdmin ? (
+                    <Link href="/fees" onClick={() => setMobileMenuOpen(false)}>
+                      <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><IndianRupee className="w-4 h-4" />My Fees</div>
+                    </Link>
+                  ) : (
+                    <div className="px-4 py-2.5 text-sm font-medium rounded-lg flex items-center gap-3" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
+                      <IndianRupee className="w-4 h-4" />My Fees
+                      <span className="ml-auto text-[10px] font-bold tracking-widest px-1.5 py-0.5 rounded border" style={{ color: 'rgb(251 191 36 / 0.7)', background: 'rgb(245 158 11 / 0.1)', borderColor: 'rgb(245 158 11 / 0.2)' }}>SOON</span>
+                    </div>
+                  )}
                   {isAdmin && (
                     <>
                       <div className="border-t border-border my-2" />
@@ -574,11 +575,14 @@ export default function Header() {
                       <Link href="/admin/exams" onClick={() => setMobileMenuOpen(false)}>
                         <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><FileText className="w-4 h-4" />Exam Management</div>
                       </Link>
-                      <Link href="/admin/access-control" onClick={() => setMobileMenuOpen(false)}>
-                        <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Lock className="w-4 h-4" />Access Control</div>
+                      <Link href="/admin/fees" onClick={() => setMobileMenuOpen(false)}>
+                        <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><IndianRupee className="w-4 h-4" />Fee Management</div>
                       </Link>
-                      <Link href="/admin/rewards" onClick={() => setMobileMenuOpen(false)}>
-                        <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Award className="w-4 h-4" />Rewards Admin</div>
+                      <Link href="/admin/quotations" onClick={() => setMobileMenuOpen(false)}>
+                        <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Receipt className="w-4 h-4" />Quotations</div>
+                      </Link>
+                      <Link href="/admin/orgs" onClick={() => setMobileMenuOpen(false)}>
+                        <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Building2 className="w-4 h-4" />Org Management</div>
                       </Link>
                     </>
                   )}
@@ -589,30 +593,37 @@ export default function Header() {
               <Link href="/tools/soroban" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Calculator className="w-4 h-4" />Abacus Soroban</div>
               </Link>
-              <Link href="/tools/soroban/flashcards" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors">
-                  <span style={{ fontSize: 15 }}>🎴</span>Abacus Flashcards
-                  <span className="ml-auto relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
-                  </span>
-                </div>
-              </Link>
-              <Link href="/tools/number-ninja" onClick={() => setMobileMenuOpen(false)}>
-                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors">
-                  <span style={{ fontSize: 15 }}>🥷</span>Number Ninja
-                  <span className="ml-auto relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
-                  </span>
-                </div>
-              </Link>
               <Link href="/tools/gridmaster" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Grid3X3 className="w-4 h-4" />Vedic Grid</div>
               </Link>
               <Link href="/tools/gridmaster/magic" onClick={() => setMobileMenuOpen(false)}>
                 <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors"><Sparkles className="w-4 h-4" />Magic Square</div>
               </Link>
+              <Link href="/tools/soroban/flashcards" onClick={() => setMobileMenuOpen(false)}>
+                <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors">
+                  <BookOpen className="w-4 h-4" />Abacus Flashcards
+                  <span className="ml-auto relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
+                  </span>
+                </div>
+              </Link>
+              {isAdmin ? (
+                <Link href="/tools/number-ninja" onClick={() => setMobileMenuOpen(false)}>
+                  <div className="px-4 py-2.5 text-sm font-medium text-card-foreground hover:bg-secondary rounded-lg flex items-center gap-3 transition-colors">
+                    <Swords className="w-4 h-4" />Number Ninja
+                    <span className="ml-auto relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+                    </span>
+                  </div>
+                </Link>
+              ) : (
+                <div className="px-4 py-2.5 text-sm font-medium rounded-lg flex items-center gap-3" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
+                  <Swords className="w-4 h-4" />Number Ninja
+                  <span className="ml-auto text-[10px] font-bold tracking-widest px-1.5 py-0.5 rounded border" style={{ color: 'rgb(251 191 36 / 0.7)', background: 'rgb(245 158 11 / 0.1)', borderColor: 'rgb(245 158 11 / 0.2)' }}>SOON</span>
+                </div>
+              )}
               {!isAuthenticated && (
                 <div className="mt-3 pt-3 border-t border-border">
                   <Link href="/login" onClick={() => setMobileMenuOpen(false)}>

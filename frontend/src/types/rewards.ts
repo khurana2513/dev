@@ -8,20 +8,6 @@
 export type BadgeTier = "bronze" | "silver" | "gold" | "platinum" | "special";
 export type BadgeCategory = "practice" | "streak" | "attendance" | "special";
 
-export interface BadgeDefinition {
-  id: number;
-  badge_key: string;
-  name: string;
-  description: string;
-  tier: BadgeTier;
-  category: BadgeCategory;
-  icon_emoji: string;
-  evaluation_rule: Record<string, unknown>;
-  is_active: boolean;
-  is_secret: boolean;
-  display_order: number;
-}
-
 export interface BadgeStatus {
   badge_key: string;
   name: string;
@@ -193,103 +179,6 @@ export interface SuperJourneyResponse {
   next_milestone: SuperNextMilestone | null;
   all_letters_done: boolean;
   letters_unlocked_count: number;
-}
-
-// ── Admin Types ─────────────────────────────────────────────────────
-
-export interface AdminPointsAdjustment {
-  student_id: number;
-  adjustment: number;
-  reason: string;
-}
-
-export interface AdminBadgeGrant {
-  student_id: number;
-  badge_key: string;
-  reason?: string;
-}
-
-export interface AdminBadgeRevoke {
-  student_id: number;
-  badge_key: string;
-  reason: string;
-}
-
-export interface AdminVoidEvent {
-  event_id: number;
-  reason: string;
-}
-
-export interface AdminSimulateMonth {
-  month: number;
-  year: number;
-}
-
-export interface SimulationEntry {
-  student_id: number;
-  student_name: string;
-  branch: string;
-  monthly_points: number;
-  projected_rank: number;
-  projected_bonus: number;
-}
-
-export interface SimulationResponse {
-  month: number;
-  year: number;
-  entries: SimulationEntry[];
-}
-
-export interface AuditLogEntry {
-  id: number;
-  admin_id: number;
-  admin_name: string;
-  action: string;
-  target_student_id: number | null;
-  old_values: Record<string, unknown>;
-  new_values: Record<string, unknown>;
-  reason: string;
-  created_at: string | null;
-}
-
-export interface StudentRewardSummary {
-  student_id: number;
-  student_name: string;
-  branch: string | null;
-  total_points: number;
-  current_streak: number;
-  longest_streak: number;
-  badges: {
-    badge_key: string;
-    name: string;
-    tier: string;
-    is_active: boolean;
-    awarded_at: string | null;
-    awarded_by: number | null;
-  }[];
-  recent_events: {
-    id: number;
-    event_type: string;
-    source_tool: string;
-    points_delta: number;
-    is_voided: boolean;
-    event_timestamp: string | null;
-    event_metadata: Record<string, unknown>;
-  }[];
-  monthly_snapshots: {
-    month: number;
-    year: number;
-    monthly_points: number;
-    global_rank: number;
-    branch_rank: number;
-  }[];
-}
-
-export interface AdminCacheRebuild {
-  student_id: number;
-  old_total: number;
-  new_total: number;
-  events_processed: number;
 }
 
 // ── Tier styling helpers ────────────────────────────────────────────

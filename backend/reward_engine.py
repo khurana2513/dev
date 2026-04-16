@@ -282,23 +282,24 @@ class RewardEngine:
     def record_daily_login(self, db: Session, student_id: int) -> RecordEventResult:
         """
         Award daily login bonus if not already awarded today.
-        Uses User.last_daily_login_bonus_date to de-duplicate.
+        Uses an atomic UPDATE WHERE last_daily_login_bonus_date != today to de-duplicate,
+        preventing double-awards under concurrent requests from the same user.
         """
-        user = db.query(User).filter(User.id == student_id).first()
-        if not user:
-            return RecordEventResult(points_awarded=0)
-
         today_ist = get_ist_now().date()
 
-        if user.last_daily_login_bonus_date == today_ist:
-            return RecordEventResult(points_awarded=0)  # Already awarded
-
-        # Update last_daily_login_bonus_date
-        db.execute(
+        # Atomically claim today's bonus — only succeeds if not already claimed.
+        rows_updated = db.execute(
             sa_update(User)
             .where(User.id == student_id)
+            .where(
+                (User.last_daily_login_bonus_date == None)  # noqa: E711
+                | (User.last_daily_login_bonus_date < today_ist)
+            )
             .values(last_daily_login_bonus_date=today_ist)
-        )
+        ).rowcount
+
+        if rows_updated == 0:
+            return RecordEventResult(points_awarded=0)  # Already awarded today
 
         result = self.record_event(
             db=db,

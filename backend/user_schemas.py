@@ -1,5 +1,5 @@
 """Pydantic schemas for user-related models."""
-from pydantic import BaseModel, EmailStr, field_serializer, Field, model_validator
+from pydantic import BaseModel, EmailStr, field_serializer, Field, model_validator, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from timezone_utils import utc_to_ist, IST_TIMEZONE
@@ -777,6 +777,22 @@ class GraceSkipResponse(BaseModel):
 # These aggregate multiple data sources into a single response to eliminate
 # chatty API architecture (9-12 calls → 1-2 calls per dashboard load)
 
+class CodeSessionSummary(BaseModel):
+    """A single code-based activity entry (exam, duel, or shared paper)."""
+    model_config = ConfigDict(from_attributes=True)
+
+    session_type: str           # "exam" | "duel" | "shared_paper"
+    session_id: int
+    title: str                  # e.g. "AB-3 Monthly Test" / "Duel vs Akash" / "Practice Paper"
+    code: str                   # The join code (E-prefix, D-prefix, P-prefix)
+    status: str                 # "submitted" | "active" | "waiting" | "won" | "lost" | etc.
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    # Scoring (may be null until graded/released)
+    score: Optional[float] = None        # percentage or raw score depending on context
+    rank: Optional[int] = None
+
+
 class StudentDashboardData(BaseModel):
     """Combined student dashboard data."""
     stats: StudentStats
@@ -785,6 +801,8 @@ class StudentDashboardData(BaseModel):
     # Pre-aggregated attempt counts keyed by "{seed}_{paper_title}".
     # Eliminates the N+1 getPaperAttemptCount waterfall fired by the dashboard.
     attempt_counts: Dict[str, int] = Field(default_factory=dict)
+    # Code-based activity (exams, duels, shared papers) for the "Codes" tab
+    code_sessions: List[CodeSessionSummary] = Field(default_factory=list)
 
 
 class AdminDashboardData(BaseModel):

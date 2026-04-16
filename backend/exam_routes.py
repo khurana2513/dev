@@ -43,6 +43,7 @@ import hashlib
 import json
 import logging
 import random
+import secrets
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -50,6 +51,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from auth import get_current_admin, get_current_user
 from exam_models import ExamAnswer, ExamEvent, ExamPaper, ExamSession
@@ -265,6 +267,28 @@ def _build_exam_response(exam: ExamPaper, db: Session) -> ExamPaperResponse:
 #  ADMIN ENDPOINTS
 # ════════════════════════════════════════════════════════════════════════════
 
+# characters that avoid visual ambiguity (no 0/O, 1/I)
+_EXAM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _generate_exam_code(db: Session, max_tries: int = 20) -> str:
+    """Generate a unique E-prefixed exam code that is not in use in the DB."""
+    for _ in range(max_tries):
+        suffix = "".join(secrets.choice(_EXAM_CODE_CHARS) for _ in range(5))
+        code = "E" + suffix
+        if not db.query(ExamPaper).filter(ExamPaper.exam_code == code).first():
+            return code
+    raise RuntimeError("Could not generate a unique exam code after 20 tries")
+
+
+@router.get("/generate-code")
+def get_generate_code(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict:
+    """Return a freshly generated unique exam code for the admin UI."""
+    return {"exam_code": _generate_exam_code(db)}
+
 @router.post("/", response_model=ExamPaperResponse)
 def create_exam(
     body: ExamPaperCreate,
@@ -277,8 +301,11 @@ def create_exam(
     if not paper:
         raise HTTPException(status_code=404, detail=f"Paper {body.paper_id} not found")
 
+    # Auto-generate exam code if not provided
+    exam_code = (body.exam_code or "").strip().upper() or _generate_exam_code(db)
+
     # Ensure code is unique
-    if db.query(ExamPaper).filter(ExamPaper.exam_code == body.exam_code).first():
+    if db.query(ExamPaper).filter(ExamPaper.exam_code == exam_code).first():
         raise HTTPException(status_code=409, detail="Exam code already in use")
 
     # Generate a fixed seed if not provided
@@ -296,7 +323,7 @@ def create_exam(
 
     try:
         exam = ExamPaper(
-            exam_code=body.exam_code,
+            exam_code=exam_code,
             title=body.title,
             paper_id=body.paper_id,
             created_by_admin_id=admin.id,
@@ -430,6 +457,9 @@ async def start_exam(
 
     exam.status = "live"
     exam.is_published = True
+    # Track actual start time and keep scheduled_start_at in sync so records are always correct
+    exam.actual_started_at = now
+    exam.scheduled_start_at = now  # admin manually started — update scheduled time to actual
     db.commit()
     db.refresh(exam)
 
@@ -470,6 +500,7 @@ async def end_exam(
         _log_event(db, sess.id, "force_submitted_by_admin", {"admin_id": admin.id, "reason": "exam_ended"})
 
     exam.status = "ended"
+    exam.actual_ended_at = now
     db.commit()
     db.refresh(exam)
 
@@ -497,7 +528,7 @@ def grade_exam(
     if not paper:
         raise HTTPException(status_code=404, detail="Exam paper (question source) not found")
 
-    seed = exam.fixed_seed or 42
+    seed = exam.fixed_seed or (paper.fixed_seed if paper.fixed_seed else None) or 42
     try:
         questions = _generate_questions(paper, seed)
     except Exception as e:
@@ -708,17 +739,29 @@ def list_sessions(
         .all()
     )
 
-    # Count answers per session
+    if not sessions:
+        return []
+
+    session_ids = [s.id for s in sessions]
+    user_ids = list({s.user_id for s in sessions})
+
+    # Bulk load users (1 query instead of N)
+    users_by_id = {
+        u.id: u
+        for u in db.query(User).filter(User.id.in_(user_ids)).all()
+    }
+
+    # Count answers per session (1 query)
     answer_counts = dict(
         db.query(ExamAnswer.session_id, func.count(ExamAnswer.id))
-        .filter(ExamAnswer.session_id.in_([s.id for s in sessions]))
+        .filter(ExamAnswer.session_id.in_(session_ids))
         .group_by(ExamAnswer.session_id)
         .all()
     )
 
     result = []
     for sess in sessions:
-        user = db.query(User).filter(User.id == sess.user_id).first()
+        user = users_by_id.get(sess.user_id)
         result.append(ExamSessionSummary(
             id=sess.id,
             user_id=sess.user_id,
@@ -824,10 +867,11 @@ def join_exam(
         )
 
     # Generate per-student question order
-    seed = exam.fixed_seed or 42
+    paper_obj = db.query(Paper).filter(Paper.id == exam.paper_id).first()
+    seed = exam.fixed_seed or (paper_obj.fixed_seed if paper_obj and paper_obj.fixed_seed else None) or 42
     try:
         questions = _generate_questions(
-            db.query(Paper).filter(Paper.id == exam.paper_id).first(), seed
+            paper_obj, seed
         )
     except Exception as e:
         logger.exception("[EXAM] question generation failed for join code=%s: %s", code, e)
@@ -868,10 +912,48 @@ def join_exam(
         device_fingerprint=body.device_fingerprint[:64] if body.device_fingerprint else None,
     )
     db.add(sess)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        # Concurrent join_exam call already inserted a session for this user+exam.
+        # Roll back and return the existing session instead.
+        db.rollback()
+        existing = db.query(ExamSession).filter(
+            ExamSession.exam_paper_id == exam.id,
+            ExamSession.user_id == current_user.id,
+        ).first()
+        if existing:
+            seconds_elapsed = None
+            if existing.exam_started_at and existing.status == "active":
+                seconds_elapsed = (now - existing.exam_started_at).total_seconds()
+            return JoinResponse(
+                session_id=existing.id,
+                exam_title=exam.title,
+                exam_code=exam.exam_code,
+                duration_seconds=exam.duration_seconds,
+                allow_back_navigation=exam.allow_back_navigation,
+                scheduled_start_at=exam.scheduled_start_at,
+                server_time_utc=now,
+                status=existing.status,
+                seconds_elapsed=seconds_elapsed,
+            )
+        raise HTTPException(status_code=409, detail="Could not create exam session. Please try again.")
     _log_event(db, sess.id, "joined", {"status": sess_status})
     db.commit()
     db.refresh(sess)
+
+    # Broadcast join event so admin dashboard updates in real-time without polling
+    asyncio.get_event_loop().call_soon_threadsafe(
+        asyncio.ensure_future,
+        _broadcast(code, {
+            "type": "student_joined",
+            "student_name": _student_name(current_user),
+            "session_status": sess_status,
+            "total_joined": db.query(ExamSession).filter(
+                ExamSession.exam_paper_id == exam.id
+            ).count(),
+        }),
+    )
 
     seconds_elapsed = None
     if sess_status == "active" and sess.exam_started_at:
@@ -919,10 +1001,10 @@ def get_questions(
         )
 
     # Generate questions (deterministic from seed)
-    seed = exam.fixed_seed or 42
     paper = db.query(Paper).filter(Paper.id == exam.paper_id).first()
     if not paper:
         raise HTTPException(status_code=404, detail="Exam paper source not found")
+    seed = exam.fixed_seed or (paper.fixed_seed if paper.fixed_seed else None) or 42
 
     try:
         questions = _generate_questions(paper, seed)
@@ -1194,6 +1276,60 @@ def get_result(
         show_answers=exam.show_answers_to_students,
         answer_detail=answer_detail,
     )
+
+
+@router.get("/{code}/my-result", response_model=StudentResultResponse)
+def get_my_result(
+    code: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StudentResultResponse:
+    """
+    Student views their own result by exam code (no session_id needed).
+    Accessible after results are released; persists indefinitely in DB.
+    Students can bookmark /exam/{code}/result and come back any time.
+    """
+    exam = _get_exam_or_404(code, db)
+    sess = db.query(ExamSession).filter(
+        ExamSession.user_id == current_user.id,
+        ExamSession.exam_paper_id == exam.id,
+    ).first()
+    if not sess:
+        raise HTTPException(status_code=404, detail="You have no session for this exam")
+
+    if not sess.is_result_released:
+        raise HTTPException(status_code=403, detail="Results are not yet released by the teacher")
+
+    answer_detail: Optional[List[dict]] = None
+    if exam.show_answers_to_students:
+        answers = db.query(ExamAnswer).filter(ExamAnswer.session_id == sess.id).all()
+        answer_detail = [
+            {
+                "question_id": a.question_id,
+                "your_answer": a.raw_answer,
+                "correct_answer": a.correct_answer,
+                "is_correct": a.is_correct,
+                "marks_awarded": a.marks_awarded,
+            }
+            for a in answers
+        ]
+
+    return StudentResultResponse(
+        session_id=sess.id,
+        exam_title=exam.title,
+        exam_code=exam.exam_code,
+        submitted_at=sess.submitted_at,
+        total_marks=sess.total_marks,
+        scored_marks=sess.scored_marks,
+        percentage=sess.percentage,
+        rank=sess.rank,
+        pass_fail=sess.pass_fail,
+        is_graded=sess.is_graded,
+        is_result_released=sess.is_result_released,
+        show_answers=exam.show_answers_to_students,
+        answer_detail=answer_detail,
+    )
+
 
 
 @router.post("/{code}/event", response_model=dict)

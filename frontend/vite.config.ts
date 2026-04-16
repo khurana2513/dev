@@ -4,6 +4,15 @@ import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
 export default defineConfig({
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      reporter: ["text", "json", "html"],
+    },
+  },
   plugins: [
     react(),
     VitePWA({
@@ -231,6 +240,7 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 3000,
+    strictPort: true,  // fail loudly instead of silently switching to 3002
 
     headers: {
       // Required for Google OAuth popup

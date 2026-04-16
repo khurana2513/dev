@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Tuple, Optional
 from jose import JWTError, jwt
 import os
+import threading
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from sqlalchemy import Column, Integer, String, DateTime, create_engine, Index
@@ -30,6 +31,7 @@ if len(SECRET_KEY) < 32:
 # This is in-memory for now, but should migrate to Redis
 TOKEN_BLACKLIST = {}  # {token_hash: expiration_time}
 MAX_BLACKLIST_SIZE = 10000  # Prevent unbounded memory growth
+_BLACKLIST_LOCK = threading.Lock()  # Protects TOKEN_BLACKLIST from concurrent mutations
 
 
 class TokenBlacklist:
@@ -43,54 +45,41 @@ class TokenBlacklist:
 
     @staticmethod
     def add_to_blacklist(token: str, expires_at: datetime) -> None:
-        """Add token to blacklist.
-        
-        Args:
-            token: JWT token to blacklist
-            expires_at: Token expiration time
-        """
+        """Add token to blacklist."""
         try:
             import hashlib
             token_hash = hashlib.sha256(token.encode()).hexdigest()
             
-            # Cleanup old entries if blacklist too large
-            if len(TOKEN_BLACKLIST) > MAX_BLACKLIST_SIZE:
-                now = datetime.utcnow()
-                expired_tokens = [
-                    k for k, v in TOKEN_BLACKLIST.items() 
-                    if v < now
-                ]
-                for k in expired_tokens[:500]:  # Remove oldest 500
-                    del TOKEN_BLACKLIST[k]
-            
-            TOKEN_BLACKLIST[token_hash] = expires_at
+            with _BLACKLIST_LOCK:
+                # Cleanup old entries if blacklist is too large
+                if len(TOKEN_BLACKLIST) > MAX_BLACKLIST_SIZE:
+                    now = datetime.utcnow()
+                    expired_keys = [k for k, v in TOKEN_BLACKLIST.items() if v < now]
+                    for k in expired_keys[:500]:
+                        del TOKEN_BLACKLIST[k]
+                
+                TOKEN_BLACKLIST[token_hash] = expires_at
             logger.info(f"Token added to blacklist, expiring at {expires_at}")
         except Exception as e:
             logger.error(f"Error adding token to blacklist: {e}")
     
     @staticmethod
     def is_blacklisted(token: str) -> bool:
-        """Check if token is blacklisted.
-        
-        Args:
-            token: JWT token to check
-            
-        Returns:
-            True if token is blacklisted and not expired, False otherwise
-        """
+        """Check if token is blacklisted."""
         try:
             import hashlib
             token_hash = hashlib.sha256(token.encode()).hexdigest()
             
-            if token_hash not in TOKEN_BLACKLIST:
-                return False
-            
-            # Check if blacklist entry has expired
-            if TOKEN_BLACKLIST[token_hash] < datetime.utcnow():
-                del TOKEN_BLACKLIST[token_hash]
-                return False
-            
-            return True
+            with _BLACKLIST_LOCK:
+                if token_hash not in TOKEN_BLACKLIST:
+                    return False
+                
+                # Check if blacklist entry has expired
+                if TOKEN_BLACKLIST[token_hash] < datetime.utcnow():
+                    del TOKEN_BLACKLIST[token_hash]
+                    return False
+                
+                return True
         except Exception as e:
             logger.error(f"Error checking token blacklist: {e}")
             return False

@@ -126,10 +126,16 @@ class StudentFeeSummary(BaseModel):
     student_profile_id: int
     student_name: str
     student_public_id: Optional[str] = None
+    branch: Optional[str] = None
+    course: Optional[str] = None
+    level: Optional[str] = None
     current_assignment: Optional[FeeAssignmentResponse] = None
     total_paid: float = 0.0
-    total_due: float = 0.0
-    balance: float = 0.0
+    total_due: float = 0.0        # effective_fee_amount per period
+    balance: float = 0.0          # legacy: single-period balance
+    cumulative_balance: float = 0.0  # true balance across all elapsed periods
+    periods_elapsed: int = 1      # how many billing periods have passed
+    total_expected_cumulative: float = 0.0  # periods_elapsed × effective_fee
     last_payment_date: Optional[datetime] = None
     next_due_date: Optional[datetime] = None
     is_overdue: bool = False
@@ -157,3 +163,35 @@ class FeePaymentSummary(BaseModel):
     online_collected: float = 0.0
     other_collected: float = 0.0
     transaction_count: int = 0
+
+
+# Monthly collection report point
+class MonthlyCollectionPoint(BaseModel):
+    month: str         # "2025-01"
+    month_label: str   # "Jan 25"
+    total: float = 0.0
+    cash: float = 0.0
+    online: float = 0.0
+    cheque: float = 0.0
+    bank_transfer: float = 0.0
+    count: int = 0
+
+
+# Student-facing own fee status
+class MyFeeStatus(BaseModel):
+    has_plan: bool = False
+    plan_name: Optional[str] = None
+    fee_amount: Optional[float] = None
+    fee_period_days: Optional[int] = None
+    currency: str = "INR"
+    balance: float = 0.0
+    cumulative_balance: float = 0.0
+    total_paid: float = 0.0
+    total_expected_cumulative: float = 0.0
+    periods_elapsed: int = 1
+    last_payment_date: Optional[datetime] = None
+    next_due_date: Optional[datetime] = None
+    is_overdue: bool = False
+    overdue_days: int = 0
+    recent_transactions: List[FeeTransactionResponse] = []
+

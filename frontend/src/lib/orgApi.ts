@@ -61,6 +61,50 @@ export interface InviteLinkCreate {
   expires_days?: number;  // optional — omit for no expiry
 }
 
+export interface OrgCreatePayload {
+  name: string;
+  id_prefix: string;
+  contact_email?: string;
+  contact_phone?: string;
+  city?: string;
+  address?: string;
+  logo_url?: string;
+  website_url?: string;
+  description?: string;
+}
+
+export interface InviteInfoResponse {
+  org_id: string;
+  org_name: string;
+  org_city?: string | null;
+  org_description?: string | null;
+  org_logo_url?: string | null;
+  role: string;
+  expires_at?: string | null;
+  uses_count: number;
+  max_uses: number;
+  is_active: boolean;
+  is_valid: boolean;
+  error?: "expired" | "max_uses_reached" | "inactive" | null;
+}
+
+export interface OrgMember {
+  user_id: number;
+  name: string;
+  email?: string | null;
+  avatar_url?: string | null;
+  total_points: number;
+  current_streak: number;
+  public_id?: string | null;
+  class_name?: string | null;
+  course?: string | null;
+  level?: string | null;
+  branch?: string | null;
+  status: string;
+  join_date?: string | null;
+  created_at?: string | null;
+}
+
 // ─── API Functions ────────────────────────────────────────────────────────────
 
 /**
@@ -103,6 +147,67 @@ export async function createInviteLink(
  */
 export async function listInviteLinks(orgId: string): Promise<InviteLinkResponse[]> {
   return apiClient.get<InviteLinkResponse[]>(`/orgs/${orgId}/invite-links`);
+}
+
+// ─── Platform Admin API ───────────────────────────────────────────────────────
+
+/** List all organizations (platform admin only). */
+export async function listAllOrgs(): Promise<OrgResponse[]> {
+  return apiClient.get<OrgResponse[]>("/orgs");
+}
+
+/** Get a single org by ID (admin or owner). */
+export async function getOrg(orgId: string): Promise<OrgResponse> {
+  return apiClient.get<OrgResponse>(`/orgs/${orgId}`);
+}
+
+/** Create a new organization (platform admin only). */
+export async function createOrg(data: OrgCreatePayload): Promise<OrgResponse> {
+  return apiClient.post<OrgResponse>("/orgs", data);
+}
+
+/** Mark an organization as verified (platform admin only). */
+export async function verifyOrg(orgId: string): Promise<OrgResponse> {
+  return apiClient.post<OrgResponse>(`/orgs/${orgId}/verify`);
+}
+
+/** Check whether an id_prefix is available. */
+export async function checkPrefix(prefix: string): Promise<{ prefix: string; available: boolean }> {
+  return apiClient.get<{ prefix: string; available: boolean }>(
+    `/orgs/check-prefix?prefix=${encodeURIComponent(prefix)}`
+  );
+}
+
+/** Deactivate an invite link. */
+export async function deactivateInviteLink(orgId: string, linkId: string): Promise<void> {
+  await apiClient.delete<void>(`/orgs/${orgId}/invite-links/${linkId}`);
+}
+
+// ─── Invite / Join ────────────────────────────────────────────────────────────
+
+/**
+ * Preview invite code info without authentication.
+ * Returns org name, city, role, validity etc.
+ */
+export async function getInviteInfo(code: string): Promise<InviteInfoResponse> {
+  return apiClient.get<InviteInfoResponse>(
+    `/orgs/invite-info?code=${encodeURIComponent(code)}`,
+    { requireAuth: false }
+  );
+}
+
+/**
+ * Join an organization using an invite code. Requires authentication.
+ */
+export async function joinOrg(code: string): Promise<OrgResponse> {
+  return apiClient.post<OrgResponse>(`/orgs/join?code=${encodeURIComponent(code)}`);
+}
+
+/**
+ * Get all members of an org (admin or owner).
+ */
+export async function getOrgMembers(orgId: string): Promise<OrgMember[]> {
+  return apiClient.get<OrgMember[]>(`/orgs/${orgId}/members`);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

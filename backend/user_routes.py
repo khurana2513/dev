@@ -1181,6 +1181,104 @@ def get_student_dashboard_data(
     )
     attempt_counts = {f"{row.seed}_{row.paper_title}": row.cnt for row in count_rows}
 
+    # ── 6. Code sessions (exams, duels, shared papers) ────────────────────────
+    code_sessions = []
+
+    # Exam sessions
+    try:
+        from exam_models import ExamSession, ExamPaper
+        exam_sessions = (
+            db.query(ExamSession, ExamPaper.title, ExamPaper.exam_code)
+            .join(ExamPaper, ExamSession.exam_paper_id == ExamPaper.id)
+            .filter(ExamSession.user_id == current_user.id)
+            .order_by(desc(ExamSession.joined_at))
+            .limit(20)
+            .all()
+        )
+        from user_schemas import CodeSessionSummary
+        for sess, exam_title, exam_code in exam_sessions:
+            code_sessions.append(CodeSessionSummary(
+                session_type="exam",
+                session_id=sess.id,
+                title=exam_title or "Exam",
+                code=exam_code or "",
+                status=sess.status,
+                started_at=sess.joined_at,
+                ended_at=sess.submitted_at,
+                score=sess.percentage,
+                rank=sess.rank,
+            ))
+    except Exception:
+        pass  # exam module may not be available
+
+    # Duel sessions
+    try:
+        from duel_manager import DuelSession as DS, Duel
+        duel_sessions = (
+            db.query(DS, Duel.code)
+            .join(Duel, DS.duel_id == Duel.id)
+            .filter(DS.user_id == current_user.id)
+            .order_by(desc(DS.joined_at))
+            .limit(20)
+            .all()
+        )
+        for dsess, duel_code in duel_sessions:
+            opponent_name = None
+            try:
+                # find the other player
+                other = (
+                    db.query(DS).filter(DS.duel_id == dsess.duel_id, DS.user_id != current_user.id).first()
+                )
+                if other:
+                    other_user = db.query(User).filter(User.id == other.user_id).first()
+                    if other_user:
+                        opponent_name = other_user.display_name or other_user.name or "Opponent"
+            except Exception:
+                pass
+            code_sessions.append(CodeSessionSummary(
+                session_type="duel",
+                session_id=dsess.id,
+                title=f"Duel vs {opponent_name}" if opponent_name else "Duel",
+                code=duel_code or "",
+                status=dsess.status if hasattr(dsess, "status") else "completed",
+                started_at=dsess.joined_at if hasattr(dsess, "joined_at") else None,
+                ended_at=None,
+                score=dsess.score if hasattr(dsess, "score") else None,
+                rank=None,
+            ))
+    except Exception:
+        pass  # duel module may not be available
+
+    # Shared-paper attempts (code-based only)
+    try:
+        sp_attempts = (
+            db.query(PaperAttempt)
+            .filter(
+                PaperAttempt.user_id == current_user.id,
+                PaperAttempt.shared_paper_code.isnot(None),
+            )
+            .order_by(desc(PaperAttempt.started_at))
+            .limit(20)
+            .all()
+        )
+        for sp in sp_attempts:
+            code_sessions.append(CodeSessionSummary(
+                session_type="shared_paper",
+                session_id=sp.id,
+                title=sp.paper_title or "Shared Paper",
+                code=sp.shared_paper_code or "",
+                status="completed" if sp.completed_at else "in_progress",
+                started_at=sp.started_at,
+                ended_at=sp.completed_at,
+                score=sp.accuracy,
+                rank=None,
+            ))
+    except Exception:
+        pass
+
+    # Sort all code sessions by started_at descending
+    code_sessions.sort(key=lambda s: s.started_at or datetime.min.replace(tzinfo=timezone.utc) if False else (s.started_at or datetime.min), reverse=True)
+
     elapsed = time.time() - request_start
     print(f"⏱ [DASHBOARD] GET /users/dashboard-data took {elapsed:.2f}s (combined endpoint)")
 
@@ -1189,6 +1287,7 @@ def get_student_dashboard_data(
         profile=profile_response,
         paper_attempts=paper_attempts_response,
         attempt_counts=attempt_counts,
+        code_sessions=code_sessions,
     )
 
 

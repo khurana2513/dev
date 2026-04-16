@@ -35,7 +35,7 @@ class ExamPaperCreate(BaseModel):
     """Admin creates a new scheduled exam from an existing saved Paper."""
     title: str = Field(min_length=1, max_length=200)
     paper_id: int
-    exam_code: str = Field(min_length=4, max_length=12, description="Unique join code, e.g. ABAC-2025")
+    exam_code: Optional[str] = Field(default=None, min_length=None, max_length=12, description="Unique join code, e.g. EAB3KF; auto-generated if omitted")
     scheduled_start_at: datetime       # UTC
     scheduled_end_at: datetime         # UTC
     duration_seconds: int = Field(ge=60, le=10800)  # 1 min – 3 hours
@@ -50,8 +50,11 @@ class ExamPaperCreate(BaseModel):
 
     @field_validator("exam_code")
     @classmethod
-    def normalize_code(cls, v: str) -> str:
-        return v.strip().upper()
+    def normalize_code(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        stripped = v.strip().upper()
+        return stripped if stripped else None
 
     @field_validator("scheduled_end_at")
     @classmethod

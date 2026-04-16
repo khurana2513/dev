@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 from enum import Enum
 import logging
+import threading
 from typing import Callable, Any, TypeVar, Optional
 import functools
 
@@ -51,6 +52,7 @@ class CircuitBreaker:
         self.success_count = 0
         self.last_failure_time = None
         self.last_state_change = datetime.utcnow()
+        self._lock = threading.Lock()  # Protects all mutable state from concurrent threads
     
     def call(self, func: Callable[..., T], *args, **kwargs) -> T:
         """Execute function through circuit breaker.
@@ -67,19 +69,20 @@ class CircuitBreaker:
             Exception: If circuit is OPEN or function fails
         """
         # Check if we should transition from OPEN to HALF_OPEN
-        if self.state == CircuitState.OPEN:
-            if self._should_attempt_reset():
-                self.state = CircuitState.HALF_OPEN
-                self.success_count = 0
-                logger.info(f"⚡ [CIRCUIT] {self.name}: Transitioning to HALF_OPEN (testing recovery)")
-            else:
-                raise CircuitBreakerOpenError(
-                    f"Circuit breaker '{self.name}' is OPEN. "
-                    f"Service temporarily unavailable. Retry in a few seconds."
-                )
+        with self._lock:
+            if self.state == CircuitState.OPEN:
+                if self._should_attempt_reset():
+                    self.state = CircuitState.HALF_OPEN
+                    self.success_count = 0
+                    logger.info(f"⚡ [CIRCUIT] {self.name}: Transitioning to HALF_OPEN (testing recovery)")
+                else:
+                    raise CircuitBreakerOpenError(
+                        f"Circuit breaker '{self.name}' is OPEN. "
+                        f"Service temporarily unavailable. Retry in a few seconds."
+                    )
         
         try:
-            # Call the function
+            # Call the function (outside the lock — function may take time)
             result = func(*args, **kwargs)
             self._on_success()
             return result
@@ -89,46 +92,48 @@ class CircuitBreaker:
     
     def _on_success(self) -> None:
         """Handle successful call."""
-        self.failure_count = 0
-        
-        if self.state == CircuitState.HALF_OPEN:
-            self.success_count += 1
-            logger.info(
-                f"⚡ [CIRCUIT] {self.name}: Success in HALF_OPEN "
-                f"({self.success_count}/{self.success_threshold})"
-            )
+        with self._lock:
+            self.failure_count = 0
             
-            # Close circuit after threshold
-            if self.success_count >= self.success_threshold:
-                self.state = CircuitState.CLOSED
-                self.last_state_change = datetime.utcnow()
-                logger.info(f"✅ [CIRCUIT] {self.name}: Circuit CLOSED (recovered)")
+            if self.state == CircuitState.HALF_OPEN:
+                self.success_count += 1
+                logger.info(
+                    f"⚡ [CIRCUIT] {self.name}: Success in HALF_OPEN "
+                    f"({self.success_count}/{self.success_threshold})"
+                )
+                
+                # Close circuit after threshold
+                if self.success_count >= self.success_threshold:
+                    self.state = CircuitState.CLOSED
+                    self.last_state_change = datetime.utcnow()
+                    logger.info(f"✅ [CIRCUIT] {self.name}: Circuit CLOSED (recovered)")
     
     def _on_failure(self) -> None:
         """Handle failed call."""
-        self.last_failure_time = datetime.utcnow()
-        
-        if self.state == CircuitState.CLOSED:
-            self.failure_count += 1
-            logger.warning(
-                f"⚡ [CIRCUIT] {self.name}: Failure "
-                f"({self.failure_count}/{self.failure_threshold})"
-            )
+        with self._lock:
+            self.last_failure_time = datetime.utcnow()
             
-            # Open circuit after threshold
-            if self.failure_count >= self.failure_threshold:
+            if self.state == CircuitState.CLOSED:
+                self.failure_count += 1
+                logger.warning(
+                    f"⚡ [CIRCUIT] {self.name}: Failure "
+                    f"({self.failure_count}/{self.failure_threshold})"
+                )
+                
+                # Open circuit after threshold
+                if self.failure_count >= self.failure_threshold:
+                    self.state = CircuitState.OPEN
+                    self.last_state_change = datetime.utcnow()
+                    logger.error(
+                        f"🔴 [CIRCUIT] {self.name}: Circuit OPEN (failures exceeded threshold)"
+                    )
+            elif self.state == CircuitState.HALF_OPEN:
+                # Failure in HALF_OPEN, reopen circuit
                 self.state = CircuitState.OPEN
                 self.last_state_change = datetime.utcnow()
                 logger.error(
-                    f"🔴 [CIRCUIT] {self.name}: Circuit OPEN (failures exceeded threshold)"
+                    f"🔴 [CIRCUIT] {self.name}: Circuit OPEN (failure during recovery)"
                 )
-        elif self.state == CircuitState.HALF_OPEN:
-            # Failure in HALF_OPEN, reopen circuit
-            self.state = CircuitState.OPEN
-            self.last_state_change = datetime.utcnow()
-            logger.error(
-                f"🔴 [CIRCUIT] {self.name}: Circuit OPEN (failure during recovery)"
-            )
     
     def _should_attempt_reset(self) -> bool:
         """Check if enough time has passed to attempt reset."""

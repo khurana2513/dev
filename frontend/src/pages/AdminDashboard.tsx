@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
@@ -64,10 +64,17 @@ export default function AdminDashboard() {
     queryKey: ["adminSiteInsights"],
     queryFn: getAdminSiteInsights,
     staleTime: 2 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
     retry: 1,
     enabled: isAdmin,
   });
+
+  // Set of user IDs currently online (active in last 15 min)
+  const onlineIds = useMemo(
+    () => new Set((siteInsights?.active_currently_students ?? []).map((s) => s.user_id)),
+    [siteInsights?.active_currently_students],
+  );
 
   const { data: studentEngagement } = useQuery<StudentEngagementResponse>({
     queryKey: ["adminStudentEngagement", selectedStudent?.id],
@@ -82,8 +89,8 @@ export default function AdminDashboard() {
   const { data: dashboardData, isLoading: dashboardLoading, isError: dashboardError } = useQuery<AdminDashboardData>({
     queryKey: ["adminDashboard"],
     queryFn: getAdminDashboardData,
-    staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh, no refetch
-    refetchOnMount: false,     // Prevent duplicate fetch in React StrictMode
+    staleTime: 30 * 1000,      // 30s — refetch on re-navigation to keep stats fresh
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
     retry: 2,
   });
@@ -705,27 +712,47 @@ export default function AdminDashboard() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        {student.avatar_url ? (
-                          <img src={student.avatar_url} alt={student.display_name || student.name} className="w-12 h-12 rounded-full" />
-                        ) : (
-                          <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-all">
-                            <UserIcon className="w-6 h-6 text-primary" />
-                          </div>
-                        )}
-                        <div>
+                        <div className="relative flex-shrink-0">
+                          {student.avatar_url ? (
+                            <img src={student.avatar_url} alt={student.display_name || student.name} className="w-12 h-12 rounded-full" />
+                          ) : (
+                            <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-all">
+                              <UserIcon className="w-6 h-6 text-primary" />
+                            </div>
+                          )}
+                          {/* Online / Offline dot */}
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-card ${
+                              onlineIds.has(student.id)
+                                ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]"
+                                : "bg-zinc-600"
+                            }`}
+                            title={onlineIds.has(student.id) ? "Online (active in last 15 min)" : "Offline"}
+                          />
+                        </div>
+                        <div className="min-w-0">
                           <div className="font-bold text-card-foreground group-hover:text-primary transition-colors flex items-center gap-2">
                             {student.display_name || student.name}
                             {student.public_id && (
                               <span className="text-xs font-medium text-muted-foreground">ID: {student.public_id}</span>
                             )}
-
                           </div>
                           <div className="text-sm text-muted-foreground">{student.email}</div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-card-foreground">{student.total_points} pts</div>
-                        <div className="text-xs text-muted-foreground">Total Points</div>
+                      <div className="flex items-center gap-4">
+                        {/* Streak compact */}
+                        {(student.current_streak > 0 || student.longest_streak > 0) && (
+                          <div className="flex items-center gap-1 text-xs" title={`Current: ${student.current_streak} · Best: ${student.longest_streak}`}>
+                            <span style={{ fontSize: "0.85rem", lineHeight: 1 }}>🔥</span>
+                            <span className="font-bold tabular-nums" style={{ color: student.current_streak >= 7 ? "#f97316" : student.current_streak >= 1 ? "#fb923c" : "#64748b" }}>{student.current_streak}</span>
+                            <span className="text-muted-foreground/60">(best {student.longest_streak})</span>
+                          </div>
+                        )}
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-card-foreground">{student.total_points} pts</div>
+                          <div className="text-xs text-muted-foreground">Total Points</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -882,14 +909,30 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="bg-background/50 border border-border rounded-xl p-3 mb-3">
-                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Streak Calendar (All Time)</div>
-                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto scrollbar-premium">
-                        {(studentEngagement?.streak_days_all_time || []).slice(-120).map((d) => (
-                          <div key={d} className="w-2.5 h-2.5 rounded-sm bg-emerald-500/70" title={d} />
-                        ))}
-                      </div>
-                    </div>
+                    {/* ── Streak Summary ─────────────────────────── */}
+                    {(() => {
+                      const cur = studentEngagement?.current_streak ?? selectedStudent.current_streak ?? 0;
+                      const best = studentEngagement?.longest_streak ?? selectedStudent.longest_streak ?? 0;
+                      const flame =
+                        cur >= 60 ? "#c084fc" :
+                        cur >= 30 ? "#facc15" :
+                        cur >= 14 ? "#fb923c" :
+                        cur >= 7  ? "#f97316" :
+                        cur >= 3  ? "#ef4444" :
+                        cur >= 1  ? "#f97316" : "#64748b";
+                      return (
+                        <div className="bg-background/50 border border-border rounded-xl p-3 mb-3 flex items-center gap-3">
+                          <span style={{ fontSize: "1.6rem", filter: cur > 0 ? `drop-shadow(0 0 6px ${flame}cc)` : undefined, lineHeight: 1 }}>🔥</span>
+                          <div className="flex flex-col min-w-0">
+                            <div className="flex items-baseline gap-1.5">
+                              <span style={{ fontSize: "1.25rem", fontWeight: 800, color: flame, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>{cur}</span>
+                              <span className="text-xs font-semibold text-muted-foreground">day streak</span>
+                            </div>
+                            <span className="text-[11px] text-muted-foreground/70 font-medium">Best: {best} days</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     <div className="bg-background/50 border border-border rounded-xl p-3">
                       <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Recent Activity</div>

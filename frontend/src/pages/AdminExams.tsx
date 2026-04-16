@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   examAdminApi,
@@ -8,13 +8,14 @@ import {
   ExamPaperUpdate,
   ExamSessionSummary,
   CockpitResponse,
-  listSavedPapers,
   PaperSummary,
+  paperLibraryApi,
 } from "../lib/examApi";
+import { apiClient } from "../lib/apiClient";
 import {
   ClipboardList, Plus,
   RefreshCw, ChevronDown, ChevronUp, X, Pencil,
-  AlertTriangle, Clock,
+  AlertTriangle, Clock, BookOpen, Trash2, Eye, Library,
 } from "lucide-react";
 
 // ── Timezone helpers ──────────────────────────────────────────────────────────
@@ -61,12 +62,10 @@ function isPast(dateStr: string, timeStr: string): boolean {
   return new Date(`${dateStr}T${timeStr}:00+05:30`).getTime() < Date.now();
 }
 
-/** Auto-generate exam code from title, e.g. "Monthly Test" -> "MON-TES-4321" */
-function generateCode(title: string): string {
-  const words = title.trim().toUpperCase().split(/\s+/).filter(Boolean);
-  const prefix = words.map((w) => w.slice(0, 3)).join("-").slice(0, 10);
-  const suffix = String(Date.now()).slice(-4);
-  return prefix ? `${prefix}-${suffix}` : `EX-${suffix}`;
+/** Fetch a server-guaranteed unique exam code (E + 5 chars). */
+async function fetchUniqueExamCode(): Promise<string> {
+  const data = await apiClient.get<{ exam_code: string }>("/exam/generate-code");
+  return data.exam_code;
 }
 
 function fmtDur(seconds: number): string {
@@ -228,14 +227,7 @@ function ExamFields({ form, setForm, papers, loadingPapers, hideCodeAndPaper }: 
           className={inp}
           placeholder="e.g. AB-3 Monthly Test"
           value={form.title}
-          onChange={(e) => {
-            const title = e.target.value;
-            setForm((f) => ({
-              ...f,
-              title,
-              exam_code: f.exam_code ? f.exam_code : generateCode(title),
-            }));
-          }}
+          onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
         />
       </div>
 
@@ -262,11 +254,12 @@ function ExamFields({ form, setForm, papers, loadingPapers, hideCodeAndPaper }: 
             )}
             {papers.length === 0 && !loadingPapers && (
               <p className="text-zinc-500 text-xs mt-1">
-                No papers yet.{" "}
+                No exam papers saved yet.{" "}
                 <Link href="/create/basic" className="text-indigo-400 underline">
-                  Create one first
+                  Create a paper
                 </Link>
-                .
+                , generate a preview, then click{" "}
+                <span className="text-green-400 font-semibold">Save to Exam Library</span>.
               </p>
             )}
           </div>
@@ -274,17 +267,32 @@ function ExamFields({ form, setForm, papers, loadingPapers, hideCodeAndPaper }: 
           {/* Exam code */}
           <div>
             <label className={lbl}>Exam Code *</label>
-            <input
-              className={inp}
-              placeholder="Auto-generated from title"
-              value={form.exam_code}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, exam_code: e.target.value.toUpperCase() }))
-              }
-              maxLength={20}
-            />
+            <div className="flex gap-2">
+              <input
+                className={inp}
+                placeholder="Loading…"
+                value={form.exam_code}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, exam_code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) }))
+                }
+                maxLength={6}
+              />
+              <button
+                type="button"
+                title="Get a fresh unique code from the server"
+                onClick={async () => {
+                  try {
+                    const code = await fetchUniqueExamCode();
+                    setForm((f) => ({ ...f, exam_code: code }));
+                  } catch {}
+                }}
+                className="px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-white transition-colors flex-shrink-0"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
             <p className="text-zinc-600 text-xs mt-1">
-              Students enter this code to join. You can customise it.
+              6-character code (E prefix). Click ↺ to regenerate a unique server-issued code.
             </p>
           </div>
         </>
@@ -419,10 +427,15 @@ function CreateModal({
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    listSavedPapers()
+    // Use exam-library papers only (those saved after preview with locked seed)
+    paperLibraryApi.list()
       .then(setPapers)
       .catch(() => setPapers([]))
       .finally(() => setLoadingPapers(false));
+    // Fetch a server-guaranteed unique code on mount
+    fetchUniqueExamCode()
+      .then((code) => setForm((f) => ({ ...f, exam_code: code })))
+      .catch(() => {});
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -649,15 +662,32 @@ function ExamCard({ exam, refetch }: { exam: ExamPaper; refetch: () => void }) {
   }
 
   useEffect(() => {
-    if (expanded && isLive) {
-      loadCockpit();
-      pollRef.current = setInterval(loadCockpit, 5_000);
+    if (!expanded) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      return;
     }
+
+    // Always load sessions when expanded
+    loadSessions();
+
+    if (isLive) {
+      // Live: poll cockpit + sessions every 5 s for real-time stats
+      loadCockpit();
+      pollRef.current = setInterval(() => {
+        loadCockpit();
+        loadSessions();
+      }, 5_000);
+    } else if (exam.status === "published") {
+      // Published: students are in the waiting room — poll sessions every 5 s
+      // so admin can see who has joined without refreshing the page
+      pollRef.current = setInterval(loadSessions, 5_000);
+    }
+
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, isLive]);
+  }, [expanded, isLive, exam.status]);
 
   async function sendAnnounce() {
     if (!announceMsg.trim()) return;
@@ -688,7 +718,6 @@ function ExamCard({ exam, refetch }: { exam: ExamPaper; refetch: () => void }) {
           className="flex items-center gap-3 p-4 cursor-pointer hover:bg-zinc-800/40 transition-colors"
           onClick={() => {
             setExpanded((v) => !v);
-            if (!sessions && !expanded) loadSessions();
           }}
         >
           <span
@@ -895,6 +924,7 @@ function ExamCard({ exam, refetch }: { exam: ExamPaper; refetch: () => void }) {
 export default function AdminExams() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [activeTab, setActiveTab] = useState<"exams" | "library">("exams");
 
   const {
     data: exams = [],
@@ -907,8 +937,31 @@ export default function AdminExams() {
     refetchOnWindowFocus: true,
     refetchInterval: (q) => {
       const arr = q.state.data as ExamPaper[] | undefined;
-      return arr?.some((e) => e.status === "live") ? 10_000 : false;
+      return arr?.some((e) => e.status === "live" || e.status === "published") ? 10_000 : false;
     },
+  });
+
+  const {
+    data: libraryPapers = [],
+    isLoading: libraryLoading,
+    refetch: refetchLibrary,
+  } = useQuery<PaperSummary[]>({
+    queryKey: ["exam-paper-library"],
+    queryFn: () => paperLibraryApi.list(),
+    staleTime: 60_000,
+    enabled: activeTab === "library",
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, title }: { id: number; title: string }) =>
+      paperLibraryApi.rename(id, title),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["exam-paper-library"] }),
+  });
+
+  const deletePaperMutation = useMutation({
+    mutationFn: (id: number) => paperLibraryApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["exam-paper-library"] }),
+    onError: (e: unknown) => alert(e instanceof Error ? e.message : "Delete failed"),
   });
 
   const live     = exams.filter((e) => e.status === "live");
@@ -926,140 +979,196 @@ export default function AdminExams() {
     <div className="min-h-screen" style={{ background: "#07070F" }}>
       <div className="max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
               <ClipboardList size={20} className="text-indigo-400" />
-              Exam Control
+              Exam Management
             </h1>
             <p className="text-zinc-600 text-xs mt-0.5">
-              Create, schedule and monitor exams in real-time
+              Create, schedule, monitor exams and manage your paper library
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => refetch()}
-              title="Refresh"
-              className="p-2 text-zinc-600 hover:text-zinc-300 transition-colors"
-            >
-              <RefreshCw size={14} />
-            </button>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              <Plus size={14} /> New Exam
-            </button>
+            {activeTab === "exams" && (
+              <>
+                <button
+                  onClick={() => refetch()}
+                  title="Refresh"
+                  className="p-2 text-zinc-600 hover:text-zinc-300 transition-colors"
+                >
+                  <RefreshCw size={14} />
+                </button>
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition-colors"
+                >
+                  <Plus size={14} /> New Exam
+                </button>
+              </>
+            )}
+            {activeTab === "library" && (
+              <button
+                onClick={() => refetchLibrary()}
+                title="Refresh library"
+                className="p-2 text-zinc-600 hover:text-zinc-300 transition-colors"
+              >
+                <RefreshCw size={14} />
+              </button>
+            )}
           </div>
         </div>
 
-        {isLoading && (
-          <p className="text-center text-zinc-600 py-12">Loading exams\u2026</p>
-        )}
+        {/* Tab switcher */}
+        <div className="flex gap-1 p-1 bg-zinc-900 rounded-xl mb-6">
+          <button
+            onClick={() => setActiveTab("exams")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-semibold rounded-lg transition-colors ${
+              activeTab === "exams"
+                ? "bg-indigo-600 text-white"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <ClipboardList size={14} /> Exams
+          </button>
+          <button
+            onClick={() => setActiveTab("library")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-semibold rounded-lg transition-colors ${
+              activeTab === "library"
+                ? "bg-emerald-600 text-white"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <Library size={14} /> Paper Library
+          </button>
+        </div>
 
-        {!isLoading && exams.length === 0 && (
-          <div className="text-center py-16 border border-dashed border-zinc-800 rounded-2xl">
-            <ClipboardList size={36} className="text-zinc-700 mx-auto mb-3" />
-            <p className="text-zinc-600 text-sm">No exams yet.</p>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="mt-4 text-indigo-400 hover:text-indigo-300 text-sm underline"
-            >
-              Create your first exam
-            </button>
-          </div>
-        )}
+        {/* ── EXAMS TAB ── */}
+        {activeTab === "exams" && (
+          <>
+            {isLoading && (
+              <p className="text-center text-zinc-600 py-12">Loading exams…</p>
+            )}
 
-        {/* Live */}
-        {live.length > 0 && (
-          <section className="mb-6">
-            <p className="text-xs font-bold text-green-400 uppercase tracking-widest mb-3">
-              \u25cf Live Now
-            </p>
-            <div className="space-y-3">
-              {live.map((e) => (
-                <ExamCard key={e.exam_code} exam={e} refetch={refetch} />
-              ))}
-            </div>
-          </section>
-        )}
+            {!isLoading && exams.length === 0 && (
+              <div className="text-center py-16 border border-dashed border-zinc-800 rounded-2xl">
+                <ClipboardList size={36} className="text-zinc-700 mx-auto mb-3" />
+                <p className="text-zinc-600 text-sm">No exams yet.</p>
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="mt-4 text-indigo-400 hover:text-indigo-300 text-sm underline"
+                >
+                  Create your first exam
+                </button>
+              </div>
+            )}
 
-        {/* Upcoming */}
-        {upcoming.length > 0 && (
-          <section className="mb-6">
-            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">
-              Upcoming
-            </p>
-            <div className="space-y-3">
-              {upcoming.map((e) => (
-                <ExamCard key={e.exam_code} exam={e} refetch={refetch} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Past */}
-        {past.length > 0 && (
-          <section className="mb-6">
-            <p className="text-xs font-bold text-zinc-700 uppercase tracking-widest mb-3">Past</p>
-            <div className="space-y-3">
-              {past.map((e) => (
-                <ExamCard key={e.exam_code} exam={e} refetch={refetch} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* FAQ */}
-        {!isLoading && (
-          <details className="mt-8 border border-zinc-800 rounded-xl text-xs text-zinc-600">
-            <summary className="px-4 py-3 cursor-pointer hover:text-zinc-400 font-medium transition-colors">
-              How does the exam flow work? (edge cases & FAQ)
-            </summary>
-            <div className="px-4 pb-4 pt-2 space-y-3">
-              {(
-                [
-                  [
-                    "What is the student flow?",
-                    "Students go to /exam/CODE, enter the code, and land in a waiting room. When you press Start, all waiting screens activate simultaneously with the exam timer.",
-                  ],
-                  [
-                    "What if no one joins?",
-                    "The exam can be started and ended normally. Sessions will simply be empty. You'll see 0 in the cockpit counters.",
-                  ],
-                  [
-                    "What if I publish or start late?",
-                    "No problem. Students join the waiting room whenever it is published. The exam timer only starts when you press Start — duration is always measured from the moment you start.",
-                  ],
-                  [
-                    "Can I create an exam in the past?",
-                    "Yes, but students can't join a waiting room for a past-scheduled time. If you need an immediate exam, set today's time and publish + start right away.",
-                  ],
-                  [
-                    "Why was the time showing 3:30 AM instead of 9:00 AM?",
-                    "This was a timezone bug: the backend stored UTC times without a 'Z' suffix, and the browser was treating them as local IST time. Now fixed — all times are appended with 'Z' before parsing, so they display correctly in IST.",
-                  ],
-                  [
-                    "Can I edit the exam after creating it?",
-                    "Yes — while in Draft or Published state, click 'Edit Exam Details' inside the card. You can change the title, date, time, duration, and open setting. The exam code and source paper cannot be changed.",
-                  ],
-                  [
-                    "What if a student loses connection mid-exam?",
-                    "Answers are saved to localStorage every keystroke and synced to the server every 1.5 s. On reconnect, the full session is restored. The SSE stream reconnects automatically.",
-                  ],
-                  [
-                    "What happens if time runs out?",
-                    "The exam auto-submits all active sessions when the timer expires (grace window: 10 s). You can also manually end the exam at any time with the End Exam button.",
-                  ],
-                ] as [string, string][]
-              ).map(([q, a]) => (
-                <div key={q}>
-                  <p className="text-zinc-400 font-semibold">{q}</p>
-                  <p className="text-zinc-600 mt-0.5">{a}</p>
+            {/* Live */}
+            {live.length > 0 && (
+              <section className="mb-6">
+                <p className="text-xs font-bold text-green-400 uppercase tracking-widest mb-3">
+                  ● Live Now
+                </p>
+                <div className="space-y-3">
+                  {live.map((e) => (
+                    <ExamCard key={e.exam_code} exam={e} refetch={refetch} />
+                  ))}
                 </div>
-              ))}
-            </div>
-          </details>
+              </section>
+            )}
+
+            {/* Upcoming */}
+            {upcoming.length > 0 && (
+              <section className="mb-6">
+                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">
+                  Upcoming
+                </p>
+                <div className="space-y-3">
+                  {upcoming.map((e) => (
+                    <ExamCard key={e.exam_code} exam={e} refetch={refetch} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Past */}
+            {past.length > 0 && (
+              <section className="mb-6">
+                <p className="text-xs font-bold text-zinc-700 uppercase tracking-widest mb-3">Past</p>
+                <div className="space-y-3">
+                  {past.map((e) => (
+                    <ExamCard key={e.exam_code} exam={e} refetch={refetch} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* FAQ */}
+            {!isLoading && (
+              <details className="mt-8 border border-zinc-800 rounded-xl text-xs text-zinc-600">
+                <summary className="px-4 py-3 cursor-pointer hover:text-zinc-400 font-medium transition-colors">
+                  How does the exam flow work? (edge cases & FAQ)
+                </summary>
+                <div className="px-4 pb-4 pt-2 space-y-3">
+                  {(
+                    [
+                      [
+                        "What is the student flow?",
+                        "Students go to /exam/CODE, enter the code, and land in a waiting room. When you press Start, all waiting screens activate simultaneously with the exam timer.",
+                      ],
+                      [
+                        "What if no one joins?",
+                        "The exam can be started and ended normally. Sessions will simply be empty. You'll see 0 in the cockpit counters.",
+                      ],
+                      [
+                        "What if I publish or start late?",
+                        "No problem. Students join the waiting room whenever it is published. The exam timer only starts when you press Start — duration is always measured from the moment you start.",
+                      ],
+                      [
+                        "Can I create an exam in the past?",
+                        "Yes, but students can't join a waiting room for a past-scheduled time. If you need an immediate exam, set today's time and publish + start right away.",
+                      ],
+                      [
+                        "Why was the time showing 3:30 AM instead of 9:00 AM?",
+                        "This was a timezone bug: the backend stored UTC times without a 'Z' suffix, and the browser was treating them as local IST time. Now fixed — all times are appended with 'Z' before parsing, so they display correctly in IST.",
+                      ],
+                      [
+                        "Can I edit the exam after creating it?",
+                        "Yes — while in Draft or Published state, click 'Edit Exam Details' inside the card. You can change the title, date, time, duration, and open setting. The exam code and source paper cannot be changed.",
+                      ],
+                      [
+                        "What if a student loses connection mid-exam?",
+                        "Answers are saved to localStorage every keystroke and synced to the server every 1.5 s. On reconnect, the full session is restored. The SSE stream reconnects automatically.",
+                      ],
+                      [
+                        "What happens if time runs out?",
+                        "The exam auto-submits all active sessions when the timer expires (grace window: 10 s). You can also manually end the exam at any time with the End Exam button.",
+                      ],
+                    ] as [string, string][]
+                  ).map(([q, a]) => (
+                    <div key={q}>
+                      <p className="text-zinc-400 font-semibold">{q}</p>
+                      <p className="text-zinc-600 mt-0.5">{a}</p>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </>
+        )}
+
+        {/* ── PAPER LIBRARY TAB ── */}
+        {activeTab === "library" && (
+          <PaperLibraryTab
+            papers={libraryPapers}
+            isLoading={libraryLoading}
+            onRename={(id, title) => renameMutation.mutate({ id, title })}
+            onDelete={(id) => {
+              if (confirm("Delete this paper? This cannot be undone if it has no linked exams.")) {
+                deletePaperMutation.mutate(id);
+              }
+            }}
+          />
         )}
       </div>
 
@@ -1067,5 +1176,165 @@ export default function AdminExams() {
         <CreateModal onClose={() => setShowCreate(false)} onCreated={onCreated} />
       )}
     </div>
+  );
+}
+
+/* ─── Paper Library Tab ─── */
+interface PaperLibraryTabProps {
+  papers: PaperSummary[];
+  isLoading: boolean;
+  onRename: (id: number, title: string) => void;
+  onDelete: (id: number) => void;
+}
+
+function PaperLibraryTab({ papers, isLoading, onRename, onDelete }: PaperLibraryTabProps) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [previewPaper, setPreviewPaper] = useState<PaperSummary | null>(null);
+  const [previewQuestions, setPreviewQuestions] = useState<unknown[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  async function openPreview(paper: PaperSummary) {
+    setPreviewPaper(paper);
+    setPreviewQuestions(null);
+    setPreviewLoading(true);
+    try {
+      const data = await paperLibraryApi.previewQuestions(paper.id);
+      setPreviewQuestions(data.questions ?? data);
+    } catch {
+      setPreviewQuestions([]);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function startEdit(paper: PaperSummary) {
+    setEditingId(paper.id);
+    setEditTitle(paper.title);
+  }
+
+  function commitEdit(id: number) {
+    if (editTitle.trim()) onRename(id, editTitle.trim());
+    setEditingId(null);
+  }
+
+  if (isLoading) {
+    return <p className="text-center text-zinc-600 py-12">Loading paper library…</p>;
+  }
+
+  if (papers.length === 0) {
+    return (
+      <div className="text-center py-16 border border-dashed border-zinc-800 rounded-2xl">
+        <BookOpen size={36} className="text-zinc-700 mx-auto mb-3" />
+        <p className="text-zinc-500 text-sm font-medium">No papers in the library yet.</p>
+        <p className="text-zinc-700 text-xs mt-1 max-w-xs mx-auto">
+          Go to <span className="text-indigo-400">Practice → Create Paper</span>, generate a preview,
+          then click <span className="text-emerald-400">Save to Exam Library</span>. The paper will
+          appear here with its questions locked.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="space-y-3">
+        {papers.map((paper) => (
+          <div
+            key={paper.id}
+            className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 flex items-center gap-3"
+          >
+            <div className="flex-1 min-w-0">
+              {editingId === paper.id ? (
+                <input
+                  autoFocus
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  onBlur={() => commitEdit(paper.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitEdit(paper.id);
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  className="w-full bg-zinc-800 text-white text-sm rounded-lg px-3 py-1.5 outline-none border border-indigo-500"
+                />
+              ) : (
+                <p className="text-white text-sm font-semibold truncate">{paper.title}</p>
+              )}
+              <p className="text-zinc-600 text-xs mt-0.5">
+                Level {paper.level} · {paper.num_questions} questions ·{" "}
+                <span className="text-emerald-600">Locked</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => openPreview(paper)}
+                title="Preview questions"
+                className="p-2 text-zinc-500 hover:text-indigo-400 transition-colors"
+              >
+                <Eye size={14} />
+              </button>
+              <button
+                onClick={() => startEdit(paper)}
+                title="Rename paper"
+                className="p-2 text-zinc-500 hover:text-yellow-400 transition-colors"
+              >
+                <BookOpen size={14} />
+              </button>
+              <button
+                onClick={() => onDelete(paper.id)}
+                title="Delete paper"
+                className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Preview Modal */}
+      {previewPaper && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+              <div>
+                <p className="text-white font-semibold text-sm">{previewPaper.title}</p>
+                <p className="text-zinc-600 text-xs">Level {previewPaper.level} · {previewPaper.num_questions} questions</p>
+              </div>
+              <button
+                onClick={() => setPreviewPaper(null)}
+                className="text-zinc-500 hover:text-zinc-300 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4">
+              {previewLoading && (
+                <p className="text-zinc-600 text-sm text-center py-8">Loading questions…</p>
+              )}
+              {!previewLoading && previewQuestions && previewQuestions.length === 0 && (
+                <p className="text-zinc-600 text-sm text-center py-8">
+                  Could not load questions for this paper.
+                </p>
+              )}
+              {!previewLoading && previewQuestions && previewQuestions.length > 0 && (
+                <ol className="space-y-3">
+                  {(previewQuestions as Array<{ question?: string; a?: string; b?: string; answer?: string | number }>).map((q, i) => (
+                    <li key={i} className="text-sm">
+                      <p className="text-zinc-300 font-medium">
+                        {i + 1}. {q.question ?? `${q.a} ★ ${q.b}`}
+                      </p>
+                      <p className="text-emerald-500 text-xs mt-0.5">
+                        Answer: {String(q.answer ?? "—")}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

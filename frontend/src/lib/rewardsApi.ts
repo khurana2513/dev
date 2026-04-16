@@ -4,6 +4,7 @@
  */
 
 import apiClient from "./apiClient";
+import { buildApiUrl } from "./apiBase";
 import type {
   RewardsSummary,
   StudentBadgesResponse,
@@ -11,10 +12,6 @@ import type {
   StreakResponse,
   LeaderboardResponse,
   WeeklySummary,
-  SimulationResponse,
-  BadgeDefinition,
-  AdminCacheRebuild,
-  AuditLogEntry,
   SuperJourneyResponse,
   StreakCalendarResponse,
 } from "../types/rewards";
@@ -52,6 +49,24 @@ export async function fetchLeaderboard(
   );
 }
 
+export interface PublicLeaderboardEntry {
+  rank: number;
+  student_name: string;
+  branch: string;
+  course: string;
+  level: string;
+  total_points: number;
+  avatar_url: string | null;
+  org_name: string;
+}
+
+export async function fetchPublicLeaderboard(limit = 10): Promise<{ entries: PublicLeaderboardEntry[]; total: number }> {
+  const url = buildApiUrl(`/rewards/leaderboard/public?limit=${limit}`);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch public leaderboard");
+  return res.json();
+}
+
 export async function fetchStreakCalendar(
   year: number,
   month: number
@@ -67,125 +82,4 @@ export async function fetchWeeklySummary(): Promise<WeeklySummary> {
 
 export async function fetchSuperJourney(): Promise<SuperJourneyResponse> {
   return apiClient.get<SuperJourneyResponse>("/rewards/super-journey");
-}
-
-// ── Admin Endpoints ─────────────────────────────────────────────────
-
-export async function adminAdjustPoints(
-  studentId: number,
-  adjustment: number,
-  reason: string
-): Promise<{ success: boolean; old_total: number; new_total: number }> {
-  return apiClient.post("/admin/rewards/adjust-points", {
-    student_id: studentId,
-    adjustment,
-    reason,
-  });
-}
-
-export async function adminGrantBadge(
-  studentId: number,
-  badgeKey: string
-): Promise<{ success: boolean; badge: Record<string, unknown> }> {
-  return apiClient.post("/admin/rewards/grant-badge", {
-    student_id: studentId,
-    badge_key: badgeKey,
-  });
-}
-
-export async function adminRevokeBadge(
-  studentId: number,
-  badgeKey: string,
-  reason: string
-): Promise<{ success: boolean; message: string }> {
-  return apiClient.post("/admin/rewards/revoke-badge", {
-    student_id: studentId,
-    badge_key: badgeKey,
-    reason,
-  });
-}
-
-export async function adminVoidEvent(
-  eventId: number,
-  reason: string
-): Promise<{ success: boolean; event_id: number; points_reversed: number }> {
-  return apiClient.post("/admin/rewards/void-event", {
-    event_id: eventId,
-    reason,
-  });
-}
-
-export async function adminRunSnapshot(
-  month: number,
-  year: number
-): Promise<Record<string, unknown>> {
-  return apiClient.post("/admin/rewards/run-snapshot", { month, year });
-}
-
-export async function adminSimulateMonth(
-  month: number,
-  year: number
-): Promise<SimulationResponse> {
-  return apiClient.post<SimulationResponse>(
-    "/admin/rewards/simulate-month",
-    { month, year }
-  );
-}
-
-export async function adminRebuildCache(): Promise<{
-  students_updated: number;
-  details: AdminCacheRebuild[];
-}> {
-  return apiClient.post("/admin/rewards/rebuild-cache");
-}
-
-export async function adminFetchAuditLog(
-  page = 1,
-  perPage = 20,
-  studentId?: number
-): Promise<{
-  entries: AuditLogEntry[];
-  total: number;
-  page: number;
-  has_more: boolean;
-}> {
-  const params = new URLSearchParams({
-    page: String(page),
-    per_page: String(perPage),
-  });
-  if (studentId) params.set("student_id", String(studentId));
-  return apiClient.get(`/admin/rewards/audit-log?${params.toString()}`);
-}
-
-export async function adminFetchStudentSummary(
-  studentId: number
-): Promise<RewardsSummary> {
-  return apiClient.get<RewardsSummary>(
-    `/admin/rewards/student/${studentId}/summary`
-  );
-}
-
-export async function adminListBadgeDefinitions(): Promise<BadgeDefinition[]> {
-  return apiClient.get<BadgeDefinition[]>("/admin/rewards/badges");
-}
-
-export async function adminCreateBadge(
-  data: Partial<BadgeDefinition>
-): Promise<{ success: boolean; badge_key: string; id: number }> {
-  return apiClient.post("/admin/rewards/badges", data);
-}
-
-export async function adminUpdateBadge(
-  badgeKey: string,
-  data: Partial<BadgeDefinition>
-): Promise<{ success: boolean }> {
-  return apiClient.put(`/admin/rewards/badges/${badgeKey}`, data);
-}
-
-export async function adminRunStreakReset(): Promise<{
-  success: boolean;
-  reset_count: number;
-  skipped_count: number;
-}> {
-  return apiClient.post("/admin/rewards/run-streak-reset");
 }

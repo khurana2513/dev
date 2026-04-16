@@ -2,13 +2,17 @@ import { Switch, Route } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { SubscriptionProvider } from "./contexts/SubscriptionContext";
+import { TourProvider } from "./contexts/TourContext";
+import { GuidedTourWithRef } from "./components/GuidedTour";
 import { Suspense, lazy, useEffect, useState } from "react";
 import { LoadingScreen } from "./components/LoadingScreen";
 import './styles/loading.css';
 
 import Header from "./components/Header";
+import MobileTabBar from "./components/MobileTabBar";
 import Footer from "./components/Footer";
 import GraceBanner from "./components/GraceBanner";
+import BetaBanner from "./components/BetaBanner";
 import ErrorBoundary from "./components/ErrorBoundary";
 // import Jugnu from "./components/Jugnu";
 import Home from "./pages/Home";
@@ -19,9 +23,7 @@ import { useInactivityDetection } from "./hooks/useInactivityDetection";
 import InactivityWarningModal from "./components/InactivityWarningModal";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
-import { buildApiUrl } from "./lib/apiBase";
 
-const MaintenancePage = lazy(() => import("./pages/MaintenancePage"));
 const PaperCreate = lazy(() => import("./pages/PaperCreate"));
 const PaperAttempt = lazy(() => import("./pages/PaperAttempt"));
 const Mental = lazy(() => import("./pages/Mental"));
@@ -40,18 +42,25 @@ const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const AboutUs = lazy(() => import("./pages/AboutUs"));
 const AccountDeletion = lazy(() => import("./pages/AccountDeletion"));
+const ReportIssue = lazy(() => import("./pages/ReportIssue"));
 const GridMaster = lazy(() => import("./pages/GridMaster"));
+const MagicSquarePage = lazy(() => import("./pages/MagicSquarePage"));
 const SorobanAbacus = lazy(() => import("./pages/SorobanAbacus"));
 const AbacusFlashCards = lazy(() => import("./pages/AbacusFlashCards"));
 const Pricing = lazy(() => import("./pages/Pricing"));
-const AdminAccessControl = lazy(() => import("./pages/AdminAccessControl"));
 const StudentRewards = lazy(() => import("./pages/StudentRewards"));
-const AdminRewards = lazy(() => import("./pages/AdminRewards"));
 const LeaderboardComingSoon = lazy(() => import("./pages/LeaderboardComingSoon"));
 const DuelMode = lazy(() => import("./pages/DuelMode"));
 const NumberNinja = lazy(() => import("./pages/NumberNinja"));
 const AdminExams = lazy(() => import("./pages/AdminExams"));
 const ExamTake = lazy(() => import("./pages/ExamTake"));
+const AdminFees = lazy(() => import("./pages/AdminFees"));
+const StudentFees = lazy(() => import("./pages/StudentFees"));
+const QuotationMaker = lazy(() => import("./pages/QuotationMaker"));
+const AdminOrgDetail = lazy(() => import("./pages/AdminOrgDetail"));
+const AdminOrgs = lazy(() => import("./pages/AdminOrgs"));
+const OrgDashboard = lazy(() => import("./pages/OrgDashboard"));
+const JoinOrg = lazy(() => import("./pages/JoinOrg"));
 const BadgeUnlockCinematic = lazy(() => import("./components/rewards/BadgeUnlockCinematic"));
 const StreakCelebrationOverlay = lazy(() => import("./components/rewards/StreakCelebrationOverlay"));
 const SuperLetterCinematic = lazy(() => import("./components/rewards/SuperLetterCinematic"));
@@ -112,25 +121,6 @@ function AppContent() {
   // Track user inactivity (30 minute warning)
   const { showInactivityWarning, dismissWarning } = useInactivityDetection();
 
-  // ── Maintenance mode gate ──────────────────────────────────────────────
-  const { isAdmin } = useAuth();
-  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string } | null>(null);
-
-  useEffect(() => {
-    fetch(buildApiUrl("/public/maintenance-status"))
-      .then((r) => r.json())
-      .then((d) => setMaintenance(d))
-      .catch(() => setMaintenance({ enabled: false, message: "" })); // fail open
-  }, []);
-
-  if (maintenance?.enabled && !isAdmin) {
-    return (
-      <Suspense fallback={<LoadingScreen />}>
-        <MaintenancePage message={maintenance.message} />
-      </Suspense>
-    );
-  }
-
   return (
     <ErrorBoundary>
       <InactivityWarningModal 
@@ -138,7 +128,7 @@ function AppContent() {
         onDismiss={dismissWarning} 
       />
       <div className="flex flex-col min-h-screen transition-colors duration-300" style={{ background: '#07070F' }}>
-        <Header />        <GraceBanner />        <main className="flex-grow" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        <Header />        <BetaBanner />        <GraceBanner />        <main className="flex-grow" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
           <ErrorBoundary>
             <Suspense fallback={<LoadingScreen />}>
             <Switch>
@@ -253,27 +243,40 @@ function AppContent() {
               </Route>
               <Route path="/leaderboard" component={LeaderboardComingSoon} />
               <Route path="/privacy-policy" component={PrivacyPolicy} />
-              <Route path="/account-deletion" component={AccountDeletion} />
+              <Route path="/account-deletion">
+                <ProtectedRoute>
+                  <AccountDeletion />
+                </ProtectedRoute>
+              </Route>
               <Route path="/terms-of-service" component={TermsOfService} />
               <Route path="/about" component={AboutUs} />
+              <Route path="/report-issue" component={ReportIssue} />
               <Route path="/tools/gridmaster" component={GridMaster} />
-              <Route path="/tools/gridmaster/magic" component={GridMaster} />
+              <Route path="/tools/gridmaster/magic" component={MagicSquarePage} />
               <Route path="/tools/number-ninja" component={NumberNinja} />
               <Route path="/tools/soroban/flashcards" component={AbacusFlashCards} />
               <Route path="/tools/soroban" component={SorobanAbacus} />
-              <Route path="/pricing" component={Pricing} />
-              <Route path="/admin/access-control">
-                <AdminRoute>
-                  <AdminAccessControl />
-                </AdminRoute>
+              <Route path="/pricing">
+                <ProtectedRoute>
+                  <Pricing />
+                </ProtectedRoute>
               </Route>
-              <Route path="/admin/rewards">
-                <AdminRoute>
-                  <AdminRewards />
-                </AdminRoute>
+              <Route path="/paper/shared/:code">
+                <ProtectedRoute>
+                  <SharedPaperView />
+                </ProtectedRoute>
               </Route>
-              <Route path="/paper/shared/:code" component={SharedPaperView} />
-              <Route path="/paper/enter-code" component={EnterCode} />
+              <Route path="/enter-code">
+                <ProtectedRoute>
+                  <EnterCode />
+                </ProtectedRoute>
+              </Route>
+              {/* Legacy redirect: old paper/enter-code links route to unified page */}
+              <Route path="/paper/enter-code">
+                <ProtectedRoute>
+                  <EnterCode />
+                </ProtectedRoute>
+              </Route>
               <Route path="/admin/exams">
                 <AdminRoute>
                   <AdminExams />
@@ -284,18 +287,55 @@ function AppContent() {
                   <ExamTake />
                 </ProtectedRoute>
               </Route>
+              <Route path="/admin/fees">
+                <AdminRoute>
+                  <AdminFees />
+                </AdminRoute>
+              </Route>
+              <Route path="/admin/quotations">
+                <AdminRoute>
+                  <QuotationMaker />
+                </AdminRoute>
+              </Route>
+              <Route path="/admin/orgs/:id">
+                <AdminRoute>
+                  <AdminOrgDetail />
+                </AdminRoute>
+              </Route>
+              <Route path="/admin/orgs">
+                <AdminRoute>
+                  <AdminOrgs />
+                </AdminRoute>
+              </Route>
+              <Route path="/org-dashboard">
+                <ProtectedRoute>
+                  <OrgDashboard />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/join">
+                <ProtectedRoute>
+                  <JoinOrg />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/fees">
+                <ProtectedRoute>
+                  <StudentFees />
+                </ProtectedRoute>
+              </Route>
               <Route component={NotFound} />
             </Switch>
             </Suspense>
           </ErrorBoundary>
         </main>
         <Footer />
+        <MobileTabBar />
       </div>
       <Suspense fallback={null}>
         <BadgeUnlockCinematic />
         <StreakCelebrationOverlay />
         <SuperLetterCinematic />
       </Suspense>
+      <GuidedTourWithRef />
       {/* <Jugnu /> */}
     </ErrorBoundary>
   );
@@ -335,11 +375,13 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SubscriptionProvider>
+          <TourProvider>
           <NetworkGuard>
             <AppContent />
             <PWAInstallPrompt />
             <PWAUpdatePrompt />
           </NetworkGuard>
+          </TourProvider>
         </SubscriptionProvider>
       </AuthProvider>
     </QueryClientProvider>

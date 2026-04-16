@@ -142,6 +142,7 @@ class TaskQueue:
         
         ✓ FIXED: Previously called task.execute() synchronously, blocking the HTTP response.
         ✓ Now spawns a daemon thread so the caller returns immediately.
+        ✓ Auto-cleans completed tasks older than 5 minutes to prevent unbounded memory growth.
         """
         task = BackgroundTask(
             func=func,
@@ -151,6 +152,15 @@ class TaskQueue:
         
         with self._lock:
             self.tasks[task.task_id] = task
+            # Opportunistic cleanup — remove completed tasks older than 5 minutes
+            # so the dict never grows unbounded over days of uptime.
+            cutoff = datetime.utcnow() - timedelta(minutes=5)
+            stale = [
+                tid for tid, t in self.tasks.items()
+                if t.completed_at and t.completed_at < cutoff
+            ]
+            for tid in stale:
+                del self.tasks[tid]
         
         # Run in background thread (non-blocking)
         thread = threading.Thread(

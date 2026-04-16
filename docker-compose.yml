@@ -1,0 +1,68 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Local Development Stack
+#
+# Usage:
+#   docker compose up          → start backend + postgres + redis
+#   docker compose up -d       → same, detached
+#   docker compose down        → stop everything
+#   docker compose down -v     → stop + delete database volume (reset data)
+#
+# Frontend is NOT in Docker (Vite HMR is faster natively):
+#   cd frontend && npm run dev
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: talenthub
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: talenthub_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U talenthub -d talenthub_dev"]
+      interval: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://talenthub:localdev@db:5432/talenthub_dev
+      SECRET_KEY: local-dev-secret-change-before-prod
+      APP_ENV: development
+      REDIS_URL: redis://redis:6379/0
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    volumes:
+      # Mount source code for hot-reload (uvicorn --reload)
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 5000 --reload
+
+volumes:
+  pgdata:

@@ -27,7 +27,8 @@ router = APIRouter(prefix="/papers", tags=["shared-papers"])
 # ── Constants ────────────────────────────────────────────────────────────────
 
 CODE_LENGTH = 6
-CODE_ALPHABET = string.ascii_uppercase + string.digits  # A-Z 0-9 → 36^6 ≈ 2.2 billion codes
+SAFE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I — visually unambiguous
+CODE_ALPHABET = string.ascii_uppercase + string.digits  # kept for compatibility
 EXPIRY_HOURS = 24
 MAX_ACTIVE_SHARES_PER_USER = 10
 
@@ -60,9 +61,9 @@ class SharedPaperOut(BaseModel):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _generate_code(db: Session, max_attempts: int = 10) -> str:
-    """Generate a unique share code with collision check."""
+    """Generate a unique P-prefixed share code: P + 5 safe alphanumeric chars."""
     for _ in range(max_attempts):
-        code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
+        code = "P" + "".join(secrets.choice(SAFE_CHARS) for _ in range(5))
         exists = db.query(SharedPaper.id).filter(SharedPaper.code == code).first()
         if not exists:
             return code

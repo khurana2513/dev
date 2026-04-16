@@ -46,9 +46,13 @@ export function GridGame({ onToast }: Props) {
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [wrongFlash, setWrongFlash] = useState<string | null>(null);
   const [recentCell, setRecentCell] = useState<string | null>(null);
-  const [showModal, setShowModal] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFs = () => {
+    if (document.fullscreenElement) { document.exitFullscreen(); }
+    else { containerRef.current?.requestFullscreen?.(); }
+  };
 
   const { secs, reset: resetTimer } = useTimer(running && !paused && !solved);
 
@@ -57,7 +61,7 @@ export function GridGame({ onToast }: Props) {
       if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const tag = (e.target as HTMLElement)?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-        import("@/lib/fullscreen").then(fs => fs.toggleFullscreen());
+        toggleFs();
       }
     };
     const handleFsChange = async () => {
@@ -171,31 +175,6 @@ export function GridGame({ onToast }: Props) {
   return (
     <div ref={containerRef} className={`${styles.wrap}${isFullscreen ? ' ' + styles.wrapFs : ''}`}>
 
-      {/* ── How to Play Modal ── */}
-      {showModal && (
-        <div className={styles.modalOverlay} onClick={() => setShowModal(false)}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2 className={styles.modalTitle}>How to Play — Grid Game</h2>
-              <button className={styles.modalClose} onClick={() => setShowModal(false)}>✕</button>
-            </div>
-            <div className={styles.modalBody}>
-              {HOW_TO_STEPS.map(([title, desc], i) => (
-                <div key={i} className={styles.howStep}>
-                  <div className={styles.stepNum}>{i + 1}</div>
-                  <p><strong>{title}:</strong> {desc}</p>
-                </div>
-              ))}
-              <div className={styles.exampleNote}>
-                <strong>📌 Wrap example (5×5):</strong> Number 15 sits at top-right (row 1, col 5).
-                Moving up+right wraps to bottom-left (row 5, col 1). Since 11 is already there,
-                16 goes directly below 15 at row 2, col 5.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Controls bar ── */}
       <div className={styles.controlsBar}>
         <div className={styles.controlsLeft}>
@@ -232,12 +211,9 @@ export function GridGame({ onToast }: Props) {
               ))}
             </span>
           </button>
-          <button className={`${styles.btn} ${styles.btnInfo}`} onClick={() => setShowModal(true)}>
-            ? How to Play
-          </button>
           <button
             className={`${styles.btn} ${styles.btnGhost}`}
-            onClick={() => { import("@/lib/fullscreen").then(fs => fs.toggleFullscreen()); }}
+            onClick={toggleFs}
             title="Fullscreen (press F)"
           >
             {isFullscreen ? '⛶ Exit' : '⛶ Full'}

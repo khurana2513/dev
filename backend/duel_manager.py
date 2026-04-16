@@ -129,7 +129,7 @@ class DuelManager:
     async def generate_code(self) -> str:
         redis = await _get_redis()
         for _ in range(20):
-            code = "".join(random.choices(CODE_CHARS, k=6))
+            code = "D" + "".join(random.choices(CODE_CHARS, k=5))
             if redis is not None:
                 if not await redis.exists(self._rk(code)):
                     return code

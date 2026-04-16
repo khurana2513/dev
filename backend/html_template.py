@@ -2,6 +2,7 @@
 HTML Template Generator for PDF Export
 Matches the frontend preview structure exactly
 """
+import os
 import re
 from typing import List
 from schemas import PaperConfig, GeneratedBlock
@@ -495,7 +496,7 @@ def generate_html(config: PaperConfig, generated_blocks: List[GeneratedBlock],
     </style>
 </head>
 <body>
-    <div class="watermark">TALENT HUB</div>
+    <div class="watermark">""" + os.getenv("PDF_WATERMARK_TEXT", "TalentHub") + """</div>
     <div class="container">"""
     
     if not answers_only:

@@ -50,3 +50,13 @@ pg_dump \
 
 BYTES="$(wc -c < "${OUTPUT_FILE}")"
 echo "✅  Backup complete — $(( BYTES / 1024 )) KB → ${OUTPUT_FILE}"
+
+# ── Compress ────────────────────────────────────────────────────────────────
+gzip "${OUTPUT_FILE}"
+echo "📦  Compressed → ${OUTPUT_FILE}.gz"
+
+# ── Prune backups older than 30 days ────────────────────────────────────────
+PRUNED=$(find "${BACKUP_DIR}" -name "prod_backup_*.sql.gz" -mtime +30 -print -delete | wc -l)
+if [[ "${PRUNED}" -gt 0 ]]; then
+  echo "🗑️  Pruned ${PRUNED} backup(s) older than 30 days"
+fi

@@ -392,15 +392,17 @@ export default function Login() {
         }} />
 
         {/* ── Sign-In Card ── */}
-        <div style={{
+        <div
+          data-login-card
+          style={{
           position: "relative", zIndex: 10,
-          width: "min(520px, calc(100vw - 48px))",
+          width: "min(520px, calc(100vw - 32px))",
           background: "rgba(15,17,32,0.75)",
           backdropFilter: "blur(32px) saturate(1.4)",
           WebkitBackdropFilter: "blur(32px) saturate(1.4)",
           border: "1px solid rgba(255,255,255,.09)",
           borderRadius: 28,
-          padding: "52px 48px",
+          padding: "clamp(28px, 6vw, 52px) clamp(20px, 6vw, 48px)",
           overflow: "hidden",
           animation: "lg-scale-in .5s cubic-bezier(.4,0,.2,1) both",
           boxShadow: "0 40px 100px rgba(0,0,0,.55), 0 0 0 1px rgba(123,92,229,.08), inset 0 1px 0 rgba(255,255,255,.06)",
@@ -628,7 +630,7 @@ export default function Login() {
         </div>
 
         {/* ── Connection Status Widget ── */}
-        <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 200, maxWidth: "calc(100vw - 40px)", width: "min(380px, calc(100vw - 40px))" }}>
+        <div data-conn-widget style={{ position: "fixed", bottom: 20, right: 20, zIndex: 200, maxWidth: "calc(100vw - 40px)", width: "min(380px, calc(100vw - 40px))" }}>
           <div className={showBackendTest ? "lg-conn-expanded" : ""} style={{
             background: "rgba(15,17,32,.85)",
             backdropFilter: "blur(20px)",

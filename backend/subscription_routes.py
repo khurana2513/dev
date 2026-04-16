@@ -1,6 +1,7 @@
 """User-facing subscription routes: plans, status, initiate & verify payment."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import update as sa_update
 from typing import List, Optional
 from datetime import datetime
 import uuid
@@ -176,12 +177,32 @@ def verify_payment(
         db.commit()
         raise HTTPException(status_code=400, detail="Payment verification failed. Invalid signature.")
 
-    # Mark order success
-    order.status = "success"
-    order.gateway_payment_id = body.gateway_payment_id
-    order.gateway_signature = body.gateway_signature
-    order.completed_at = datetime.utcnow()
+    # Atomically claim the order — only succeeds if status is still 'pending'.
+    # This prevents a second concurrent request from activating the same order twice.
+    rows_updated = db.execute(
+        sa_update(PaymentOrder)
+        .where(PaymentOrder.id == order.id, PaymentOrder.status == "pending")
+        .values(
+            status="success",
+            gateway_payment_id=body.gateway_payment_id,
+            gateway_signature=body.gateway_signature,
+            completed_at=datetime.utcnow(),
+        )
+    ).rowcount
     db.commit()
+
+    if rows_updated == 0:
+        # Another request already processed this order — return the existing subscription.
+        sub = get_active_subscription(db, current_user.id)
+        return SubscriptionActivationOut(
+            success=True,
+            message="Subscription already active.",
+            status="active",
+            expires_at=sub.expires_at if sub else None,
+        )
+
+    # Reload the order after atomic update
+    db.refresh(order)
 
     # Resolve plan
     plan = db.query(SubscriptionPlan).get(order.plan_id)

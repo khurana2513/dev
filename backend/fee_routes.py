@@ -1,7 +1,7 @@
 """API routes for fee management system."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, and_, or_
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, desc, and_, or_, case
 from typing import List, Optional
 from datetime import datetime, timedelta, date
 from timezone_utils import get_ist_now
@@ -15,7 +15,8 @@ from fee_schemas import (
     FeePlanCreate, FeePlanUpdate, FeePlanResponse,
     FeeAssignmentCreate, FeeAssignmentUpdate, FeeAssignmentResponse,
     FeeTransactionCreate, FeeTransactionResponse,
-    StudentFeeSummary, FeeDashboardStats
+    StudentFeeSummary, FeeDashboardStats,
+    MonthlyCollectionPoint, MyFeeStatus,
 )
 
 router = APIRouter(prefix="/fees", tags=["fees"])
@@ -73,7 +74,7 @@ def calculate_effective_fee(plan: FeePlan, custom_amount: Optional[float], disco
 
 
 def calculate_balance(assignment: FeeAssignment, db: Session) -> float:
-    """Calculate current balance for a fee assignment."""
+    """Calculate current balance for a fee assignment (single-period legacy)."""
     total_paid = db.query(func.sum(FeeTransaction.amount)).filter(
         and_(
             FeeTransaction.assignment_id == assignment.id,
@@ -90,6 +91,45 @@ def calculate_balance(assignment: FeeAssignment, db: Session) -> float:
     ).scalar() or 0.0
     
     return max(0.0, assignment.effective_fee_amount - total_paid + total_refunds)
+
+
+def calculate_cumulative_balance(assignment: FeeAssignment, db: Session):
+    """
+    Returns (net_balance, periods_elapsed, total_expected, total_paid_net).
+    Handles recurring fees: if 3 months have passed since start_date and only
+    1 month has been paid, balance correctly reflects 2 months outstanding.
+    """
+    plan = assignment.fee_plan
+    if not plan:
+        plan = db.query(FeePlan).filter(FeePlan.id == assignment.fee_plan_id).first()
+
+    # Total paid (positive transactions)
+    total_paid = db.query(func.sum(FeeTransaction.amount)).filter(
+        FeeTransaction.assignment_id == assignment.id,
+        FeeTransaction.transaction_type == "payment",
+        FeeTransaction.amount > 0,
+    ).scalar() or 0.0
+
+    # Total refunded (negative transactions)
+    total_refunded = db.query(func.sum(func.abs(FeeTransaction.amount))).filter(
+        FeeTransaction.assignment_id == assignment.id,
+        FeeTransaction.transaction_type.in_(["refund", "adjustment"]),
+        FeeTransaction.amount < 0,
+    ).scalar() or 0.0
+
+    net_paid = max(0.0, total_paid - total_refunded)
+
+    if not plan or plan.fee_duration_days <= 0:
+        # One-time fee — no recurring periods
+        return (max(0.0, assignment.effective_fee_amount - net_paid), 1, assignment.effective_fee_amount, net_paid)
+
+    now = get_ist_now()
+    days_elapsed = max(0, (now - assignment.start_date).days)
+    periods_elapsed = (days_elapsed // plan.fee_duration_days) + 1
+    total_expected = periods_elapsed * assignment.effective_fee_amount
+    net_balance = max(0.0, total_expected - net_paid)
+
+    return (net_balance, periods_elapsed, total_expected, net_paid)
 
 
 def get_next_due_date(assignment: FeeAssignment, db: Session) -> Optional[datetime]:
@@ -443,26 +483,24 @@ async def get_student_fee_summary(
         return StudentFeeSummary(
             student_profile_id=student_profile_id,
             student_name=student.display_name or student.full_name or "Unknown",
-            student_public_id=student.public_id
+            student_public_id=student.public_id,
+            branch=student.branch,
+            course=student.course,
+            level=student.level,
         )
-    
-    # Calculate totals
-    total_paid = db.query(func.sum(FeeTransaction.amount)).filter(
-        and_(
-            FeeTransaction.assignment_id == assignment.id,
-            FeeTransaction.transaction_type == "payment",
-            FeeTransaction.amount > 0
-        )
-    ).scalar() or 0.0
-    
-    total_due = assignment.effective_fee_amount
-    balance = calculate_balance(assignment, db)
-    
-    # Load fee_plan relationship before calling get_next_due_date
+
+    # Load fee_plan
     if not assignment.fee_plan:
         assignment.fee_plan = db.query(FeePlan).filter(FeePlan.id == assignment.fee_plan_id).first()
-    
-    # Get last payment date
+
+    # Cumulative balance (recurring-period-aware)
+    cumulative_balance, periods_elapsed, total_expected_cumulative, net_paid = calculate_cumulative_balance(assignment, db)
+    # Legacy single-period balance
+    legacy_balance = calculate_balance(assignment, db)
+
+    total_due = assignment.effective_fee_amount
+
+    # Last payment date
     last_transaction = db.query(FeeTransaction).filter(
         and_(
             FeeTransaction.assignment_id == assignment.id,
@@ -470,34 +508,38 @@ async def get_student_fee_summary(
             FeeTransaction.amount > 0
         )
     ).order_by(desc(FeeTransaction.payment_date)).first()
-    
+
     last_payment_date = last_transaction.payment_date if last_transaction else None
     next_due_date = get_next_due_date(assignment, db)
-    
-    # Check if overdue
+
+    # Overdue check uses cumulative balance
     is_overdue = False
     overdue_days = 0
-    if next_due_date and balance > 0:
+    if cumulative_balance > 0:
         ist_now = get_ist_now()
-        if next_due_date < ist_now:
+        if next_due_date and next_due_date < ist_now:
             is_overdue = True
             overdue_days = (ist_now - next_due_date).days
-    
+
     # Get all transactions
     transactions = db.query(FeeTransaction).filter(
         FeeTransaction.assignment_id == assignment.id
     ).order_by(desc(FeeTransaction.payment_date)).all()
-    
-    assignment.fee_plan = db.query(FeePlan).filter(FeePlan.id == assignment.fee_plan_id).first()
-    
+
     return StudentFeeSummary(
         student_profile_id=student_profile_id,
         student_name=student.display_name or student.full_name or "Unknown",
         student_public_id=student.public_id,
+        branch=student.branch,
+        course=student.course,
+        level=student.level,
         current_assignment=FeeAssignmentResponse.model_validate(assignment),
-        total_paid=total_paid,
+        total_paid=net_paid,
         total_due=total_due,
-        balance=balance,
+        balance=legacy_balance,
+        cumulative_balance=cumulative_balance,
+        periods_elapsed=periods_elapsed,
+        total_expected_cumulative=total_expected_cumulative,
         last_payment_date=last_payment_date,
         next_due_date=next_due_date,
         is_overdue=is_overdue,
@@ -514,99 +556,153 @@ async def get_fee_dashboard_stats(
 ):
     """Get fee management dashboard statistics."""
     try:
-        print(f"🔵 [FEE] get_fee_dashboard_stats called by admin {admin.id}")
         now = get_ist_now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        
-        print(f"🟡 [FEE] Calculating transaction stats...")
-        # Total collected all time
+
+        # ── 1. Transaction aggregates (3 queries → replaces 1 per assignment) ──
         total_collected_all_time = db.query(func.sum(FeeTransaction.amount)).filter(
-            and_(
-                FeeTransaction.transaction_type == "payment",
-                FeeTransaction.amount > 0
-            )
+            FeeTransaction.transaction_type == "payment",
+            FeeTransaction.amount > 0,
         ).scalar() or 0.0
-        
-        # Total collected this month
+
         total_collected_monthly = db.query(func.sum(FeeTransaction.amount)).filter(
-            and_(
-                FeeTransaction.transaction_type == "payment",
-                FeeTransaction.amount > 0,
-                FeeTransaction.payment_date >= month_start
-            )
+            FeeTransaction.transaction_type == "payment",
+            FeeTransaction.amount > 0,
+            FeeTransaction.payment_date >= month_start,
         ).scalar() or 0.0
-        
-        # Total collected today
+
         total_collected_today = db.query(func.sum(FeeTransaction.amount)).filter(
-            and_(
-                FeeTransaction.transaction_type == "payment",
-                FeeTransaction.amount > 0,
-                FeeTransaction.payment_date >= today_start
-            )
+            FeeTransaction.transaction_type == "payment",
+            FeeTransaction.amount > 0,
+            FeeTransaction.payment_date >= today_start,
         ).scalar() or 0.0
-        
-        print(f"🟡 [FEE] Counting active students...")
-        # Active students with fee assignments
-        total_active_students = db.query(func.count(func.distinct(FeeAssignment.student_profile_id))).filter(
-            FeeAssignment.is_active == True
-        ).scalar() or 0
-        
-        print(f"🟡 [FEE] Getting active assignments...")
-        # Calculate total due and overdue counts
-        active_assignments = db.query(FeeAssignment).filter(FeeAssignment.is_active == True).all()
-        print(f"🟡 [FEE] Found {len(active_assignments)} active assignments")
+
+        # ── 2. Active student count (1 query) ─────────────────────────────────
+        total_active_students = db.query(
+            func.count(func.distinct(FeeAssignment.student_profile_id))
+        ).filter(FeeAssignment.is_active == True).scalar() or 0
+
+        # ── 3. Load all active assignments + fee plans in one query ───────────
+        active_assignments = (
+            db.query(FeeAssignment)
+            .filter(FeeAssignment.is_active == True)
+            .options(joinedload(FeeAssignment.fee_plan))
+            .all()
+        )
+
+        if not active_assignments:
+            return FeeDashboardStats(
+                total_fee_collected_all_time=total_collected_all_time,
+                total_fee_collected_monthly=total_collected_monthly,
+                total_fee_collected_today=total_collected_today,
+                total_fees_due=0.0,
+                total_active_students=total_active_students,
+                students_with_due_fees=0,
+                overdue_count=0,
+                due_today_count=0,
+                collection_summary={
+                    "today": total_collected_today,
+                    "this_month": total_collected_monthly,
+                    "all_time": total_collected_all_time,
+                },
+            )
+
+        assignment_ids = [a.id for a in active_assignments]
+
+        # ── 4. Bulk load paid totals per assignment (1 query) ─────────────────
+        paid_rows = db.query(
+            FeeTransaction.assignment_id,
+            func.sum(FeeTransaction.amount).label("total_paid"),
+        ).filter(
+            FeeTransaction.assignment_id.in_(assignment_ids),
+            FeeTransaction.transaction_type == "payment",
+            FeeTransaction.amount > 0,
+        ).group_by(FeeTransaction.assignment_id).all()
+        paid_by_id = {r.assignment_id: float(r.total_paid) for r in paid_rows}
+
+        # ── 5. Bulk load refunded totals per assignment (1 query) ─────────────
+        refund_rows = db.query(
+            FeeTransaction.assignment_id,
+            func.sum(func.abs(FeeTransaction.amount)).label("total_refunded"),
+        ).filter(
+            FeeTransaction.assignment_id.in_(assignment_ids),
+            FeeTransaction.transaction_type.in_(["refund", "adjustment"]),
+            FeeTransaction.amount < 0,
+        ).group_by(FeeTransaction.assignment_id).all()
+        refunded_by_id = {r.assignment_id: float(r.total_refunded) for r in refund_rows}
+
+        # ── 6. Bulk load last payment date per assignment (1 query) ───────────
+        last_payment_rows = db.query(
+            FeeTransaction.assignment_id,
+            func.max(FeeTransaction.payment_date).label("last_payment"),
+        ).filter(
+            FeeTransaction.assignment_id.in_(assignment_ids),
+            FeeTransaction.transaction_type == "payment",
+            FeeTransaction.amount > 0,
+        ).group_by(FeeTransaction.assignment_id).all()
+        last_payment_by_id = {r.assignment_id: r.last_payment for r in last_payment_rows}
+
+        # ── 7. Calculate stats in Python — zero extra DB queries ──────────────
         total_fees_due = 0.0
-        students_with_due = set()
+        students_with_due: set = set()
         overdue_count = 0
         due_today_count = 0
-        
+
         for assignment in active_assignments:
             try:
-                # Load fee_plan relationship before calling get_next_due_date
-                if not assignment.fee_plan:
-                    assignment.fee_plan = db.query(FeePlan).filter(FeePlan.id == assignment.fee_plan_id).first()
-                
-                balance = calculate_balance(assignment, db)
+                plan = assignment.fee_plan
+                paid = paid_by_id.get(assignment.id, 0.0)
+                refunded = refunded_by_id.get(assignment.id, 0.0)
+                net_paid = max(0.0, paid - refunded)
+                last_payment = last_payment_by_id.get(assignment.id)
+
+                if plan and plan.fee_duration_days > 0:
+                    days_elapsed = max(0, (now - assignment.start_date).days)
+                    periods_elapsed = (days_elapsed // plan.fee_duration_days) + 1
+                    total_expected = periods_elapsed * assignment.effective_fee_amount
+                    balance = max(0.0, total_expected - net_paid)
+                else:
+                    balance = max(0.0, assignment.effective_fee_amount - net_paid)
+
                 if balance > 0:
                     total_fees_due += balance
                     students_with_due.add(assignment.student_profile_id)
-                    
-                    next_due = get_next_due_date(assignment, db)
-                    if next_due:
+
+                    # Next due date
+                    if plan and plan.fee_duration_days > 0:
+                        if last_payment:
+                            next_due = last_payment + timedelta(days=plan.fee_duration_days)
+                        else:
+                            next_due = assignment.start_date + timedelta(days=plan.fee_duration_days)
+
                         if next_due < today_start:
                             overdue_count += 1
                         elif next_due.date() == today_start.date():
                             due_today_count += 1
+
             except Exception as e:
-                print(f"⚠️ [FEE] Error processing assignment {assignment.id}: {str(e)}")
+                print(f"⚠️ [FEE] Error processing assignment {assignment.id}: {e}")
                 continue
-        
-        students_with_due_fees = len(students_with_due)
-        
-        # Collection summary
-        collection_summary = {
-            "today": total_collected_today,
-            "this_month": total_collected_monthly,
-            "all_time": total_collected_all_time
-        }
-        
-        print(f"🟢 [FEE] Dashboard stats calculated successfully")
+
         return FeeDashboardStats(
             total_fee_collected_all_time=total_collected_all_time,
             total_fee_collected_monthly=total_collected_monthly,
             total_fee_collected_today=total_collected_today,
             total_fees_due=total_fees_due,
             total_active_students=total_active_students,
-            students_with_due_fees=students_with_due_fees,
+            students_with_due_fees=len(students_with_due),
             overdue_count=overdue_count,
             due_today_count=due_today_count,
-            collection_summary=collection_summary
+            collection_summary={
+                "today": total_collected_today,
+                "this_month": total_collected_monthly,
+                "all_time": total_collected_all_time,
+            },
         )
     except Exception as e:
         import traceback
-        error_msg = f"❌ [FEE] Error in get_fee_dashboard_stats: {str(e)}"
-        print(error_msg)
+        print(f"❌ [FEE] Error in get_fee_dashboard_stats: {e}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to get dashboard stats: {str(e)}")
 
@@ -621,84 +717,255 @@ async def get_students_with_fees(
 ):
     """Get list of students with their fee summaries."""
     try:
-        print(f"🔵 [FEE] get_students_with_fees called by admin {admin.id}")
-        # Get active assignments
-        query = db.query(FeeAssignment).filter(FeeAssignment.is_active == True)
-        
+        # ── 1. Load active assignments (with their fee plans + student profiles) ──
+        query = (
+            db.query(FeeAssignment)
+            .filter(FeeAssignment.is_active == True)
+            .options(
+                joinedload(FeeAssignment.fee_plan),
+                joinedload(FeeAssignment.student_profile),
+            )
+        )
+
         if branch or course:
-            # Join with StudentProfile to filter
             query = query.join(StudentProfile, FeeAssignment.student_profile_id == StudentProfile.id)
             if branch:
                 query = query.filter(StudentProfile.branch == branch)
             if course:
                 query = query.filter(StudentProfile.course == course)
-        
+
         assignments = query.all()
-        print(f"🟡 [FEE] Found {len(assignments)} assignments")
-        
+
+        if not assignments:
+            return []
+
+        assignment_ids = [a.id for a in assignments]
+
+        # ── 2. Bulk load paid totals per assignment (1 query) ─────────────────
+        paid_rows = db.query(
+            FeeTransaction.assignment_id,
+            func.sum(FeeTransaction.amount).label("total_paid"),
+        ).filter(
+            FeeTransaction.assignment_id.in_(assignment_ids),
+            FeeTransaction.transaction_type == "payment",
+            FeeTransaction.amount > 0,
+        ).group_by(FeeTransaction.assignment_id).all()
+        paid_by_id = {r.assignment_id: float(r.total_paid) for r in paid_rows}
+
+        # ── 3. Bulk load refunded totals per assignment (1 query) ─────────────
+        refund_rows = db.query(
+            FeeTransaction.assignment_id,
+            func.sum(func.abs(FeeTransaction.amount)).label("total_refunded"),
+        ).filter(
+            FeeTransaction.assignment_id.in_(assignment_ids),
+            FeeTransaction.transaction_type.in_(["refund", "adjustment"]),
+            FeeTransaction.amount < 0,
+        ).group_by(FeeTransaction.assignment_id).all()
+        refunded_by_id = {r.assignment_id: float(r.total_refunded) for r in refund_rows}
+
+        # ── 4. Bulk load last payment date per assignment (1 query) ───────────
+        last_payment_rows = db.query(
+            FeeTransaction.assignment_id,
+            func.max(FeeTransaction.payment_date).label("last_payment"),
+        ).filter(
+            FeeTransaction.assignment_id.in_(assignment_ids),
+            FeeTransaction.transaction_type == "payment",
+            FeeTransaction.amount > 0,
+        ).group_by(FeeTransaction.assignment_id).all()
+        last_payment_by_id = {r.assignment_id: r.last_payment for r in last_payment_rows}
+
+        # ── 5. Build summaries in Python — zero extra DB queries ──────────────
+        ist_now = get_ist_now()
         summaries = []
+
         for assignment in assignments:
             try:
-                student = db.query(StudentProfile).filter(StudentProfile.id == assignment.student_profile_id).first()
+                student = assignment.student_profile
                 if not student:
                     continue
-                
-                # Load fee_plan relationship before calling get_next_due_date
-                if not assignment.fee_plan:
-                    assignment.fee_plan = db.query(FeePlan).filter(FeePlan.id == assignment.fee_plan_id).first()
-                
-                balance = calculate_balance(assignment, db)
-                next_due = get_next_due_date(assignment, db)
-                is_overdue = False
-                overdue_days = 0
-                
-                if next_due and balance > 0:
-                    ist_now = get_ist_now()
-                    if next_due < ist_now:
-                        is_overdue = True
-                        overdue_days = (ist_now - next_due).days
-                
+
+                plan = assignment.fee_plan
+                paid = paid_by_id.get(assignment.id, 0.0)
+                refunded = refunded_by_id.get(assignment.id, 0.0)
+                net_paid = max(0.0, paid - refunded)
+                last_payment = last_payment_by_id.get(assignment.id)
+
+                if plan and plan.fee_duration_days > 0:
+                    days_elapsed = max(0, (ist_now - assignment.start_date).days)
+                    periods_elapsed = (days_elapsed // plan.fee_duration_days) + 1
+                    total_expected = periods_elapsed * assignment.effective_fee_amount
+                    cumul_balance = max(0.0, total_expected - net_paid)
+                    # Next due date
+                    if last_payment:
+                        next_due = last_payment + timedelta(days=plan.fee_duration_days)
+                    else:
+                        next_due = assignment.start_date + timedelta(days=plan.fee_duration_days)
+                else:
+                    periods_elapsed = 1
+                    total_expected = assignment.effective_fee_amount
+                    cumul_balance = max(0.0, assignment.effective_fee_amount - net_paid)
+                    next_due = None
+
+                simple_balance = max(0.0, assignment.effective_fee_amount - net_paid)
+                is_overdue = cumul_balance > 0 and next_due is not None and next_due < ist_now
+                overdue_days = (ist_now - next_due).days if is_overdue and next_due else 0
+
                 if show_overdue_only and not is_overdue:
                     continue
-                
-                total_paid = db.query(func.sum(FeeTransaction.amount)).filter(
-                    and_(
-                        FeeTransaction.assignment_id == assignment.id,
-                        FeeTransaction.transaction_type == "payment",
-                        FeeTransaction.amount > 0
-                    )
-                ).scalar() or 0.0
-                
-                if not assignment.fee_plan:
-                    assignment.fee_plan = db.query(FeePlan).filter(FeePlan.id == assignment.fee_plan_id).first()
-                
+
                 summaries.append(StudentFeeSummary(
                     student_profile_id=assignment.student_profile_id,
                     student_name=student.display_name or student.full_name or "Unknown",
                     student_public_id=student.public_id,
+                    branch=student.branch,
+                    course=student.course,
+                    level=student.level,
                     current_assignment=FeeAssignmentResponse.model_validate(assignment),
-                    total_paid=total_paid,
+                    total_paid=net_paid,
                     total_due=assignment.effective_fee_amount,
-                    balance=balance,
+                    balance=simple_balance,
+                    cumulative_balance=cumul_balance,
+                    periods_elapsed=periods_elapsed,
+                    total_expected_cumulative=total_expected,
                     next_due_date=next_due,
                     is_overdue=is_overdue,
                     overdue_days=overdue_days,
-                    transactions=[]
+                    transactions=[],
                 ))
             except Exception as e:
-                print(f"⚠️ [FEE] Error processing student {assignment.student_profile_id}: {str(e)}")
-                import traceback
-                print(traceback.format_exc())
+                print(f"⚠️ [FEE] Error processing student {assignment.student_profile_id}: {e}")
                 continue
-        
-        # Sort by overdue days (most overdue first) or by balance
-        summaries.sort(key=lambda x: (x.is_overdue, x.overdue_days, x.balance), reverse=True)
-        
-        print(f"🟢 [FEE] Returning {len(summaries)} student summaries")
+
+        summaries.sort(
+            key=lambda x: (x.is_overdue, x.overdue_days, x.cumulative_balance),
+            reverse=True,
+        )
         return summaries
     except Exception as e:
         import traceback
-        error_msg = f"❌ [FEE] Error in get_students_with_fees: {str(e)}"
-        print(error_msg)
+        print(f"❌ [FEE] Error in get_students_with_fees: {e}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to get students with fees: {str(e)}")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /fees/reports/monthly-collection
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/reports/monthly-collection", response_model=list)
+async def get_monthly_collection_report(
+    months: int = Query(6, ge=1, le=24),
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Return per-month collection breakdown for the last N months."""
+    import calendar as _cal
+    now = get_ist_now()
+
+    results = []
+    for i in range(months - 1, -1, -1):
+        # Walk backwards i months from current month
+        target_month = now.month - i
+        target_year = now.year
+        while target_month <= 0:
+            target_month += 12
+            target_year -= 1
+
+        _, last_day = _cal.monthrange(target_year, target_month)
+        month_start = now.replace(year=target_year, month=target_month, day=1,
+                                   hour=0, minute=0, second=0, microsecond=0)
+        month_end = now.replace(year=target_year, month=target_month, day=last_day,
+                                 hour=23, minute=59, second=59, microsecond=999999)
+
+        # All payment transactions in that month
+        txns = db.query(FeeTransaction).filter(
+            FeeTransaction.transaction_type == "payment",
+            FeeTransaction.amount > 0,
+            FeeTransaction.payment_date >= month_start,
+            FeeTransaction.payment_date <= month_end,
+        ).all()
+
+        cash = sum(t.amount for t in txns if t.payment_mode == "cash")
+        online = sum(t.amount for t in txns if t.payment_mode == "online")
+        cheque = sum(t.amount for t in txns if t.payment_mode == "cheque")
+        bank = sum(t.amount for t in txns if t.payment_mode == "bank_transfer")
+        total = sum(t.amount for t in txns)
+
+        month_label = month_start.strftime("%b %y")  # e.g. "Jan 25"
+        results.append({
+            "month": month_start.strftime("%Y-%m"),
+            "month_label": month_label,
+            "total": round(total, 2),
+            "cash": round(cash, 2),
+            "online": round(online, 2),
+            "cheque": round(cheque, 2),
+            "bank_transfer": round(bank, 2),
+            "count": len(txns),
+        })
+
+    return results
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /fees/my  — student-facing own fee status
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/my", response_model=MyFeeStatus)
+async def get_my_fee_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the current student's own fee status and recent transactions."""
+    student = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+    if not student:
+        return MyFeeStatus(has_plan=False)
+
+    assignment = db.query(FeeAssignment).filter(
+        FeeAssignment.student_profile_id == student.id,
+        FeeAssignment.is_active == True,
+    ).first()
+
+    if not assignment:
+        return MyFeeStatus(has_plan=False)
+
+    # Load fee plan
+    if not assignment.fee_plan:
+        assignment.fee_plan = db.query(FeePlan).filter(FeePlan.id == assignment.fee_plan_id).first()
+
+    plan = assignment.fee_plan
+    cumul_balance, periods_elapsed, total_expected_cumulative, net_paid = calculate_cumulative_balance(assignment, db)
+    legacy_balance = calculate_balance(assignment, db)
+    next_due = get_next_due_date(assignment, db)
+
+    last_txn = db.query(FeeTransaction).filter(
+        FeeTransaction.assignment_id == assignment.id,
+        FeeTransaction.transaction_type == "payment",
+        FeeTransaction.amount > 0,
+    ).order_by(desc(FeeTransaction.payment_date)).first()
+
+    ist_now = get_ist_now()
+    is_overdue = cumul_balance > 0 and next_due is not None and next_due < ist_now
+    overdue_days = (ist_now - next_due).days if is_overdue and next_due else 0
+
+    recent = db.query(FeeTransaction).filter(
+        FeeTransaction.assignment_id == assignment.id,
+    ).order_by(desc(FeeTransaction.payment_date)).limit(10).all()
+
+    return MyFeeStatus(
+        has_plan=True,
+        plan_name=plan.name if plan else None,
+        fee_amount=assignment.effective_fee_amount,
+        fee_period_days=plan.fee_duration_days if plan else None,
+        currency=plan.currency if plan else "INR",
+        balance=legacy_balance,
+        cumulative_balance=cumul_balance,
+        total_paid=net_paid,
+        total_expected_cumulative=total_expected_cumulative,
+        periods_elapsed=periods_elapsed,
+        last_payment_date=last_txn.payment_date if last_txn else None,
+        next_due_date=next_due,
+        is_overdue=is_overdue,
+        overdue_days=overdue_days,
+        recent_transactions=[FeeTransactionResponse.model_validate(t) for t in recent],
+    )
+

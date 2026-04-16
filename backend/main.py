@@ -26,7 +26,7 @@ from schemas import (
     GeneratedBlock, BlockConfig
 )
 from user_schemas import PaperAttemptCreate, PaperAttemptResponse, PaperAttemptDetailResponse, PaperAttemptSubmit
-from auth import get_current_user
+from auth import get_current_user, get_current_admin
 from models import User
 from gamification import calculate_points
 from point_rule_engine import point_rule_engine
@@ -80,14 +80,6 @@ except Exception as e:
     import traceback
     logger.exception("[IMPORT] payment_routes failed: %s", str(e))
 
-admin_access_router = None
-try:
-    from admin_access_routes import router as admin_access_router
-    logger.info("[IMPORT] admin_access_routes loaded")
-except Exception as e:
-    import traceback
-    logger.exception("[IMPORT] admin_access_routes failed: %s", str(e))
-
 reward_router = None
 try:
     from reward_routes import router as reward_router
@@ -95,14 +87,6 @@ try:
 except Exception as e:
     import traceback
     logger.exception("[IMPORT] reward_routes failed: %s", str(e))
-
-admin_reward_router = None
-try:
-    from admin_reward_routes import router as admin_reward_router
-    logger.info("[IMPORT] admin_reward_routes loaded")
-except Exception as e:
-    import traceback
-    logger.exception("[IMPORT] admin_reward_routes failed: %s", str(e))
 
 org_router = None
 try:
@@ -151,6 +135,13 @@ try:
 except Exception as e:
     import traceback
     logger.exception("[IMPORT] fee_routes failed: %s", str(e))
+
+report_router = None
+try:
+    from report_routes import router as report_router
+    logger.info("[IMPORT] report_routes loaded")
+except Exception as e:
+    logger.exception("[IMPORT] report_routes failed: %s", str(e))
 
 app = FastAPI(title="Abacus Paper Generator", version="3.0.0")
 app_start_time = time.monotonic()
@@ -291,15 +282,14 @@ for _name, _rtr in [
     ("maintenance_router", maintenance_router),
     ("subscription_router", subscription_router),
     ("payment_router", payment_router),
-    ("admin_access_router", admin_access_router),
     ("reward_router", reward_router),
-    ("admin_reward_router", admin_reward_router),
     ("org_router", org_router),
     ("template_router", template_router),
     ("shared_paper_router", shared_paper_router),
     ("duel_router", duel_router),
     ("exam_router", exam_router),
     ("fee_router", fee_router),
+    ("report_router", report_router),
 ]:
     if _rtr:
         try:
@@ -341,6 +331,8 @@ async def startup_event() -> None:
                     ("is_open", "BOOLEAN DEFAULT FALSE NOT NULL"),
                     ("is_published", "BOOLEAN DEFAULT FALSE NOT NULL"),
                     ("fixed_seed", "INTEGER"),
+                    ("actual_started_at", "TIMESTAMP"),
+                    ("actual_ended_at", "TIMESTAMP"),
                 ]
                 with _engine.connect() as _conn:
                     for _col_name, _col_def in _needed_cols:
@@ -355,6 +347,31 @@ async def startup_event() -> None:
             logger.info("[STARTUP] exam table columns verified")
         except Exception as _exam_mig_err:
             logger.warning("[STARTUP] exam column migration failed: %s", _exam_mig_err)
+
+        # Ensure papers table has all required columns (handles unmigrated deployments)
+        try:
+            from sqlalchemy import inspect, text
+            from models import engine as _engine
+            _ins2 = inspect(_engine)
+            if "papers" in _ins2.get_table_names():
+                _existing_paper_cols = {c["name"] for c in _ins2.get_columns("papers")}
+                _papers_needed = [
+                    ("fixed_seed",    "INTEGER"),
+                    ("is_exam_paper", "BOOLEAN DEFAULT FALSE"),
+                ]
+                with _engine.connect() as _conn2:
+                    for _pcol_name, _pcol_def in _papers_needed:
+                        if _pcol_name not in _existing_paper_cols:
+                            try:
+                                _conn2.execute(text(f"ALTER TABLE papers ADD COLUMN IF NOT EXISTS {_pcol_name} {_pcol_def}"))
+                                _conn2.commit()
+                                logger.info("[STARTUP] papers migration: added column %s", _pcol_name)
+                            except Exception as _pce:
+                                _conn2.rollback()
+                                logger.warning("[STARTUP] papers migration: could not add %s: %s", _pcol_name, _pce)
+            logger.info("[STARTUP] papers table columns verified")
+        except Exception as _papers_mig_err:
+            logger.warning("[STARTUP] papers column migration failed: %s", _papers_mig_err)
 
         # Run point system migration + seed (idempotent)
         try:
@@ -407,6 +424,13 @@ async def startup_event() -> None:
             start_streak_scheduler()
         except Exception as _streak_sched_err:
             logger.warning("[STARTUP] streak reset scheduler failed to start: %s", _streak_sched_err)
+
+        # Start exam lifecycle scheduler (auto-publish / auto-start / auto-end)
+        try:
+            from exam_scheduler import start_exam_scheduler
+            start_exam_scheduler()
+        except Exception as _exam_sched_err:
+            logger.warning("[STARTUP] exam scheduler failed to start: %s", _exam_sched_err)
 
         # Clean up stale incomplete attempts on startup
         try:
@@ -566,6 +590,107 @@ async def list_papers(skip: int = 0, limit: int = 100, db: Session = Depends(get
     return papers
 
 
+# ── Paper Library (admin-only exam paper management) ─────────────────────────
+
+@app.get("/papers/exam-library", response_model=List[PaperResponse])
+async def list_exam_library_papers(
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin: list all exam-library papers (saved from preview with fixed seed)."""
+    papers = (
+        db.query(Paper)
+        .filter(Paper.is_exam_paper == True)
+        .order_by(Paper.created_at.desc())
+        .all()
+    )
+    result = []
+    for p in papers:
+        pr = PaperResponse.model_validate(p)
+        # Derive total question count from config blocks
+        total_q = 0
+        try:
+            for block in (p.config or {}).get("blocks", []):
+                total_q += int(block.get("count", 0))
+        except Exception:
+            pass
+        pr.num_questions = total_q if total_q > 0 else None
+        result.append(pr)
+    return result
+
+
+@app.delete("/papers/{paper_id}", status_code=204)
+async def delete_paper(
+    paper_id: int,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin: delete a saved paper.  Blocked if any ExamPaper references it."""
+    from exam_models import ExamPaper as EP
+    in_use = db.query(EP.id).filter(EP.paper_id == paper_id).first()
+    if in_use:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete: this paper is linked to one or more exams.",
+        )
+    paper = db.query(Paper).filter(Paper.id == paper_id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    db.delete(paper)
+    db.commit()
+
+
+@app.patch("/papers/{paper_id}", response_model=PaperResponse)
+async def rename_paper(
+    paper_id: int,
+    body: dict,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin: rename a saved paper."""
+    paper = db.query(Paper).filter(Paper.id == paper_id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    new_title = (body.get("title") or "").strip()
+    if not new_title:
+        raise HTTPException(status_code=422, detail="Title cannot be empty")
+    paper.title = new_title
+    db.commit()
+    db.refresh(paper)
+    return paper
+
+
+@app.get("/papers/{paper_id}/preview-questions")
+async def preview_paper_questions(
+    paper_id: int,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin: generate and return questions for a saved paper (uses fixed_seed if set)."""
+    paper = db.query(Paper).filter(Paper.id == paper_id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    seed = paper.fixed_seed or 42
+    try:
+        from schemas import PaperConfig as PC
+        from math_generator import generate_block
+        raw_config = paper.config
+        if isinstance(raw_config, str):
+            import json as _json
+            raw_config = _json.loads(raw_config)
+        config = PC.model_validate(raw_config)
+        questions = []
+        q_id = 1
+        for block in config.blocks:
+            gen = generate_block(block, q_id, seed)
+            for q in gen.questions:
+                questions.append(q.model_dump())
+            q_id += len(gen.questions)
+        return {"paper_id": paper_id, "title": paper.title, "seed": seed, "questions": questions}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to generate questions: {exc}")
+
+
 # IMPORTANT: This route must come BEFORE /papers/{paper_id} to avoid route conflicts
 def cleanup_stale_incomplete_attempts(db: Session, user_id: Optional[int] = None) -> int:
     """Clean up incomplete attempts that are older than the timeout."""
@@ -681,7 +806,9 @@ async def create_paper(paper_data: PaperCreate, db: Session = Depends(get_db)):
     paper = Paper(
         title=paper_data.title,
         level=paper_data.level,
-        config=config.model_dump()
+        config=config.model_dump(),
+        fixed_seed=paper_data.fixed_seed,
+        is_exam_paper=paper_data.is_exam_paper or False,
     )
     db.add(paper)
     db.commit()

@@ -7,6 +7,7 @@ import { useBadgeUnlockStore } from "../stores/badgeUnlockStore";
 import { useStreakCelebrationStore } from "../stores/streakCelebrationStore";
 import { useSuperLetterStore } from "../stores/superLetterStore";
 import { usePointRules, buildPointsLookup } from "../hooks/usePointRules";
+import { useTour, type TourStep, type TourConfig } from "../contexts/TourContext";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ type BurstPlayMode = "classic" | "memory_sequence";
 
 const BURST_DURATION = 60; // 60 seconds
 const MAX_MIX_COMBOS = 10; // Maximum operation combos in a single mix session
-const MEMORY_SEQUENCE_VISIBLE_MS = 3000;
+const MEMORY_SEQUENCE_VISIBLE_MS = 1500;
 
 const BURST_PLAY_MODES: Record<BurstPlayMode, {
   label: string;
@@ -75,7 +76,7 @@ const BURST_PLAY_MODES: Record<BurstPlayMode, {
   memory_sequence: {
     label: "Memory Sequence",
     shortLabel: "Memory",
-    description: "Question is visible for 3 seconds, then disappears while the answer box stays active.",
+    description: "Question is visible for 1.5 seconds, then disappears while the answer box stays active.",
   },
 };
 
@@ -526,6 +527,86 @@ export default function BurstMode() {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
+  // ── Guided Tour ───────────────────────────────────────────────────────────
+  const { startTour, hasSeenTour, isActive: tourActive } = useTour();
+
+  const burstTourSteps: TourStep[] = [
+    {
+      target: "[data-tour='bm-hero']",
+      title: "Welcome to Burst Mode!",
+      content: "60 seconds. Unlimited questions. The fastest way to sharpen your mental math. Let's show you around.",
+      icon: "⚡",
+      placement: "bottom",
+      spotlightPadding: 4,
+      spotlightRadius: 28,
+    },
+    {
+      target: "[data-tour='bm-play-mode']",
+      title: "Pick Your Style",
+      content: "Classic keeps questions visible. Memory Sequence hides them after 1.5 seconds — test your recall under pressure!",
+      icon: "🎮",
+      placement: "bottom",
+      spotlightPadding: 6,
+      spotlightRadius: 18,
+    },
+    {
+      target: "[data-tour='bm-first-card']",
+      title: "Choose an Operation",
+      content: "Tap any card to start practicing that operation. Each one has different difficulty levels and point values.",
+      icon: "📊",
+      placement: "bottom",
+      spotlightPadding: 6,
+      spotlightRadius: 18,
+    },
+    {
+      target: "[data-tour='bm-operations']",
+      title: "10 Operations Available",
+      content: "Tables, Multiplication, Division, Decimals, LCM, GCD, Square Roots, Cube Roots and Percentages. Something for every skill level.",
+      icon: "🎯",
+      placement: "top",
+      spotlightPadding: 8,
+      spotlightRadius: 16,
+    },
+    {
+      target: "[data-tour='bm-mix-mode']",
+      title: "Mix Mode — The Ultimate Challenge",
+      content: "Combine multiple operations into one session. Random questions from all your selected topics in a single 60-second burst!",
+      icon: "🎲",
+      placement: "top",
+      spotlightPadding: 6,
+      spotlightRadius: 18,
+    },
+    {
+      target: "[data-tour='bm-how-to-use']",
+      title: "Need Help Later?",
+      content: "You can always tap this button to see the full guide again, or replay this walkthrough from here.",
+      icon: "📖",
+      placement: "bottom",
+      spotlightPadding: 6,
+      spotlightRadius: 10,
+    },
+  ];
+
+  const burstTourConfig: TourConfig = {
+    id: "burst-mode-tour",
+    steps: burstTourSteps,
+    accent: "#F97316",
+  };
+
+  // Auto-start tour on first visit (only when on select phase)
+  const tourStartedRef = useRef(false);
+  useEffect(() => {
+    if (phase === "select" && !tourStartedRef.current && !hasSeenTour("burst-mode-tour")) {
+      // Delay slightly so DOM elements are rendered
+      const timer = setTimeout(() => {
+        tourStartedRef.current = true;
+        startTour(burstTourConfig);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
   const pageTopRef = useRef<HTMLDivElement>(null);
@@ -647,6 +728,16 @@ export default function BurstMode() {
       o.start(t);
       o.stop(t + dur + 0.01);
     } catch (_) {}
+  }, []);
+
+  // Close AudioContext on unmount to prevent resource leak
+  useEffect(() => {
+    return () => {
+      if (countdownAudioRef.current) {
+        countdownAudioRef.current.close().catch(() => {});
+        countdownAudioRef.current = null;
+      }
+    };
   }, []);
 
   // ── Start game ───────────────────────────────────────────────────────────
@@ -877,7 +968,7 @@ export default function BurstMode() {
         setBackendPoints(savedSession.points_earned);
       }
       // Trigger badge cinematic for any newly unlocked badges
-      const rewardBadges = savedSession?.reward_data?.badges_unlocked;
+      const rewardBadges = (savedSession as any)?.reward_data?.badges_unlocked;
       if (rewardBadges && rewardBadges.length > 0) {
         useBadgeUnlockStore.getState().enqueue(rewardBadges);
       }
@@ -891,15 +982,30 @@ export default function BurstMode() {
           isAllDone: b.badge_key === "super_letter_r",
         })));
       }
-      const streakUpdated = savedSession?.reward_data?.streak_updated;
+      // Capture streak before refresh then compare after to detect streak change
+      const prevStreak = JSON.parse(localStorage.getItem("user_data") || "{}")?.current_streak ?? 0;
       setSessionSaved(true);
       if (refreshUser) {
+        // Brief wait lets the background reward task (streak eval) commit to DB
+        await new Promise((r) => setTimeout(r, 900));
         await refreshUser();
-        // Fire streak celebration AFTER refresh so current_streak is up-to-date
-        if (streakUpdated) {
-          const freshUser = JSON.parse(localStorage.getItem("user_data") || "{}");
-          const newStreak = freshUser?.current_streak ?? 1;
-          useStreakCelebrationStore.getState().trigger(newStreak);
+        // Compare streak before/after to fire celebration
+        const freshUser = JSON.parse(localStorage.getItem("user_data") || "{}");
+        const newStreak = freshUser?.current_streak ?? 0;
+        if (newStreak > prevStreak) {
+          const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+          const newBadgeDays = STREAK_MILESTONES.find((m) => m === newStreak) ?? null;
+          const MILESTONE_NAMES: Record<number, string> = {
+            3: "Starter Flame", 7: "Week Warrior", 14: "Two Week Legend",
+            30: "Monthly Master", 60: "Mythic Warrior", 100: "Eternal Champion",
+          };
+          useStreakCelebrationStore.getState().trigger(newStreak, {
+            prevStreak,
+            pointsEarned: savedSession?.points_earned ?? 0,
+            newBadge: newBadgeDays
+              ? { name: MILESTONE_NAMES[newBadgeDays] ?? `${newBadgeDays}-Day Badge`, days: newBadgeDays, emoji: "🔥" }
+              : null,
+          });
         }
       }
     } catch (err) {
@@ -1042,7 +1148,7 @@ export default function BurstMode() {
               <div style={{ padding: "0 32px 28px", overflowY: "auto", flex: 1 }}>
                 {[
                   { step: "1", title: "Select a Mode", desc: "Choose one of the 10 available math operations to practice — Multiplication, Division, Decimals, LCM, GCD, and more." },
-                  { step: "2", title: "Pick Classic or Memory", desc: "Classic keeps the question visible. Memory Sequence shows each question for 3 seconds, then hides it while you answer from recall." },
+                  { step: "2", title: "Pick Classic or Memory", desc: "Classic keeps the question visible. Memory Sequence shows each question for 1.5 seconds, then hides it while you answer from recall." },
                   { step: "3", title: "Pick Difficulty", desc: "Select your preferred difficulty level (Easy, Medium, or Hard) to match your skill level." },
                   { step: "4", title: "Start the Burst", desc: "Click the start button to begin. A 3-2-1 countdown will prepare you for the challenge." },
                   { step: "5", title: "Answer Quickly", desc: "You have 60 seconds to answer as many questions as possible. Type your answer and press Enter or click the arrow button." },
@@ -1063,7 +1169,7 @@ export default function BurstMode() {
         )}
 
         {/* Hero banner — Glow Crown */}
-        <div style={{ position: "relative", overflow: "hidden", borderRadius: "0 0 28px 28px", padding: "clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)", background: "linear-gradient(145deg, #1A1008 0%, #1F1510 40%, #0E0B08 100%)", borderBottom: "1px solid rgba(249,115,22,.2)" }}>
+        <div data-tour="bm-hero" style={{ position: "relative", overflow: "hidden", borderRadius: "0 0 28px 28px", padding: "clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)", background: "linear-gradient(145deg, #1A1008 0%, #1F1510 40%, #0E0B08 100%)", borderBottom: "1px solid rgba(249,115,22,.2)" }}>
           {/* Atmospheric glow */}
           <div style={{ position: "absolute", top: "-20%", left: "50%", transform: "translateX(-50%)", width: 500, height: 400, background: "radial-gradient(ellipse at center, rgba(249,115,22,.12) 0%, rgba(249,115,22,.04) 50%, transparent 70%)", pointerEvents: "none", animation: "bm-bg-breathe 6s ease-in-out infinite" }} />
           {/* Grid pattern */}
@@ -1082,7 +1188,7 @@ export default function BurstMode() {
             }}>Burst Mode</h1>
             <p style={{ fontFamily: "var(--bm-fb)", fontSize: 16, fontWeight: 300, color: "rgba(255,255,255,.5)", margin: "0 0 16px" }}>
               {selectedPlayMode === "memory_sequence"
-                ? "60 seconds. Question visible for 3 seconds. Recall under pressure."
+                ? "60 seconds. Question visible for 1.5 seconds. Recall under pressure."
                 : "60 seconds. Unlimited questions. Push your speed to the limit."}
             </p>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--bm-burstdim)", border: "1px solid rgba(249,115,22,.22)", borderRadius: 100, padding: "6px 16px", fontFamily: "var(--bm-fm)", fontSize: 12, color: "var(--bm-burst2)" }}>
@@ -1101,7 +1207,11 @@ export default function BurstMode() {
               </button>
             </Link>
             <button
-              onClick={() => setShowGuide(true)}
+              data-tour="bm-how-to-use"
+              onClick={() => {
+                // Start the interactive guided tour (force=true to always show)
+                startTour(burstTourConfig, true);
+              }}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, border: "1px solid rgba(249,115,22,.25)", background: "rgba(249,115,22,.08)", fontFamily: "var(--bm-fm)", fontSize: 11, fontWeight: 600, color: "var(--bm-burst2)", cursor: "pointer", transition: "all .2s", letterSpacing: ".02em" }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,.15)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(249,115,22,.4)"; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,.08)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(249,115,22,.25)"; }}
@@ -1115,7 +1225,7 @@ export default function BurstMode() {
         <div style={{ position: "relative", zIndex: 1 }}>
 
           <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px clamp(12px,3vw,24px) 8px" }}>
-            <div style={{ background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 18, padding: "16px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+            <div data-tour="bm-play-mode" style={{ background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 18, padding: "16px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
               {(Object.entries(BURST_PLAY_MODES) as [BurstPlayMode, typeof BURST_PLAY_MODES[BurstPlayMode]][]).map(([mode, meta]) => {
                 const active = selectedPlayMode === mode;
                 return (
@@ -1145,7 +1255,7 @@ export default function BurstMode() {
           </div>
 
           {/* Mode cards grid */}
-          <div className="bm-modes-grid" style={{ maxWidth: 1100, margin: "0 auto", padding: "clamp(20px,4vw,32px) clamp(12px,3vw,24px) 16px" }}>
+          <div data-tour="bm-operations" className="bm-modes-grid" style={{ maxWidth: 1100, margin: "0 auto", padding: "clamp(20px,4vw,32px) clamp(12px,3vw,24px) 16px" }}>
             {(Object.entries(BURST_OPERATIONS) as [BurstOperationType, BurstConfig][]).map(
               ([key, config], index) => {
                 const range = getPointsRange(key);
@@ -1156,6 +1266,7 @@ export default function BurstMode() {
                 <button
                   key={key}
                   onClick={() => handleSelectOperation(key)}
+                  data-tour={index === 0 ? "bm-first-card" : undefined}
                   className="bm-mode-card"
                   style={{
                     background: "var(--bm-surf)", border: "1px solid var(--bm-bdr)", borderRadius: 18,
@@ -1189,6 +1300,7 @@ export default function BurstMode() {
           {/* Mix Mode banner — full-width below the 10 cards */}
           <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 clamp(12px,3vw,24px) clamp(28px,5vw,44px)" }}>
             <button
+              data-tour="bm-mix-mode"
               onClick={() => { setSelectedCombos([]); setPhase("mix"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
               style={{
                 all: "unset", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -1413,12 +1525,13 @@ export default function BurstMode() {
   if (phase === "config" && selectedOp) {
     const config = BURST_OPERATIONS[selectedOp];
     return (
-      <div style={{ minHeight: "100vh", background: "var(--bm-bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", position: "relative" }}>
-        {/* Backdrop atmosphere */}
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", backdropFilter: "blur(16px)", animation: "bm-fade-in .2s ease both" }} />
-
+      <>
+        {/* Fixed backdrop — covers viewport at all scroll positions */}
+        <div style={{ position: "fixed", inset: 0, zIndex: 350, background: "rgba(0,0,0,.84)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", animation: "bm-fade-in .2s ease both" }} />
+        {/* Fixed scrollable container — allows modal to scroll on short viewports */}
+        <div style={{ position: "fixed", inset: 0, zIndex: 351, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "clamp(16px,3vh,28px) 16px 24px", overflowY: "auto" }}>
         {/* Modal card */}
-        <div style={{ position: "relative", maxWidth: 480, width: "100%", background: "var(--bm-surf)", border: "1px solid var(--bm-bdr2)", borderRadius: 24, overflow: "hidden", animation: "bm-scale-in .28s cubic-bezier(.4,0,.2,1) both", boxShadow: "0 40px 100px rgba(0,0,0,.55), 0 0 60px rgba(249,115,22,.04)" }}>
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 480, width: "100%", background: "var(--bm-surf)", border: "1px solid var(--bm-bdr2)", borderRadius: 24, overflow: "hidden", animation: "bm-scale-in .28s cubic-bezier(.4,0,.2,1) both", boxShadow: "0 40px 100px rgba(0,0,0,.55), 0 0 60px rgba(249,115,22,.04)" }}>
           {/* Top accent bar */}
           <div style={{ height: 3, background: "linear-gradient(90deg, var(--bm-burst), var(--bm-burst2), transparent)" }} />
 
@@ -1504,7 +1617,7 @@ export default function BurstMode() {
             {selectedPlayMode === "memory_sequence" && (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
                 <BookOpen style={{ width: 14, height: 14, color: "var(--bm-purple2)", flexShrink: 0, marginTop: 2 }} />
-                <span style={{ fontFamily: "var(--bm-fb)", fontSize: 13, color: "var(--bm-white2)", lineHeight: 1.5 }}>Each question stays visible for 3 seconds, then disappears while the answer field remains active.</span>
+                <span style={{ fontFamily: "var(--bm-fb)", fontSize: 13, color: "var(--bm-white2)", lineHeight: 1.5 }}>Each question stays visible for 1.5 seconds, then disappears while the answer field remains active.</span>
               </div>
             )}
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
@@ -1532,7 +1645,8 @@ export default function BurstMode() {
             </button>
           </div>
         </div>
-      </div>
+        </div>
+      </>
     );
   }
 
@@ -1632,11 +1746,7 @@ export default function BurstMode() {
             <span style={{ fontFamily: "var(--bm-fm)", fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 800, letterSpacing: "-.02em", display: "inline-block", ...timerStyle }}>
               {formatTime(timeLeft)}
             </span>
-            {selectedPlayMode === "memory_sequence" && (
-              <div style={{ marginTop: 4, fontFamily: "var(--bm-fm)", fontSize: 10, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--bm-burst2)" }}>
-                Prompt hides after 3s
-              </div>
-            )}
+
           </div>
 
           {/* Fullscreen + Live scores */}
@@ -1668,7 +1778,7 @@ export default function BurstMode() {
 
         {/* Question area */}
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", position: "relative", zIndex: 2 }}>
-          <div style={{ width: "100%", maxWidth: 600 }}>
+          <div style={{ width: "100%", maxWidth: "min(900px, 94vw)" }}>
             {/* Question label */}
             <div style={{ fontFamily: "var(--bm-fm)", fontSize: 11, fontWeight: 600, letterSpacing: ".16em", textTransform: "uppercase", color: "var(--bm-muted)", marginBottom: 20 }}>
               {selectedPlayMode === "memory_sequence"
@@ -1698,38 +1808,49 @@ export default function BurstMode() {
                 <div
                   key={`memory-hidden-${currentQuestion.id}`}
                   style={{
-                    width: "100%",
-                    maxWidth: 460,
-                    padding: "24px 28px",
-                    borderRadius: 24,
-                    background: "linear-gradient(135deg, rgba(123,92,229,.08), rgba(249,115,22,.06))",
-                    border: "1px solid rgba(123,92,229,.18)",
-                    boxShadow: "0 18px 48px rgba(0,0,0,.22)",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 14,
                     animation: "bm-fade-in .18s ease both",
                   }}
                 >
-                  <div style={{ fontFamily: "var(--bm-fd)", fontSize: "clamp(28px,4.5vw,40px)", fontWeight: 800, color: "var(--bm-white)", marginBottom: 10, letterSpacing: "-.02em" }}>
-                    Recall and answer
-                  </div>
-                  <div style={{ fontFamily: "var(--bm-fb)", fontSize: 14, lineHeight: 1.6, color: "var(--bm-white2)" }}>
-                    The prompt is hidden now. Keep the question in memory and enter the answer when ready.
+                  <div style={{
+                    width: 72, height: 72, borderRadius: 22,
+                    background: "linear-gradient(135deg, rgba(123,92,229,.18), rgba(249,115,22,.08))",
+                    border: "1px solid rgba(123,92,229,.3)",
+                    boxShadow: "0 0 32px rgba(123,92,229,.14)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 32,
+                  }}>🧠</div>
+                  <div style={{ fontFamily: "var(--bm-fm)", fontSize: 11, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--bm-purple2)" }}>
+                    RECALL
                   </div>
                 </div>
               ) : (
-                <div
-                  key={currentQuestion.id}
-                  className="bm-number-slam"
-                  style={{ fontFamily: "var(--bm-fm)", fontSize: "clamp(84px, 15vw, 165px)", fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: "0 2px" }}
-                >
-                  {currentQuestion.text.replace(" =", "").split(" ").map((token, i) => {
-                    const isOp = ["÷", "×", "+", "−", "-", "of"].includes(token);
-                    return (
-                      <span key={i} style={{ color: isOp ? "var(--bm-burst2)" : "var(--bm-white)", fontSize: isOp ? "0.65em" : undefined, verticalAlign: isOp ? "middle" : undefined, display: "inline-block", margin: "0 2px" }}>
-                        {token}
-                      </span>
-                    );
-                  })}
-                </div>
+                (() => {
+                  const displayText = currentQuestion.text.replace(" =", "");
+                  const len = displayText.length;
+                  // 3 gentle tiers — big on desktop, safe on mobile
+                  // min  = mobile floor (px), mid = vw for natural scaling, max = desktop ceiling
+                  const qFontSize =
+                    len <= 6  ? "clamp(72px, 13vw, 200px)"   :   // e.g. "8 × 7", "96 ÷ 4"
+                    len <= 10 ? "clamp(56px, 10.5vw, 160px)" :   // e.g. "GCD(7, 5)", "LCM(6, 8)"
+                                "clamp(44px, 8vw, 118px)";       // e.g. "LCM(24, 48)", "GCD(48, 72)"
+                  return (
+                    <div
+                      key={currentQuestion.id}
+                      className="bm-number-slam"
+                      style={{ fontFamily: "var(--bm-fm)", fontSize: qFontSize, fontWeight: 800, letterSpacing: "-.03em", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "nowrap", gap: "0 2px", width: "100%", maxWidth: "100%" }}
+                    >
+                      {displayText.split(" ").map((token, i) => {
+                        const isOp = ["÷", "×", "+", "−", "-", "of"].includes(token);
+                        return (
+                          <span key={i} style={{ color: isOp ? "var(--bm-burst2)" : "var(--bm-white)", fontSize: isOp ? "0.65em" : undefined, verticalAlign: isOp ? "middle" : undefined, display: "inline-block", margin: "0 2px", whiteSpace: "nowrap" }}>
+                            {token}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
               )}
             </div>
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
-import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, StudentDashboardData, getMyCertificates, CertificateRecord, getPointsLogs, PointsSummaryResponse } from "../lib/userApi";
+import { getStudentDashboardData, getPracticeSessionDetail, StudentStats, PracticeSessionDetail, StudentDashboardData, CodeSessionSummary, getMyCertificates, CertificateRecord, getPointsLogs, PointsSummaryResponse } from "../lib/userApi";
 import { getStudentMonthlyAttendance, StudentMonthlyAttendance } from "../lib/attendanceApi";
 import { PaperAttempt, getPaperAttempt, PaperAttemptDetail, getPaperAttemptCount } from "../lib/api";
 import { Trophy, Target, Zap, CheckCircle2, XCircle, BarChart3, History, X, Eye, ChevronDown, ChevronUp, RotateCcw, Clock, Loader2, Award, Calendar, TrendingUp, Square } from "lucide-react";
@@ -11,11 +11,11 @@ import { formatDateToIST } from "../lib/timezoneUtils";
 import MathQuestion from "../components/MathQuestion";
 import PointsHistoryList from "../components/rewards/PointsHistoryList";
 
-type SessionFilter = "overall" | "mental_math" | "practice_paper" | "burst_mode";
+type SessionFilter = "overall" | "mental_math" | "practice_paper" | "burst_mode" | "codes";
 
 interface UnifiedSession {
   id: number;
-  type: "mental_math" | "practice_paper" | "burst_mode";
+  type: "mental_math" | "practice_paper" | "burst_mode" | "codes";
   title: string;
   subtitle: string;
   started_at: string;
@@ -197,8 +197,27 @@ export default function StudentDashboard() {
       };
     });
     
+    const codeSessions: UnifiedSession[] = (dashboardData?.code_sessions || []).map((cs: CodeSessionSummary) => ({
+      id: cs.session_id,
+      type: "codes" as const,
+      title: cs.title,
+      subtitle: cs.session_type === "exam" ? "Exam" : cs.session_type === "duel" ? "Duel" : "Shared Paper",
+      started_at: cs.started_at || new Date(0).toISOString(),
+      completed_at: cs.ended_at || null,
+      correct_answers: 0,
+      wrong_answers: 0,
+      accuracy: 0,
+      time_taken: null,
+      points_earned: 0,
+      score: cs.score ?? undefined,
+      total_questions: undefined,
+      // Store extra info for display
+      paper_title: cs.code,
+      paper_level: cs.status,
+    }));
+
     // Combine and sort by started_at (most recent first)
-    const combined = [...mentalMathSessions, ...practicePaperSessions].sort((a, b) => {
+    const combined = [...mentalMathSessions, ...practicePaperSessions, ...codeSessions].sort((a, b) => {
       const dateA = new Date(a.started_at).getTime();
       const dateB = new Date(b.started_at).getTime();
       if (isNaN(dateA) || isNaN(dateB)) {
@@ -220,7 +239,7 @@ export default function StudentDashboard() {
     });
     
     setUnifiedSessions(deduplicated);
-  }, [stats, paperAttempts]); // Only depends on data state, no API calls
+  }, [stats, paperAttempts, dashboardData]); // dashboardData needed for code_sessions
 
   // Removed debug logging useEffect - it was causing unnecessary re-renders and console noise
 
@@ -287,33 +306,14 @@ export default function StudentDashboard() {
   };
 
   const formatTime = (seconds: number) => {
-    // Ensure seconds is a valid number
-    let timeInSeconds = Math.max(0, Number(seconds));
-    
-    // If value is suspiciously large, it might be stored incorrectly
-    // Check if it's in milliseconds (typical session < 1 hour = 3600 seconds)
-    // If > 3600 seconds (1 hour), and looks like milliseconds, convert
-    // A reasonable session is < 3600 seconds (1 hour), so anything > 3600 might be ms
-    if (timeInSeconds > 3600) {
-      // If dividing by 1000 gives a more reasonable value (< 3600 seconds), it was in milliseconds
-      const convertedValue = timeInSeconds / 1000;
-      if (convertedValue < 3600 && convertedValue > 0) {
-        console.warn("⚠️ [DASHBOARD] Time value appears to be in milliseconds, converting:", timeInSeconds, "→", convertedValue);
-        timeInSeconds = convertedValue;
-      } else if (timeInSeconds > 86400) {
-        // If still very large after conversion check, force conversion anyway
-        // This handles cases where session might be > 1 hour but was stored as ms
-        console.warn("⚠️ [DASHBOARD] Time value extremely large, forcing conversion from milliseconds:", timeInSeconds);
-        timeInSeconds = timeInSeconds / 1000;
-      }
-    }
-    
-    // Calculate minutes and seconds (no hours, just m and s)
-    const totalSeconds = Math.floor(timeInSeconds);
-    const mins = Math.floor(totalSeconds / 60);
+    const totalSeconds = Math.floor(Math.max(0, Number(seconds)));
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
     const secs = totalSeconds % 60;
-    
-    // Format: "Xm Ys" or just "Xs" if less than a minute
+
+    if (hrs > 0) {
+      return `${hrs}h ${mins}m ${secs}s`;
+    }
     if (mins === 0) {
       return `${secs}s`;
     }
@@ -411,6 +411,7 @@ export default function StudentDashboard() {
     if (sessionFilter === "mental_math") return session.type === "mental_math";
     if (sessionFilter === "practice_paper") return session.type === "practice_paper";
     if (sessionFilter === "burst_mode") return session.type === "burst_mode";
+    if (sessionFilter === "codes") return session.type === "codes";
     return true;
   });
 
@@ -437,7 +438,7 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div style={{minHeight:"100vh",background:DB.bg,paddingTop:"5.5rem",paddingBottom:"5rem"}}>
+    <div style={{minHeight:"100vh",background:DB.bg,paddingTop:"clamp(4rem,10vw,5.5rem)",paddingBottom:"5rem"}}>
       <style>{`
         @keyframes db-fade-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
         @keyframes db-count-up{from{opacity:0;transform:scale(0.8)}to{opacity:1;transform:scale(1)}}
@@ -554,12 +555,13 @@ export default function StudentDashboard() {
                   Recent Practice Sessions
                 </h2>
                 {/* Filter Buttons */}
-                <div style={{display:"flex",gap:"0.25rem",background:"rgba(255,255,255,0.04)",padding:"0.25rem",borderRadius:"9999px",border:`1px solid ${DB.border}`}}>
+                <div className="db-filter-bar" style={{background:"rgba(255,255,255,0.04)",padding:"0.25rem",borderRadius:"9999px",border:`1px solid ${DB.border}`}}>
                   {([
                     {key:"overall",label:"All",color:DB.purple},
                     {key:"practice_paper",label:"Papers",color:DB.teal},
                     {key:"mental_math",label:"Mental Math",color:DB.purple},
                     {key:"burst_mode",label:"⚡ Burst",color:DB.burst},
+                    {key:"codes",label:"🔑 Codes",color:"#F59E0B"},
                   ] as const).map(({key,label,color})=>(
                     <button
                       key={key}
@@ -578,15 +580,17 @@ export default function StudentDashboard() {
             <>
               <div style={{display:"flex",flexDirection:"column",gap:"0.625rem"}}>
                 {displaySessions.map((session,rowIdx) => {
-                  const typeColor = session.type==="burst_mode"?DB.burst:session.type==="mental_math"?DB.purple:DB.teal;
-                  const typeBadge = session.type==="burst_mode"?"⚡ Burst Mode":session.type==="mental_math"?"Mental Math":"Practice Paper";
+                  const typeColor = session.type==="burst_mode"?DB.burst:session.type==="mental_math"?DB.purple:session.type==="codes"?"#F59E0B":DB.teal;
+                  const typeBadge = session.type==="burst_mode"?"⚡ Burst Mode":session.type==="mental_math"?"Mental Math":session.type==="codes"?`🔑 ${session.subtitle}`:"Practice Paper";
                   return (
                   <div
                     key={`${session.type}-${session.id}`}
                     className="db-sess-row"
                     style={{background:DB.surf2,border:`1px solid ${DB.border}`,borderRadius:"1rem",padding:"clamp(0.75rem,2vw,1rem) clamp(0.75rem,2vw,1.25rem)",cursor:"pointer",display:"flex",alignItems:"center",gap:"0.75rem",animation:`db-slide-row 0.3s ease ${rowIdx*0.05}s both`,borderLeft:`3px solid ${typeColor}`}}
                     onClick={() => {
-                      if (session.type === "mental_math" || session.type === "burst_mode") {
+                      if (session.type === "codes") {
+                        setLocation(`/exam/${session.paper_title}`);
+                      } else if (session.type === "mental_math" || session.type === "burst_mode") {
                         setExpandedSession(expandedSession === session.id ? null : session.id);
                       } else {
                         setSelectedPaperAttempt(selectedPaperAttempt?.id === session.id ? null : paperAttempts.find(p => p.id === session.id) || null);
@@ -601,16 +605,32 @@ export default function StudentDashboard() {
                         </span>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:"0.875rem",fontSize:"0.78rem",flexWrap:"wrap",fontVariantNumeric:"tabular-nums"}}>
-                        <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Score:{" "}<strong style={{color:typeColor,display:"inline-block",minWidth:"4.25rem"}}>{session.score ?? session.correct_answers}/{session.total_questions ?? (session.correct_answers + session.wrong_answers)}</strong></span>
-                        <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Accuracy:{" "}<strong style={{color:typeColor,display:"inline-block",minWidth:"3.5rem"}}>{session.accuracy.toFixed(1)}%</strong></span>
-                        {session.time_taken !== null && session.time_taken !== undefined && (
-                          <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Duration:{" "}<strong style={{color:DB.text,display:"inline-block",minWidth:"3.5rem"}}>{formatTime(session.time_taken)}</strong></span>
+                        {session.type === "codes" ? (
+                          <>
+                            <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Code:{" "}<strong style={{color:typeColor,fontFamily:"monospace"}}>{session.paper_title}</strong></span>
+                            <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Status:{" "}<strong style={{color:DB.text,textTransform:"capitalize"}}>{session.paper_level}</strong></span>
+                            {session.score !== undefined && session.score !== null && (
+                              <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Score:{" "}<strong style={{color:typeColor}}>{session.score}</strong></span>
+                            )}
+                            <span style={{color:DB.muted,display:"inline-flex",alignItems:"center",gap:"0.25rem"}}>
+                              <Clock style={{width:"0.75rem",height:"0.75rem"}} />
+                              {formatDateToIST(session.completed_at || session.started_at)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Score:{" "}<strong style={{color:typeColor,display:"inline-block",minWidth:"4.25rem"}}>{session.score ?? session.correct_answers}/{session.total_questions ?? (session.correct_answers + session.wrong_answers)}</strong></span>
+                            <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Accuracy:{" "}<strong style={{color:typeColor,display:"inline-block",minWidth:"3.5rem"}}>{session.accuracy.toFixed(1)}%</strong></span>
+                            {session.time_taken !== null && session.time_taken !== undefined && (
+                              <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Duration:{" "}<strong style={{color:DB.text,display:"inline-block",minWidth:"3.5rem"}}>{formatTime(session.time_taken)}</strong></span>
+                            )}
+                            <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Points:{" "}<strong style={{color:DB.gold,display:"inline-block",minWidth:"2.5rem"}}>+{session.points_earned}</strong></span>
+                            <span style={{color:DB.muted,display:"inline-flex",alignItems:"center",gap:"0.25rem"}}>
+                              <Clock style={{width:"0.75rem",height:"0.75rem"}} />
+                              {formatDateToIST(session.completed_at || session.started_at)}
+                            </span>
+                          </>
                         )}
-                        <span style={{color:DB.muted,display:"inline-flex",gap:"0.25rem"}}>Points:{" "}<strong style={{color:DB.gold,display:"inline-block",minWidth:"2.5rem"}}>+{session.points_earned}</strong></span>
-                        <span style={{color:DB.muted,display:"inline-flex",alignItems:"center",gap:"0.25rem"}}>
-                          <Clock style={{width:"0.75rem",height:"0.75rem"}} />
-                          {formatDateToIST(session.completed_at || session.started_at)}
-                        </span>
                       </div>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:"0.5rem",flexShrink:0}}>
@@ -618,7 +638,9 @@ export default function StudentDashboard() {
                         className="db-btn-icon"
                         onClick={async (e) => {
                           e.stopPropagation();
-                          if (session.type === "mental_math" || session.type === "burst_mode") {
+                          if (session.type === "codes") {
+                            setLocation(`/exam/${session.paper_title}`);
+                          } else if (session.type === "mental_math" || session.type === "burst_mode") {
                             handleViewSession(session.id);
                           } else {
                             const attemptId = session.id;
@@ -685,7 +707,7 @@ export default function StudentDashboard() {
               <div style={{width:"3.5rem",height:"3.5rem",background:DB.purpleDim,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 1rem",animation:"db-float 3s ease-in-out infinite"}}>
                 <History style={{width:"1.5rem",height:"1.5rem",color:DB.purple}} />
               </div>
-              <p style={{fontSize:"1rem",fontWeight:700,color:DB.text,marginBottom:"0.25rem"}}>No {sessionFilter === "overall" ? "" : sessionFilter === "mental_math" ? "mental math " : "practice paper "}sessions yet</p>
+              <p style={{fontSize:"1rem",fontWeight:700,color:DB.text,marginBottom:"0.25rem"}}>No {sessionFilter === "overall" ? "" : sessionFilter === "mental_math" ? "mental math " : sessionFilter === "codes" ? "code " : sessionFilter === "burst_mode" ? "burst mode " : "practice paper "}sessions yet</p>
               <p style={{fontSize:"0.8rem",color:DB.muted,marginBottom:"1rem"}}>Start practicing to see your progress here!</p>
               <div style={{display:"flex",gap:"0.75rem",justifyContent:"center"}}>
                 {sessionFilter !== "practice_paper" && (

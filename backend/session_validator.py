@@ -20,6 +20,7 @@ class SessionValidator:
     ADD_SUB_FAMILY = frozenset([
         "add_sub", "integer_add_sub", "decimal_add_sub",
         "direct_add_sub", "small_friends_add_sub", "big_friends_add_sub",
+        "intl_add_sub",
     ])
 
     def validate_practice_paper(

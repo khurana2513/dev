@@ -86,6 +86,10 @@ class ExamPaper(Base):
     results_released_at = Column(DateTime, nullable=True)
     show_answers_to_students = Column(Boolean, default=False, nullable=False)
 
+    # ── Actual timing (set when admin/scheduler actually starts/ends) ─────────
+    actual_started_at = Column(DateTime, nullable=True)   # when exam truly went live
+    actual_ended_at = Column(DateTime, nullable=True)     # when exam truly ended
+
     # ── Meta ──────────────────────────────────────────
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)

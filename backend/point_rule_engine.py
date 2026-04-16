@@ -129,7 +129,7 @@ class PointRuleEngine:
             tier_key = self._resolve_row_tier(row_count)
             # Map operation variants to their base for rule lookup
             lookup_op = operation
-            if operation in ("direct_add_sub", "small_friends_add_sub", "big_friends_add_sub", "decimal_add_sub", "intl_add_sub"):
+            if operation in ("direct_add_sub", "small_friends_add_sub", "big_friends_add_sub", "decimal_add_sub"):
                 lookup_op = "add_sub"
             rule = self._get_rule(db, tool, lookup_op, "preset", tier_key)
             if rule:

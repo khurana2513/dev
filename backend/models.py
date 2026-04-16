@@ -27,6 +27,9 @@ class Paper(Base):
     created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     is_public = Column(Boolean, default=False, nullable=True)
     share_code = Column(String(12), unique=True, nullable=True, index=True)
+    # Exam paper fields — set when saving after preview (locks question generation seed)
+    fixed_seed = Column(Integer, nullable=True)       # if set, always generates the same questions
+    is_exam_paper = Column(Boolean, default=False, nullable=True, index=True)  # saved via exam flow
 
 
 class User(Base):

@@ -206,7 +206,7 @@ export default function PaperAttempt() {
     }, 5000); // Save every 5 seconds
     
     return () => clearInterval(interval);
-  }, [paperReady, isSubmitted, attemptId, answers, startTime, currentTime]);
+  }, [paperReady, isSubmitted, attemptId, answers, startTime]);
   
   // Save state on answer changes
   useEffect(() => {

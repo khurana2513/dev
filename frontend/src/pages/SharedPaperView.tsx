@@ -10,7 +10,7 @@ export default function SharedPaperView() {
   const [, params] = useRoute("/paper/shared/:code");
   const code = params?.code?.toUpperCase().trim() || "";
   const [, setLocation] = useLocation();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, isAdmin, loading: authLoading } = useAuth();
 
   const [showAnswers, setShowAnswers] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -421,14 +421,22 @@ export default function SharedPaperView() {
               </button>
             );
           })()}
-          <button
-            onClick={() => handleDownloadPdf(false)}
-            disabled={downloading || timeLeft === 'Expired'}
-            style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px',background:timeLeft === 'Expired' ? 'rgba(255,255,255,0.04)' : 'linear-gradient(135deg,#7B5CE5,#9D7FF0)',borderRadius:14,border:'none',color:timeLeft === 'Expired' ? '#525870' : 'white',fontFamily:'DM Sans,sans-serif',fontWeight:700,fontSize:14,cursor:timeLeft === 'Expired' ? 'not-allowed' : 'pointer',boxShadow:timeLeft === 'Expired' ? 'none' : '0 4px 16px rgba(123,92,229,0.35)',transition:'all 0.2s'}}
-          >
-            <Download style={{width:16,height:16}} />
-            {downloading ? 'Downloading...' : 'Download PDF'}
-          </button>
+          {isAdmin ? (
+            <button
+              onClick={() => handleDownloadPdf(false)}
+              disabled={downloading || timeLeft === 'Expired'}
+              style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px',background:timeLeft === 'Expired' ? 'rgba(255,255,255,0.04)' : 'linear-gradient(135deg,#7B5CE5,#9D7FF0)',borderRadius:14,border:'none',color:timeLeft === 'Expired' ? '#525870' : 'white',fontFamily:'DM Sans,sans-serif',fontWeight:700,fontSize:14,cursor:timeLeft === 'Expired' ? 'not-allowed' : 'pointer',boxShadow:timeLeft === 'Expired' ? 'none' : '0 4px 16px rgba(123,92,229,0.35)',transition:'all 0.2s'}}
+            >
+              <Download style={{width:16,height:16}} />
+              {downloading ? 'Downloading...' : 'Download PDF'}
+            </button>
+          ) : (
+            <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,color:'#525870',fontFamily:'DM Sans,sans-serif',fontWeight:700,fontSize:14,cursor:'not-allowed',opacity:0.5,userSelect:'none'}}>
+              <Download style={{width:16,height:16}} />
+              Download PDF
+              <span style={{position:'absolute',top:-8,right:-8,fontSize:9,fontWeight:800,fontFamily:'DM Sans,sans-serif',background:'linear-gradient(135deg,#7c3aed,#a78bfa)',color:'white',padding:'2px 7px',borderRadius:6,letterSpacing:'0.06em',textTransform:'uppercase'}}>SOON</span>
+            </div>
+          )}
         </div>
 
         {/* ── Share bar ── */}

@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
-from models import User, StudentProfile, get_db, PointsLog, Attempt, PracticeSession, PaperAttempt
+from models import User, StudentProfile, Organization, get_db, PointsLog, Attempt, PracticeSession, PaperAttempt
 from auth import get_current_user
 from reward_models import (
     RewardEvent,
@@ -371,6 +371,58 @@ def get_streak(
         streak_active_today=streak_active_today,
         next_milestone=next_milestone,
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /rewards/leaderboard/public  — No auth, used on public Home page
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/leaderboard/public")
+def get_public_leaderboard(
+    db: Session = Depends(get_db),
+    limit: int = Query(10, ge=1, le=50),
+):
+    """
+    Public top-N all-time leaderboard for the home page.
+    No authentication required. Returns only non-sensitive fields.
+    """
+    rows = (
+        db.query(
+            User.id,
+            User.name,
+            User.total_points.label("total_points"),
+            User.avatar_url,
+            StudentProfile.branch,
+            StudentProfile.course,
+            StudentProfile.level,
+            Organization.name.label("org_name"),
+        )
+        .outerjoin(StudentProfile, StudentProfile.user_id == User.id)
+        .outerjoin(Organization, Organization.id == StudentProfile.org_id)
+        .filter(
+            User.role == "student",
+            User.is_archived == False,
+            User.total_points > 0,
+        )
+        .order_by(desc(User.total_points))
+        .limit(limit)
+        .all()
+    )
+
+    entries = [
+        {
+            "rank": i + 1,
+            "student_name": row.name or "—",
+            "branch": row.branch or "",
+            "course": row.course or "",
+            "level": row.level or "",
+            "total_points": row.total_points or 0,
+            "avatar_url": row.avatar_url,
+            "org_name": row.org_name or "",
+        }
+        for i, row in enumerate(rows)
+    ]
+    return {"entries": entries, "total": len(entries)}
 
 
 # ──────────────────────────────────────────────────────────────────────────────

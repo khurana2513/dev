@@ -1,4 +1,5 @@
 """Layout constants and typography system for professional PDF generation."""
+import os
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
@@ -106,7 +107,7 @@ def draw_page_header(canvas, title: str, level: str):
     
     # Brand name (top right)
     apply_typography(canvas, Typography(FONT_BOLD, 10, colors.HexColor('#666666'), 1.0))
-    canvas.drawRightString(MARGIN_LEFT + USABLE_WIDTH, y, "BlackMonkey")
+    canvas.drawRightString(MARGIN_LEFT + USABLE_WIDTH, y, os.getenv("PDF_WATERMARK_TEXT", "TalentHub"))
     
     # Paper title
     leading = apply_typography(canvas, TYPO_PAPER_TITLE)

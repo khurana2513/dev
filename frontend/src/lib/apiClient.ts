@@ -416,6 +416,7 @@ if (endpoint.startsWith("http")) {
     let lastResponse: Response | undefined;
     let currentUrl = primaryUrl;
     let fallbackUrls = getAlternativeUrls(primaryUrl, endpoint);
+    let hasAttemptedRefresh = false;  // Guard: only attempt token refresh once per request
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -567,9 +568,17 @@ if (endpoint.startsWith("http")) {
           );
         }
 
-        // Handle 401 Unauthorized - attempt token refresh
+        // Handle 401 Unauthorized - attempt token refresh (once only)
         if (lastResponse?.status === 401) {
+          if (hasAttemptedRefresh) {
+            // Already tried refreshing — token is truly invalid, don't loop
+            console.log("❌ [API] 401 after token refresh — user must log in again");
+            clearClientAuthState();
+            throw new Error('Unauthorized: Please log in again.');
+          }
+
           console.log("⚠️ [API] 401 Unauthorized - attempting token refresh");
+          hasAttemptedRefresh = true;
           
           const newToken = await attemptTokenRefresh();
           

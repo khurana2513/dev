@@ -164,6 +164,9 @@ export interface StudentResult {
 // ── Admin API ───────────────────────────────────────────────────────────────
 
 export const examAdminApi = {
+  generateCode: (): Promise<{ exam_code: string }> =>
+    apiClient.get<{ exam_code: string }>("/exam/generate-code"),
+
   createExam: (data: ExamPaperCreate): Promise<ExamPaper> =>
     apiClient.post<ExamPaper>("/exam/", data),
 
@@ -272,6 +275,9 @@ export const examStudentApi = {
     apiClient.get<StudentResult>(
       `/exam/${encodeURIComponent(code)}/result?session_id=${sessionId}`
     ),
+
+  getMyResult: (code: string): Promise<StudentResult> =>
+    apiClient.get<StudentResult>(`/exam/${encodeURIComponent(code)}/my-result`),
 
   logEvent: (
     code: string,
@@ -407,9 +413,36 @@ export interface PaperSummary {
   id: number;
   title: string;
   level: string;
+  num_questions?: number;
   created_at: string;
+  fixed_seed?: number | null;
+  is_exam_paper?: boolean | null;
 }
 
 export async function listSavedPapers(): Promise<PaperSummary[]> {
   return apiClient.get<PaperSummary[]>("/papers");
 }
+
+// ── Exam Paper Library (admin-only) ─────────────────────────────────────────
+
+export const paperLibraryApi = {
+  /** List all exam-library papers (is_exam_paper=true, admin only). */
+  list: (): Promise<PaperSummary[]> =>
+    apiClient.get<PaperSummary[]>("/papers/exam-library"),
+
+  /** Rename a paper. */
+  rename: (id: number, title: string): Promise<PaperSummary> =>
+    apiClient.patch<PaperSummary>(`/papers/${id}`, { title }),
+
+  /** Permanently delete a paper. Blocked if linked to an exam. */
+  delete: (id: number): Promise<void> =>
+    apiClient.delete<void>(`/papers/${id}`),
+
+  /** Preview the exact questions for an exam paper. */
+  previewQuestions: (id: number): Promise<{
+    paper_id: number;
+    title: string;
+    seed: number;
+    questions: Array<{id: number; question: string; answer: number}>;
+  }> => apiClient.get(`/papers/${id}/preview-questions`),
+};

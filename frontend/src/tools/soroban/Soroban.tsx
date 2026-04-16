@@ -787,7 +787,6 @@ export default function Soroban() {
   const [mode, setMode] = useState('positional');
   const [rods, setRods] = useState(() => emptyRods(9));
   const [cfgOpen, setCfgOpen] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
   const [showValue, setShowValue] = useState(true);
   const [tutOpen, setTutOpen] = useState(false);
   const [practiceOpen, setPracticeOpen] = useState(false);
@@ -836,7 +835,7 @@ export default function Soroban() {
   const value  = useMemo(() => computeValue(rods, mode), [rods, mode]);
   const animY  = useBeadSprings(rods);
 
-  const closeAll = useCallback(() => { setCfgOpen(false); setGuideOpen(false); setTutOpen(false); setPracticeOpen(false); }, []);
+  const closeAll = useCallback(() => { setCfgOpen(false); setTutOpen(false); setPracticeOpen(false); }, []);
 
   const toggleFullscreen = useCallback(async () => {
     const fs = await import("@/lib/fullscreen");
@@ -889,7 +888,6 @@ export default function Soroban() {
       <div className="page">
         <Header mode={mode} onModeChange={setMode} rodCount={rodCount}
           cfgOpen={cfgOpen}     onCfgToggle={()=>{closeAll();setCfgOpen(o=>!o)}}
-          guideOpen={guideOpen} onGuideToggle={()=>{closeAll();setGuideOpen(o=>!o)}}
           soundOn={soundOn}     onSoundToggle={()=>setSoundOn(o=>!o)}
           tutOpen={tutOpen}     onTutToggle={()=>{closeAll();setTutOpen(o=>!o)}}
           practiceOpen={practiceOpen} onPracticeToggle={()=>{closeAll();setPracticeOpen(o=>!o)}}
@@ -897,7 +895,6 @@ export default function Soroban() {
         />
 
         <ConfigPanel open={cfgOpen}     rodCount={rodCount} onRodCountChange={setRodCount} onClose={()=>setCfgOpen(false)}/>
-        <GuidePanel  open={guideOpen}   onClose={()=>setGuideOpen(false)}/>
         <FriendsMenu open={tutOpen}     tut={tut} onStartFriend={id=>{tut.startFriend(id);setTutOpen(false);}}/>
         <PracticePanel open={practiceOpen} tut={tut} onPickFriend={id=>{tut.startFriend(id);setPracticeOpen(false);}}/>
 
@@ -1311,12 +1308,11 @@ function Celebration({ friend }: { friend: Friend }) {
 }
 
 // ─── HEADER ──────────────────────────────────────────────────────────────────
-function Header({ mode, onModeChange, rodCount, cfgOpen, onCfgToggle, guideOpen, onGuideToggle,
+function Header({ mode, onModeChange, rodCount, cfgOpen, onCfgToggle,
                   soundOn, onSoundToggle, tutOpen, onTutToggle, practiceOpen, onPracticeToggle,
                   onFullscreenToggle }: {
   mode: string; onModeChange: (m: string) => void; rodCount: number;
   cfgOpen: boolean; onCfgToggle: () => void;
-  guideOpen: boolean; onGuideToggle: () => void;
   soundOn: boolean; onSoundToggle: () => void;
   tutOpen: boolean; onTutToggle: () => void;
   practiceOpen: boolean; onPracticeToggle: () => void;
@@ -1324,13 +1320,6 @@ function Header({ mode, onModeChange, rodCount, cfgOpen, onCfgToggle, guideOpen,
 }) {
   return (
     <header className="hdr">
-      <div className="hdr-brand">
-        <div className="brand-mark"><span className="brand-kanji">算</span></div>
-        <div className="brand-words">
-          <span className="brand-name">Abacus Soroban Tool</span>
-          <span className="brand-sub">Japanese Soroban · Learn & Practice</span>
-        </div>
-      </div>
       <div className="hdr-right">
         <button className={'chip chip-friends'+(tutOpen?' chip-on':'')} onClick={onTutToggle}>
           <span>🤝</span><span>FRIENDS</span>
@@ -1354,10 +1343,6 @@ function Header({ mode, onModeChange, rodCount, cfgOpen, onCfgToggle, guideOpen,
           }
           <span>{soundOn?'SFX ON':'SFX OFF'}</span>
         </button>
-        <button className={'chip'+(guideOpen?' chip-on':'')} onClick={onGuideToggle}>
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.4"/><path d="M7.5 8V7c1.2-.1 2-1 2-2a2 2 0 0 0-4 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><circle cx="7.5" cy="10.5" r="0.8" fill="currentColor"/></svg>
-          <span>GUIDE</span>
-        </button>
         <button className={'chip'+(cfgOpen?' chip-on':'')} onClick={onCfgToggle}>
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="2.3" stroke="currentColor" strokeWidth="1.4"/><path d="M7.5 1v2M7.5 12v2M1 7.5h2M12 7.5h2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
           <span>{rodCount} RODS</span>
@@ -1369,46 +1354,6 @@ function Header({ mode, onModeChange, rodCount, cfgOpen, onCfgToggle, guideOpen,
         </button>
       </div>
     </header>
-  );
-}
-
-// ─── GUIDE PANEL ─────────────────────────────────────────────────────────────
-function GuidePanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  return (
-    <div className={'drawer-wrap'+(open?' drawer-open':'')} style={{maxWidth:660}}>
-      <div className="drawer-card">
-        <div className="drawer-hdr">
-          <span className="drawer-title">HOW THE SOROBAN WORKS</span>
-          <button className="drawer-close" onClick={onClose}>
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 1.5l8 8M9.5 1.5l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
-          </button>
-        </div>
-        <div className="guide-body">
-          <p className="guide-intro">
-            The soroban (算盤) is the Japanese abacus. Each rod has one <strong>heaven bead</strong> (worth 5)
-            and four <strong>earth beads</strong> (worth 1 each). Beads pushed toward the centre bar are active.
-          </p>
-          <div className="guide-grid">
-            {[
-              {i:'⬆',t:'Heaven Bead',  b:'Slide DOWN toward the bar to count 5.'},
-              {i:'⬇',t:'Earth Beads',  b:'Slide UP toward the bar, 1 each.'},
-              {i:'🔴',t:'Red Dot',      b:'Marks the ones column.'},
-              {i:'🔵',t:'Blue Dots',    b:'Mark every ×1000 boundary.'},
-            ].map(s => (
-              <div key={s.t} className="guide-section">
-                <div className="guide-section-hdr"><span style={{fontSize:14}}>{s.i}</span><span className="guide-section-title">{s.t}</span></div>
-                <p className="guide-section-body">{s.b}</p>
-              </div>
-            ))}
-          </div>
-          <div className="guide-friends-summary">
-            <div className="gfs-item gfs-big"><span className="gfs-icon">🔵</span><div><b>Big Friends</b> — pairs that sum to 10</div></div>
-            <div className="gfs-item gfs-small"><span className="gfs-icon">🟡</span><div><b>Small Friends</b> — pairs that sum to 5</div></div>
-            <div className="gfs-item gfs-mix"><span className="gfs-icon">🟠</span><div><b>Mix Friends</b> — Big + Small combined</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -1665,7 +1610,7 @@ function BeadEl({ bx, by, bw, active, kind, onClick, hi }: { bx: number; by: num
 // ─── COLUMN LABELS ────────────────────────────────────────────────────────────
 function ColumnLabels({ layout, rodCount, mode }: { layout: ReturnType<typeof getLayout>; rodCount: number; mode: string }) {
   return (
-    <div className="col-labels" style={{width:layout.w+104}}>
+    <div className="col-labels" style={{width:layout.w, paddingLeft:layout.px - layout.sp/2, paddingRight:0, boxSizing:'border-box'}}>
       {Array.from({length:rodCount}, (_,i) => {
         const dc = dotColor(i, rodCount);
         return (

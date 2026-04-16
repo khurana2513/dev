@@ -121,12 +121,12 @@ function generateSectionName(block: BlockConfig): string {
   } else if (block.type === "vedic_squares_base_1000") {
     return `Squares (Base 1000)`;
   } else if (block.type === "vedic_tables") {
-    const table = block.constraints.tableNumber ?? "111-999";
+    const table = block.constraints.tableNumber ?? "11-99";
     return `Tables (${table})`;
   }
   // Vedic Maths Level 2 operations
   else if (block.type === "vedic_tables_large") {
-    const table = block.constraints.tableNumberLarge ?? "1111-9999";
+    const table = block.constraints.tableNumberLarge ?? "101-999";
     return `Tables Large (${table})`;
   }
   else if (block.type === "vedic_fun_with_9_equal") {
@@ -333,7 +333,7 @@ function generateSectionName(block: BlockConfig): string {
 
 export default function PaperCreate() {
   const [location, setLocation] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const isJuniorPage = location === "/create/junior";
   const isAdvancedPage = location === "/create/advanced";
@@ -379,6 +379,7 @@ export default function PaperCreate() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareResult, setShareResult] = useState<SharedPaper | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [shareCodeCopied, setShareCodeCopied] = useState(false);
 
   const showToast = (msg: string, ok = true) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -452,12 +453,17 @@ export default function PaperCreate() {
     },
   });
 
-  // Mutation: save paper for exams
+  // Mutation: save paper for exams (admin/org-owner only; runs after preview to lock the seed)
   const savePaperMutation = useMutation({
-    mutationFn: createPaper,
+    mutationFn: (opts: { fixed_seed: number }) =>
+      createPaper(
+        { level: level || "Custom", title: title || "Practice Paper", totalQuestions: "20", blocks, orientation: "portrait" },
+        { fixed_seed: opts.fixed_seed, is_exam_paper: true }
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-exams"] });
-      showToast("Paper saved for exams!");
+      queryClient.invalidateQueries({ queryKey: ["exam-paper-library"] });
+      showToast("Paper saved to Exam Library!");
     },
     onError: (err: any) => {
       const msg = err instanceof Error ? err.message : String(err);
@@ -471,6 +477,7 @@ export default function PaperCreate() {
     onSuccess: (result) => {
       setShareResult(result);
       setShareCopied(false);
+      setShareCodeCopied(false);
     },
     onError: (err: any) => {
       const msg = err instanceof Error ? err.message : String(err);
@@ -483,6 +490,7 @@ export default function PaperCreate() {
     if (!previewData) return;
     setShareResult(null);
     setShareCopied(false);
+    setShareCodeCopied(false);
     setShowShareModal(true);
     shareMutation.mutate({
       paper_title: title || "Practice Paper",
@@ -500,13 +508,11 @@ export default function PaperCreate() {
   };
 
   const handleSavePaper = () => {
-    savePaperMutation.mutate({
-      level: level || "Custom",
-      title: title || "Practice Paper",
-      totalQuestions: "20",
-      blocks,
-      orientation: "portrait",
-    });
+    if (!previewData) {
+      alert("Generate a preview first to lock in the exact questions before saving.");
+      return;
+    }
+    savePaperMutation.mutate({ fixed_seed: previewData.seed });
   };
 
   const getShareLink = () => {
@@ -1108,11 +1114,11 @@ export default function PaperCreate() {
         updatedBlock.constraints.percentageMax = 100;  // Percentage max: 100
         updatedBlock.constraints.numberDigits = 4;  // Percentage numberDigits: 4
       } else if (updates.type === "vedic_tables") {
-        // Always reset to vedic_tables default when switching to vedic_tables (111-999 only)
+        // Always reset to vedic_tables default when switching to vedic_tables (11-99 only)
         updatedBlock.constraints.rows = 10;  // Vedic tables rows: 10
         updatedBlock.constraints.tableNumberLarge = undefined;  // Clear large table number
       } else if (updates.type === "vedic_tables_large") {
-        // Always reset to vedic_tables_large default when switching to vedic_tables_large (1111-9999 only)
+        // Always reset to vedic_tables_large default when switching to vedic_tables_large (101-999 only)
         updatedBlock.constraints.rows = 10;  // Vedic tables large rows: 10
         updatedBlock.constraints.tableNumber = undefined;  // Clear regular table number
       } else if (updates.type === "vedic_divide_by_11") {
@@ -1591,26 +1597,26 @@ export default function PaperCreate() {
         @keyframes pc-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
         @keyframes pc-spin{to{transform:rotate(360deg)}}
         .pc-input{background:#141729;border:1.5px solid rgba(255,255,255,0.08);border-radius:12px;color:#F0F2FF;font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 16px;width:100%;outline:none;transition:all 0.2s;-webkit-appearance:none;appearance:none}
-        .pc-input:focus{border-color:#7B5CE5;box-shadow:0 0 0 3px rgba(123,92,229,0.12)}
+        .pc-input:focus{border-color:#10B981;box-shadow:0 0 0 3px rgba(16,185,129,0.12)}
         .pc-input option{background:#141729;color:#F0F2FF}
         .pc-label{font-size:12px;font-weight:600;color:#c8cce0;font-family:'DM Sans',sans-serif;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:8px}
         .pc-block-card{background:#0F1120;border:1px solid rgba(255,255,255,0.07);border-radius:20px;padding:24px 28px;transition:all 0.25s;animation:pc-fade-up 0.4s ease both;position:relative;overflow:hidden}
-        .pc-block-card:hover{border-color:rgba(123,92,229,0.3);box-shadow:0 8px 40px rgba(123,92,229,0.12)}
+        .pc-block-card:hover{border-color:rgba(16,185,129,0.3);box-shadow:0 8px 40px rgba(16,185,129,0.12)}
         .pc-block-card.dragging{opacity:0.45;transform:scale(0.97)}
         .pc-action-btn{width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:#141729;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.18s;flex-shrink:0}
-        .pc-action-btn:hover.up,.pc-action-btn:hover.down{background:rgba(123,92,229,0.2);border-color:rgba(123,92,229,0.4);color:#9D7FF0}
+        .pc-action-btn:hover.up,.pc-action-btn:hover.down{background:rgba(16,185,129,0.2);border-color:rgba(16,185,129,0.4);color:#34D399}
         .pc-action-btn:hover.dup{background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.35);color:#10B981}
         .pc-action-btn:hover.del{background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.35);color:#EF4444}
-        .pc-action-btn:hover.add{background:rgba(123,92,229,0.2);border-color:rgba(123,92,229,0.4);color:#9D7FF0}
+        .pc-action-btn:hover.add{background:rgba(16,185,129,0.2);border-color:rgba(16,185,129,0.4);color:#34D399}
         .pc-action-btn:disabled{opacity:0.3;cursor:not-allowed}
-        .pc-section-label{font-size:11px;font-weight:700;color:#7B5CE5;font-family:'JetBrains Mono',monospace;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px}
+        .pc-section-label{font-size:11px;font-weight:700;color:#10B981;font-family:'JetBrains Mono',monospace;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px}
         .pc-field-label{font-size:12px;color:#c8cce0;font-family:'DM Sans',sans-serif;font-weight:500;margin-bottom:6px;display:block}
         .pc-error-text{font-size:12px;color:#EF4444;font-family:'DM Sans',sans-serif;margin-top:4px}
         .pc-block-card label{font-size:12px!important;color:#c8cce0!important;font-family:'DM Sans',sans-serif!important;font-weight:500!important}
         .pc-block-card input[type="text"],.pc-block-card input[type="number"]{background:#141729!important;border:1.5px solid rgba(255,255,255,0.08)!important;border-radius:10px!important;color:#F0F2FF!important;font-family:'DM Sans',sans-serif!important;font-size:14px!important;padding:10px 14px!important;outline:none!important;transition:all 0.2s!important;ring:none!important;box-shadow:none!important}
-        .pc-block-card input:focus{border-color:#7B5CE5!important;box-shadow:0 0 0 3px rgba(123,92,229,0.12)!important}
+        .pc-block-card input:focus{border-color:#10B981!important;box-shadow:0 0 0 3px rgba(16,185,129,0.12)!important}
         .pc-block-card select{background:#141729!important;border:1.5px solid rgba(255,255,255,0.08)!important;border-radius:10px!important;color:#F0F2FF!important;font-family:'DM Sans',sans-serif!important;font-size:14px!important;padding:10px 14px!important;outline:none!important;-webkit-appearance:none;appearance:none!important;transition:all 0.2s!important}
-        .pc-block-card select:focus{border-color:#7B5CE5!important;box-shadow:0 0 0 3px rgba(123,92,229,0.12)!important}
+        .pc-block-card select:focus{border-color:#10B981!important;box-shadow:0 0 0 3px rgba(16,185,129,0.12)!important}
         .pc-block-card select option,.pc-block-card select optgroup{background:#141729!important;color:#F0F2FF!important}
         .pc-block-card p.text-red-600,.pc-block-card .text-red-600{color:#EF4444!important;font-size:11px!important}
         .pc-block-card .grid{display:grid!important}
@@ -1630,19 +1636,23 @@ export default function PaperCreate() {
 
       {/* Sticky header */}
       {/* Hero banner */}
-      <div className="pc-hero-banner" style={{ position:"relative", overflow:"hidden", borderRadius:"0 0 28px 28px", padding:"clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)", background:"linear-gradient(145deg,#0E0C2A 0%,#130F38 40%,#0A0820 100%)", borderBottom:"1px solid rgba(123,92,229,.2)" }}>
-        {/* Atmospheric glow */}
-        <div style={{ position:"absolute", top:"-20%", left:"50%", transform:"translateX(-50%)", width:500, height:400, background:"radial-gradient(ellipse at center, rgba(123,92,229,.15) 0%, rgba(123,92,229,.04) 50%, transparent 70%)", pointerEvents:"none" }} />
+      <div className="pc-hero-banner" style={{ position:"relative", overflow:"hidden", borderRadius:"0 0 28px 28px", padding:"clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)", background:"linear-gradient(145deg, #030E08 0%, #051A0F 35%, #071E12 65%, #020A06 100%)", borderBottom:"1px solid rgba(16,185,129,.25)" }}>
+        {/* Atmospheric glow — dual emerald-teal */}
+        <div style={{ position:"absolute", top:"-20%", left:"40%", transform:"translateX(-50%)", width:500, height:400, background:"radial-gradient(ellipse at center, rgba(16,185,129,.18) 0%, rgba(16,185,129,.05) 50%, transparent 70%)", pointerEvents:"none" }} />
+        <div style={{ position:"absolute", top:"-10%", right:"5%", width:300, height:300, background:"radial-gradient(ellipse at center, rgba(20,184,166,.12) 0%, transparent 70%)", pointerEvents:"none" }} />
         {/* Grid pattern */}
-        <div style={{ position:"absolute", inset:0, backgroundImage:"linear-gradient(rgba(123,92,229,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(123,92,229,.05) 1px, transparent 1px)", backgroundSize:"48px 48px", WebkitMaskImage:"radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%)" } as React.CSSProperties} />
+        <div style={{ position:"absolute", inset:0, backgroundImage:"linear-gradient(rgba(16,185,129,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(16,185,129,.07) 1px, transparent 1px)", backgroundSize:"48px 48px", WebkitMaskImage:"radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%)" } as React.CSSProperties} />
         {/* Bottom fade */}
         <div style={{ position:"absolute", bottom:0, left:0, right:0, height:44, background:"linear-gradient(to bottom, transparent, #07070F)" }} />
         <div style={{ position:"relative", zIndex:1, textAlign:"center" }}>
-          <div style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:60, height:60, borderRadius:18, background:"rgba(123,92,229,.2)", marginBottom:20, boxShadow:"0 8px 32px rgba(123,92,229,.15)" }}>
-            <FileDown style={{ width:28, height:28, color:"#9D7FF0" }} />
+          <div style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:60, height:60, borderRadius:18, background:"linear-gradient(135deg, rgba(16,185,129,.3), rgba(20,184,166,.2))", marginBottom:20, boxShadow:"0 8px 32px rgba(16,185,129,.2), 0 0 0 1px rgba(16,185,129,.15)" }}>
+            <FileDown style={{ width:28, height:28, color:"#6EE7B7" }} />
           </div>
-          <h1 style={{ fontFamily:"'Playfair Display', Georgia, serif", fontSize:"clamp(28px,4vw,44px)", fontWeight:800, color:"#F0F2FF", margin:"0 0 10px", letterSpacing:"-.03em" }}>Abacus Paper Generator</h1>
+          <h1 style={{ fontFamily:"'Playfair Display', Georgia, serif", fontSize:"clamp(28px,4vw,44px)", fontWeight:800, margin:"0 0 10px", letterSpacing:"-.03em", background:"linear-gradient(135deg, #A7F3D0 0%, #6EE7B7 30%, #34D399 65%, #10B981 100%)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>Abacus Paper Generator</h1>
           <p style={{ fontFamily:"'DM Sans', sans-serif", fontSize:16, fontWeight:300, color:"rgba(255,255,255,.5)", margin:0 }}>Build custom practice papers · Print-ready PDF · Live Attempt</p>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(16,185,129,.1)", border:"1px solid rgba(16,185,129,.22)", borderRadius:100, padding:"6px 16px", fontFamily:"'JetBrains Mono', monospace", fontSize:12, color:"#34D399", marginTop:14 }}>
+            📄 Abacus · Vedic · Custom · Export
+          </div>
         </div>
       </div>
 
@@ -1666,39 +1676,39 @@ export default function PaperCreate() {
           <div style={{width:1,height:18,background:'rgba(255,255,255,0.1)',flexShrink:0,marginRight:8}} />
 
           {/* Abacus group */}
-          <span style={{fontSize:10,fontWeight:700,color:'#7B5CE5',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.12em',textTransform:'uppercase',marginRight:2,flexShrink:0}}>Abacus</span>
+          <span style={{fontSize:10,fontWeight:700,color:'#10B981',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.12em',textTransform:'uppercase',marginRight:2,flexShrink:0}}>Abacus</span>
           <button
             onClick={() => setLocation('/create/junior')}
-            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isJuniorPage?'rgba(123,92,229,0.22)':'rgba(255,255,255,0.04)',border:isJuniorPage?'1.5px solid rgba(123,92,229,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isJuniorPage?'#C4A8FF':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
+            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isJuniorPage?'rgba(16,185,129,0.22)':'rgba(255,255,255,0.04)',border:isJuniorPage?'1.5px solid rgba(16,185,129,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isJuniorPage?'#6EE7B7':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
           >Junior</button>
           <button
             onClick={() => setLocation('/create/basic')}
-            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isBasicPage?'rgba(123,92,229,0.22)':'rgba(255,255,255,0.04)',border:isBasicPage?'1.5px solid rgba(123,92,229,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isBasicPage?'#C4A8FF':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
+            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isBasicPage?'rgba(16,185,129,0.22)':'rgba(255,255,255,0.04)',border:isBasicPage?'1.5px solid rgba(16,185,129,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isBasicPage?'#6EE7B7':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
           >Basic</button>
           <button
             onClick={() => setLocation('/create/advanced')}
-            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isAdvancedPage?'rgba(123,92,229,0.22)':'rgba(255,255,255,0.04)',border:isAdvancedPage?'1.5px solid rgba(123,92,229,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isAdvancedPage?'#C4A8FF':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
+            style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isAdvancedPage?'rgba(16,185,129,0.22)':'rgba(255,255,255,0.04)',border:isAdvancedPage?'1.5px solid rgba(16,185,129,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isAdvancedPage?'#6EE7B7':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
           >Advanced</button>
 
           <div style={{width:1,height:18,background:'rgba(255,255,255,0.10)',margin:'0 4px',flexShrink:0}} />
 
           {/* Vedic Maths group */}
-          <span style={{fontSize:10,fontWeight:700,color:'#7B5CE5',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.12em',textTransform:'uppercase',marginRight:2,flexShrink:0}}>Vedic Maths</span>
+          <span style={{fontSize:10,fontWeight:700,color:'#10B981',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.12em',textTransform:'uppercase',marginRight:2,flexShrink:0}}>Vedic Maths</span>
           <button
             onClick={() => setLocation('/vedic-maths/level-1')}
-            style={{display:'flex',alignItems:'center',padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isVedicPage?'rgba(123,92,229,0.22)':'rgba(255,255,255,0.04)',border:isVedicPage?'1.5px solid rgba(123,92,229,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isVedicPage?'#C4A8FF':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
+            style={{display:'flex',alignItems:'center',padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isVedicPage?'rgba(16,185,129,0.22)':'rgba(255,255,255,0.04)',border:isVedicPage?'1.5px solid rgba(16,185,129,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isVedicPage?'#6EE7B7':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
           >Vedic Maths</button>
 
           {/* Block count + guide — pushed to right */}
           <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
             <button
               onClick={() => setShowGuide(true)}
-              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:'rgba(123,92,229,0.08)',border:'1px solid rgba(123,92,229,0.25)',color:'#9D7FF0',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
+              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:'rgba(16,185,129,0.08)',border:'1px solid rgba(16,185,129,0.25)',color:'#34D399',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
             >
               How to Use
             </button>
             {blocks.length > 0 && (
-              <div style={{padding:'5px 12px',background:'rgba(123,92,229,0.1)',border:'1px solid rgba(123,92,229,0.25)',borderRadius:20,fontSize:12,color:'#9D7FF0',fontFamily:'JetBrains Mono, monospace',fontWeight:600}}>
+              <div style={{padding:'5px 12px',background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.25)',borderRadius:20,fontSize:12,color:'#34D399',fontFamily:'JetBrains Mono, monospace',fontWeight:600}}>
                 {blocks.length} block{blocks.length!==1?'s':''} · {blocks.reduce((s,b)=>s+b.count,0)} Qs
               </div>
             )}
@@ -1843,10 +1853,10 @@ export default function PaperCreate() {
 
             {/* ── My Templates panel ─────────────────────────────────────── */}
             {templates.length > 0 && (
-              <div style={{marginBottom:24,padding:'16px 18px',background:'rgba(123,92,229,0.05)',border:'1px solid rgba(123,92,229,0.18)',borderRadius:14}}>
+              <div style={{marginBottom:24,padding:'16px 18px',background:'rgba(16,185,129,0.05)',border:'1px solid rgba(16,185,129,0.18)',borderRadius:14}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-                  <BookmarkPlus style={{width:14,height:14,color:'#9D7FF0'}} />
-                  <span style={{fontSize:12,fontWeight:700,color:'#9D7FF0',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.08em',textTransform:'uppercase'}}>
+                  <BookmarkPlus style={{width:14,height:14,color:'#34D399'}} />
+                  <span style={{fontSize:12,fontWeight:700,color:'#34D399',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.08em',textTransform:'uppercase'}}>
                     My Templates
                   </span>
                   <span style={{fontSize:11,color:'#525870',fontFamily:'DM Sans, sans-serif'}}>
@@ -1866,10 +1876,10 @@ export default function PaperCreate() {
                     return (
                       <div
                         key={tpl.id}
-                        style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:isActive?'rgba(123,92,229,0.12)':'rgba(15,17,32,0.6)',border:`1px solid ${isActive?'rgba(123,92,229,0.4)':'rgba(255,255,255,0.06)'}`,borderRadius:10,transition:'all 0.18s'}}
+                        style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:isActive?'rgba(16,185,129,0.12)':'rgba(15,17,32,0.6)',border:`1px solid ${isActive?'rgba(16,185,129,0.4)':'rgba(255,255,255,0.06)'}`,borderRadius:10,transition:'all 0.18s'}}
                       >
                         {/* Active indicator */}
-                        <div style={{width:6,height:6,borderRadius:'50%',background:isActive?'#9D7FF0':'rgba(255,255,255,0.12)',flexShrink:0}} />
+                        <div style={{width:6,height:6,borderRadius:'50%',background:isActive?'#34D399':'rgba(255,255,255,0.12)',flexShrink:0}} />
 
                         {/* Name / rename input */}
                         <div style={{flex:1,minWidth:0}}>
@@ -1888,7 +1898,7 @@ export default function PaperCreate() {
                                   if (e.key === "Escape") { setRenamingTemplateId(null); setRenameError(""); }
                                 }}
                                 maxLength={60}
-                                style={{flex:1,background:'#141729',border:`1.5px solid ${renameError?'#EF4444':'rgba(123,92,229,0.4)'}`,borderRadius:6,color:'#F0F2FF',fontFamily:'DM Sans, sans-serif',fontSize:13,padding:'4px 8px',outline:'none'}}
+                                style={{flex:1,background:'#141729',border:`1.5px solid ${renameError?'#EF4444':'rgba(16,185,129,0.4)'}`,borderRadius:6,color:'#F0F2FF',fontFamily:'DM Sans, sans-serif',fontSize:13,padding:'4px 8px',outline:'none'}}
                               />
                               <button
                                 onClick={() => {
@@ -1927,7 +1937,7 @@ export default function PaperCreate() {
                             <button
                               onClick={() => handleLoadTemplate(tpl.id)}
                               title="Load this template"
-                              style={{padding:'4px 10px',background:isActive?'rgba(123,92,229,0.25)':'rgba(123,92,229,0.1)',border:`1px solid ${isActive?'rgba(123,92,229,0.5)':'rgba(123,92,229,0.2)'}`,borderRadius:6,color:'#C4A8FF',fontFamily:'DM Sans, sans-serif',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.15s'}}
+                              style={{padding:'4px 10px',background:isActive?'rgba(16,185,129,0.25)':'rgba(16,185,129,0.1)',border:`1px solid ${isActive?'rgba(16,185,129,0.5)':'rgba(16,185,129,0.2)'}`,borderRadius:6,color:'#6EE7B7',fontFamily:'DM Sans, sans-serif',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.15s'}}
                             >
                               {isActive ? "Loaded" : "Load"}
                             </button>
@@ -1977,7 +1987,7 @@ export default function PaperCreate() {
                   <h2 style={{fontSize:20,fontWeight:700,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'0 0 4px'}}>Question Blocks</h2>
                   {blocks.length > 0 && (
                     <p style={{fontSize:12,color:'#525870',fontFamily:'JetBrains Mono, monospace',margin:0}}>
-                      Total: <span style={{color:'#9D7FF0',fontWeight:700}}>{blocks.reduce((sum, block) => sum + block.count, 0)}</span> questions
+                      Total: <span style={{color:'#34D399',fontWeight:700}}>{blocks.reduce((sum, block) => sum + block.count, 0)}</span> questions
                     </p>
                   )}
                 </div>
@@ -1998,7 +2008,7 @@ export default function PaperCreate() {
                   </button>
                   <button
                     onClick={addBlock}
-                    style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',color:'white',borderRadius:10,fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:13,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(123,92,229,0.3)',transition:'all 0.2s'}}
+                    style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',background:'linear-gradient(135deg,#10B981,#34D399)',color:'white',borderRadius:10,fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:13,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(16,185,129,0.3)',transition:'all 0.2s'}}
                   >
                     <Plus style={{width:15,height:15}} />
                     Add Block
@@ -2032,7 +2042,7 @@ export default function PaperCreate() {
                       {/* Block header: badge + title + action buttons */}
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
                         <div style={{display:'flex',alignItems:'center',gap:12}}>
-                          <div style={{width:40,height:40,borderRadius:12,background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 4px 12px rgba(123,92,229,0.35)'}}>
+                          <div style={{width:40,height:40,borderRadius:12,background:'linear-gradient(135deg,#10B981,#34D399)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 4px 12px rgba(16,185,129,0.35)'}}>
                             <span style={{fontSize:16,fontWeight:800,color:'white',fontFamily:'JetBrains Mono, monospace'}}>{index + 1}</span>
                           </div>
                           <div>
@@ -2077,7 +2087,7 @@ export default function PaperCreate() {
                             className="pc-action-btn add"
                             title="Add Block Below"
                           >
-                            <Plus style={{width:14,height:14,color:'#9D7FF0'}} />
+                            <Plus style={{width:14,height:14,color:'#34D399'}} />
                           </button>
                         </div>
                       </div>
@@ -2160,7 +2170,7 @@ export default function PaperCreate() {
                                 <option value="vedic_squares_base_10">Squares (Base 10)</option>
                                 <option value="vedic_squares_base_100">Squares (Base 100)</option>
                                 <option value="vedic_squares_base_1000">Squares (Base 1000)</option>
-                                <option value="vedic_tables">Tables</option>
+                                <option value="vedic_tables">Tables (11-99)</option>
                               </optgroup>
                               {/* Show Level 2 operations in Custom mode */}
                               {level === "Custom" && (
@@ -2202,7 +2212,7 @@ export default function PaperCreate() {
                                   </optgroup>
                                   <optgroup label="Level 2 - Other">
                                     <option value="vedic_dropping_10_method">Dropping 10 Method</option>
-                                    <option value="vedic_tables_large">Tables (1111-9999)</option>
+                                    <option value="vedic_tables_large">Tables (101-999)</option>
                                     <option value="vedic_vinculum">Vinculum (Coming Soon)</option>
                                     <option value="vedic_devinculum">DeVinculum (Coming Soon)</option>
                               </optgroup>
@@ -3338,39 +3348,26 @@ export default function PaperCreate() {
                           )}
                           {block.type === "vedic_multiply_by_21_91" && (
                             <div>
-                              <label className="block text-sm font-medium  text-white mb-1">Multiplier (21-91, optional)</label>
-                              <input
-                                type="text"
+                              <label className="block text-sm font-medium  text-white mb-1">Multiplier (optional — pin to one value)</label>
+                              <select
                                 value={block.constraints.multiplierRange === undefined ? "" : String(block.constraints.multiplierRange)}
-                                placeholder="21-91 (optional)"
-                                maxLength={10}
                                 onChange={(e) => {
                                   const val = e.target.value;
-                                  // Allow any numeric input (digits only) - validate and show errors for out-of-range values
-                                    if (val === "") {
-                                      setFieldError(index, "multiplierRange", null);
-                                      updateBlock(index, { constraints: { ...block.constraints, multiplierRange: undefined } });
-                                  } else if (/^\d+$/.test(val)) {
-                                    // Allow any numeric value, even if outside range
-                                      const numVal = parseInt(val);
-                                      updateBlock(index, { constraints: { ...block.constraints, multiplierRange: numVal } });
-                                    // Real-time validation - show error if outside range
-                                      if (numVal < 21) {
-                                        setFieldError(index, "multiplierRange", "Minimum value for Multiplier is 21");
-                                      } else if (numVal > 91) {
-                                        setFieldError(index, "multiplierRange", "Maximum value for Multiplier is 91");
-                                      } else {
-                                        setFieldError(index, "multiplierRange", null);
-                                      }
-                                    }
-                                  // If input contains non-numeric characters, don't update (prevent typing letters/symbols)
+                                  if (val === "") {
+                                    setFieldError(index, "multiplierRange", null);
+                                    updateBlock(index, { constraints: { ...block.constraints, multiplierRange: undefined } });
+                                  } else {
+                                    setFieldError(index, "multiplierRange", null);
+                                    updateBlock(index, { constraints: { ...block.constraints, multiplierRange: parseInt(val) } });
+                                  }
                                 }}
-                                className={`w-full px-3 py-2 border-0 rounded-lg focus:ring-2 transition-all outline-none  bg-slate-700  text-white placeholder:text-slate-400 placeholder:text-slate-500 ${
-                                  getFieldError(index, "multiplierRange")
-                                    ? "focus:ring-red-200"
-                                    : "focus:ring-blue-200"
-                                }`}
-                              />
+                                className="w-full px-3 py-2 border-0 rounded-lg focus:ring-2 transition-all outline-none bg-slate-700 text-white focus:ring-blue-200"
+                              >
+                                <option value="">Random (21, 31 … 91)</option>
+                                {[21, 31, 41, 51, 61, 71, 81, 91].map((v) => (
+                                  <option key={v} value={v}>Always {v}</option>
+                                ))}
+                              </select>
                               {getFieldError(index, "multiplierRange") && (
                                 <p className="mt-1 text-sm text-red-600">{getFieldError(index, "multiplierRange")}</p>
                               )}
@@ -3542,11 +3539,11 @@ export default function PaperCreate() {
 
                       {block.type === "vedic_tables" && (
                         <div>
-                          <label className="block text-sm font-medium  text-white mb-1">Table Number (111-999, optional)</label>
+                          <label className="block text-sm font-medium  text-white mb-1">Table Number (11-99, optional)</label>
                           <input
                             type="text"
                             value={block.constraints.tableNumber === undefined ? "" : String(block.constraints.tableNumber)}
-                            placeholder="111-999 (optional)"
+                            placeholder="11-99 (optional)"
                             maxLength={10}
                             onChange={(e) => {
                               const val = e.target.value;
@@ -3558,10 +3555,10 @@ export default function PaperCreate() {
                                   const numVal = parseInt(val);
                                   updateBlock(index, { constraints: { ...block.constraints, tableNumber: numVal } });
                                   // Real-time validation
-                                  if (numVal < 111) {
-                                    setFieldError(index, "tableNumber", "Minimum value for Table Number is 111");
-                                  } else if (numVal > 999) {
-                                    setFieldError(index, "tableNumber", "Maximum value for Table Number is 999");
+                                  if (numVal < 11) {
+                                    setFieldError(index, "tableNumber", "Minimum value for Table Number is 11");
+                                  } else if (numVal > 99) {
+                                    setFieldError(index, "tableNumber", "Maximum value for Table Number is 99");
                                   } else {
                                     setFieldError(index, "tableNumber", null);
                                   }
@@ -3582,11 +3579,11 @@ export default function PaperCreate() {
 
                       {block.type === "vedic_tables_large" && (
                         <div>
-                          <label className="block text-sm font-medium  text-white mb-1">Table Number (1111-9999, optional)</label>
+                          <label className="block text-sm font-medium  text-white mb-1">Table Number (101-999, optional)</label>
                           <input
                             type="text"
                             value={block.constraints.tableNumberLarge === undefined ? "" : String(block.constraints.tableNumberLarge)}
-                            placeholder="1111-9999 (optional)"
+                            placeholder="101-999 (optional)"
                             maxLength={10}
                             onChange={(e) => {
                               const val = e.target.value;
@@ -3598,10 +3595,10 @@ export default function PaperCreate() {
                                   const numVal = parseInt(val);
                                   updateBlock(index, { constraints: { ...block.constraints, tableNumberLarge: numVal } });
                                   // Real-time validation
-                                  if (numVal < 1111) {
-                                    setFieldError(index, "tableNumberLarge", "Minimum value for Table Number is 1111");
-                                  } else if (numVal > 9999) {
-                                    setFieldError(index, "tableNumberLarge", "Maximum value for Table Number is 9999");
+                                  if (numVal < 101) {
+                                    setFieldError(index, "tableNumberLarge", "Minimum value for Table Number is 101");
+                                  } else if (numVal > 999) {
+                                    setFieldError(index, "tableNumberLarge", "Maximum value for Table Number is 999");
                                   } else {
                                     setFieldError(index, "tableNumberLarge", null);
                                   }
@@ -4683,22 +4680,22 @@ export default function PaperCreate() {
               </div>
 
               {blocks.length === 0 && (
-                <div style={{textAlign:'center',padding:'48px 24px',background:'rgba(123,92,229,0.04)',border:'1.5px dashed rgba(123,92,229,0.25)',borderRadius:16}}>
+                <div style={{textAlign:'center',padding:'48px 24px',background:'rgba(16,185,129,0.04)',border:'1.5px dashed rgba(16,185,129,0.25)',borderRadius:16}}>
                   {loadingPresets ? (
                     <>
-                      <div style={{width:36,height:36,border:'3px solid #7B5CE5',borderTopColor:'transparent',borderRadius:'50%',animation:'pc-spin 0.9s linear infinite',margin:'0 auto 16px'}}></div>
+                      <div style={{width:36,height:36,border:'3px solid #10B981',borderTopColor:'transparent',borderRadius:'50%',animation:'pc-spin 0.9s linear infinite',margin:'0 auto 16px'}}></div>
                       <p style={{color:'#B8BDD8',fontFamily:'DM Sans, sans-serif',fontSize:14,marginBottom:4}}>Loading preset blocks for {level}...</p>
                       <p style={{fontSize:12,color:'#525870',fontFamily:'DM Sans, sans-serif'}}>Please wait</p>
                     </>
                   ) : (
                     <>
-                      <div style={{width:48,height:48,background:'rgba(123,92,229,0.1)',border:'1px solid rgba(123,92,229,0.25)',borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
-                        <FileDown style={{width:22,height:22,color:'#7B5CE5'}} />
+                      <div style={{width:48,height:48,background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.25)',borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
+                        <FileDown style={{width:22,height:22,color:'#10B981'}} />
                       </div>
                       <p style={{color:'#525870',fontFamily:'DM Sans, sans-serif',fontSize:14,marginBottom:16}}>No question blocks yet. Add your first block to get started.</p>
                       <button
                         onClick={addBlock}
-                        style={{display:'inline-flex',alignItems:'center',gap:8,padding:'12px 24px',background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',color:'white',borderRadius:10,fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:14,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(123,92,229,0.3)'}}
+                        style={{display:'inline-flex',alignItems:'center',gap:8,padding:'12px 24px',background:'linear-gradient(135deg,#10B981,#34D399)',color:'white',borderRadius:10,fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:14,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(16,185,129,0.3)'}}
                       >
                         <Plus style={{width:16,height:16}} />
                         Add Your First Block
@@ -4713,20 +4710,6 @@ export default function PaperCreate() {
             <div style={{paddingTop:24,borderTop:'1px solid rgba(255,255,255,0.06)',marginTop:8}}>
               {/* Save-as-template row */}
               <div style={{display:'flex',gap:10,marginBottom:12,flexWrap:'wrap'}}>
-                {/* Save as exam-source paper */}
-                <button
-                  onClick={handleSavePaper}
-                  disabled={blocks.length === 0 || savePaperMutation.isPending}
-                  title={
-                    blocks.length === 0
-                      ? "Add at least one block to save a paper"
-                      : "Save this paper so it appears in Admin Exams"
-                  }
-                  style={{display:'flex',alignItems:'center',gap:7,padding:'10px 18px',background:blocks.length===0||savePaperMutation.isPending?'rgba(255,255,255,0.04)':'rgba(16,185,129,0.10)',border:`1px solid ${blocks.length===0||savePaperMutation.isPending?'rgba(255,255,255,0.07)':'rgba(16,185,129,0.30)'}`,borderRadius:10,color:blocks.length===0||savePaperMutation.isPending?'#525870':'#6EE7B7',fontFamily:'DM Sans, sans-serif',fontWeight:600,fontSize:13,cursor:blocks.length===0||savePaperMutation.isPending?'not-allowed':'pointer',transition:'all 0.2s',flex:'0 0 auto'}}
-                >
-                  <BookmarkPlus style={{width:15,height:15}} />
-                  {savePaperMutation.isPending ? 'Saving Paper…' : 'Save Paper'}
-                </button>
                 {/* Save as NEW template */}
                 <button
                   onClick={handleOpenSaveModal}
@@ -4738,7 +4721,7 @@ export default function PaperCreate() {
                       ? `Max ${MAX_TEMPLATES} templates reached — delete one first`
                       : "Save current blocks as a new template"
                   }
-                  style={{display:'flex',alignItems:'center',gap:7,padding:'10px 18px',background:blocks.length===0||atTemplateLimit?'rgba(255,255,255,0.04)':'rgba(123,92,229,0.1)',border:`1px solid ${blocks.length===0||atTemplateLimit?'rgba(255,255,255,0.07)':'rgba(123,92,229,0.3)'}`,borderRadius:10,color:blocks.length===0||atTemplateLimit?'#525870':'#C4A8FF',fontFamily:'DM Sans, sans-serif',fontWeight:600,fontSize:13,cursor:blocks.length===0||atTemplateLimit?'not-allowed':'pointer',transition:'all 0.2s',flex:'0 0 auto'}}
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'10px 18px',background:blocks.length===0||atTemplateLimit?'rgba(255,255,255,0.04)':'rgba(16,185,129,0.1)',border:`1px solid ${blocks.length===0||atTemplateLimit?'rgba(255,255,255,0.07)':'rgba(16,185,129,0.3)'}`,borderRadius:10,color:blocks.length===0||atTemplateLimit?'#525870':'#6EE7B7',fontFamily:'DM Sans, sans-serif',fontWeight:600,fontSize:13,cursor:blocks.length===0||atTemplateLimit?'not-allowed':'pointer',transition:'all 0.2s',flex:'0 0 auto'}}
                 >
                   <BookmarkPlus style={{width:15,height:15}} />
                   Save as Template
@@ -4792,12 +4775,12 @@ export default function PaperCreate() {
 
         {step === 2 && previewData && (
           <div style={{background:'#0F1120',border:'1px solid rgba(255,255,255,0.07)',borderRadius:20,padding:'clamp(20px,4vw,32px) clamp(16px,3vw,36px)',animation:'pc-scale-in 0.4s ease',position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:'linear-gradient(90deg,#7B5CE5,#9D7FF0)'}} />
+            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:'linear-gradient(90deg,#10B981,#34D399)'}} />
             <div style={{position:'relative',zIndex:1}}>
               {/* Preview header */}
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:28,flexWrap:'wrap',gap:16}}>
                 <div style={{display:'flex',alignItems:'center',gap:14}}>
-                  <div style={{width:48,height:48,borderRadius:14,background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(123,92,229,0.4)'}}>
+                  <div style={{width:48,height:48,borderRadius:14,background:'linear-gradient(135deg,#10B981,#34D399)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(16,185,129,0.4)'}}>
                     <Eye style={{width:22,height:22,color:'white'}} />
                   </div>
                   <div>
@@ -4808,7 +4791,7 @@ export default function PaperCreate() {
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   <button
                     onClick={() => setShowAnswers(!showAnswers)}
-                    style={{display:'flex',alignItems:'center',gap:8,padding:'9px 16px',background:showAnswers?'rgba(123,92,229,0.15)':'rgba(255,255,255,0.05)',border:`1px solid ${showAnswers?'rgba(123,92,229,0.4)':'rgba(255,255,255,0.1)'}`,borderRadius:10,color:showAnswers?'#9D7FF0':'#B8BDD8',fontWeight:600,fontFamily:'DM Sans, sans-serif',fontSize:13,cursor:'pointer',transition:'all 0.2s'}}
+                    style={{display:'flex',alignItems:'center',gap:8,padding:'9px 16px',background:showAnswers?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.05)',border:`1px solid ${showAnswers?'rgba(16,185,129,0.4)':'rgba(255,255,255,0.1)'}`,borderRadius:10,color:showAnswers?'#34D399':'#B8BDD8',fontWeight:600,fontFamily:'DM Sans, sans-serif',fontSize:13,cursor:'pointer',transition:'all 0.2s'}}
                   >
                     {showAnswers ? <EyeOff style={{width:15,height:15}} /> : <Eye style={{width:15,height:15}} />}
                     {showAnswers ? 'Hide Answers' : 'Show Answers'}
@@ -4932,7 +4915,8 @@ export default function PaperCreate() {
                        block.config.type === "direct_add_sub" ||
                        block.config.type === "small_friends_add_sub" ||
                        block.config.type === "big_friends_add_sub" ||
-                       block.config.type === "mix_friends_add_sub");
+                       block.config.type === "mix_friends_add_sub" ||
+                       block.config.type === "intl_add_sub");
                     
                     return (
                       <div key={originalIndex} style={{background:'#141729',border:'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'16px 18px',transition:'all 0.2s',marginBottom:12}}>
@@ -4958,7 +4942,7 @@ export default function PaperCreate() {
                                 rows.push(
                                   <tr key={`sno-row-${rowIndex}`}>
                                     {questionRow.map((q) => (
-                                      <td key={`sno-${q.id}`} style={{padding:'4px 6px',textAlign:'center',border:'1px solid rgba(255,255,255,0.08)',background:'rgba(123,92,229,0.12)',width:'10%'}}>
+                                      <td key={`sno-${q.id}`} style={{padding:'4px 6px',textAlign:'center',border:'1px solid rgba(255,255,255,0.08)',background:'rgba(16,185,129,0.12)',width:'10%'}}>
                                         <span style={{fontWeight:700,fontSize:13,color:'#C4ADFF',fontFamily:'JetBrains Mono, monospace'}}>{q.id}.</span>
                                       </td>
                                     ))}
@@ -5011,7 +4995,7 @@ export default function PaperCreate() {
                                   <tr key={`line-row-${rowIndex}`}>
                                     {questionRow.map((q) => (
                                       <td key={`line-${q.id}`} style={{padding:'2px 6px',border:'1px solid rgba(255,255,255,0.08)',background:'#141729',width:'10%'}}>
-                                        <div style={{borderTop:'1px solid rgba(123,92,229,0.5)',width:'100%'}}></div>
+                                        <div style={{borderTop:'1px solid rgba(16,185,129,0.5)',width:'100%'}}></div>
                                       </td>
                                     ))}
                                     {Array.from({ length: Math.max(0, questionsPerRow - questionRow.length) }).map((_, idx) => (
@@ -5084,14 +5068,22 @@ export default function PaperCreate() {
                 );
               })()}
 
-              <button
-                onClick={() => setDownloadDropdownOpen(!downloadDropdownOpen)}
-                disabled={downloadMutation.isPending}
-                style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px 16px',background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',border:'none',borderRadius:12,color:'white',fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:13,cursor:'pointer',boxShadow:'0 4px 20px rgba(123,92,229,0.35)',transition:'all 0.2s',opacity:downloadMutation.isPending?0.6:1}}
-              >
-                <FileDown style={{width:16,height:16}} />
-                {downloadMutation.isPending ? 'Generating...' : 'Download'}
-              </button>
+              {isAdmin ? (
+                <button
+                  onClick={() => setDownloadDropdownOpen(!downloadDropdownOpen)}
+                  disabled={downloadMutation.isPending}
+                  style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px 16px',background:'linear-gradient(135deg,#10B981,#34D399)',border:'none',borderRadius:12,color:'white',fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:13,cursor:'pointer',boxShadow:'0 4px 20px rgba(16,185,129,0.35)',transition:'all 0.2s',opacity:downloadMutation.isPending?0.6:1}}
+                >
+                  <FileDown style={{width:16,height:16}} />
+                  {downloadMutation.isPending ? 'Generating...' : 'Download'}
+                </button>
+              ) : (
+                <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px 16px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,color:'#525870',fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:13,cursor:'not-allowed',opacity:0.5,userSelect:'none'}}>
+                  <FileDown style={{width:16,height:16}} />
+                  Download
+                  <span style={{position:'absolute',top:-8,right:-8,fontSize:9,fontWeight:800,fontFamily:'DM Sans,sans-serif',background:'linear-gradient(135deg,#7c3aed,#a78bfa)',color:'white',padding:'2px 7px',borderRadius:6,letterSpacing:'0.06em',textTransform:'uppercase'}}>SOON</span>
+                </div>
+              )}
 
               <button
                 onClick={handleSharePaper}
@@ -5101,6 +5093,21 @@ export default function PaperCreate() {
                 <Share2 style={{width:16,height:16}} />
                 {shareMutation.isPending ? 'Sharing...' : 'Share'}
               </button>
+
+              {/* Save to Exam Library — admin/org-owners only; locks exact questions via seed */}
+              {isAdmin && (
+                <div style={{gridColumn:'1 / -1',display:'flex',justifyContent:'center',paddingTop:4}}>
+                  <button
+                    onClick={handleSavePaper}
+                    disabled={savePaperMutation.isPending}
+                    title="Save this exact paper (with locked questions) to the Exam Library"
+                    style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'12px 24px',background:savePaperMutation.isPending?'rgba(16,185,129,0.08)':'linear-gradient(135deg,#10B981,#059669)',border:'none',borderRadius:12,color:'white',fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:13,cursor:savePaperMutation.isPending?'not-allowed':'pointer',boxShadow:savePaperMutation.isPending?'none':'0 4px 20px rgba(16,185,129,0.35)',transition:'all 0.2s',opacity:savePaperMutation.isPending?0.6:1,minWidth:220}}
+                  >
+                    <BookmarkPlus style={{width:16,height:16}} />
+                    {savePaperMutation.isPending ? 'Saving…' : 'Save to Exam Library'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Download Modal */}
@@ -5114,11 +5121,11 @@ export default function PaperCreate() {
                 {/* Modal */}
                 <div style={{position:'relative',background:'#0F1120',borderRadius:20,boxShadow:'0 24px 80px rgba(0,0,0,0.7)',border:'1px solid rgba(255,255,255,0.1)',width:'100%',maxWidth:440,overflow:'hidden',animation:'pc-scale-in 0.25s ease'}}>
                   {/* Header accent */}
-                  <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:'linear-gradient(90deg,#7B5CE5,#9D7FF0)'}} />
+                  <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:'linear-gradient(90deg,#10B981,#34D399)'}} />
                   {/* Header */}
                   <div style={{padding:'24px 28px 16px',borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
                     <div style={{display:'flex',alignItems:'center',gap:12}}>
-                      <div style={{width:40,height:40,borderRadius:12,background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <div style={{width:40,height:40,borderRadius:12,background:'linear-gradient(135deg,#10B981,#34D399)',display:'flex',alignItems:'center',justifyContent:'center'}}>
                         <FileDown style={{width:18,height:18,color:'white'}} />
                       </div>
                       <div>
@@ -5155,7 +5162,7 @@ export default function PaperCreate() {
                       disabled={downloadMutation.isPending}
                       style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,cursor:'pointer',transition:'all 0.15s',opacity:downloadMutation.isPending?0.5:1,width:'100%'}}
                     >
-                      <div style={{flexShrink:0,width:40,height:40,borderRadius:10,background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <div style={{flexShrink:0,width:40,height:40,borderRadius:10,background:'linear-gradient(135deg,#10B981,#34D399)',display:'flex',alignItems:'center',justifyContent:'center'}}>
                         <FileDown style={{width:18,height:18,color:'white'}} />
                       </div>
                       <div style={{flex:1,textAlign:'left'}}>
@@ -5228,12 +5235,23 @@ export default function PaperCreate() {
 
                     {shareResult && (
                       <>
-                        {/* Big code display */}
-                        <div style={{textAlign:'center',marginBottom:20}}>
+                        {/* Big code display + Copy Code button */}
+                        <div style={{textAlign:'center',marginBottom:14}}>
                           <p style={{margin:'0 0 8px',fontSize:11,color:'#525870',fontFamily:'DM Sans,sans-serif',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>Paper Code</p>
                           <div style={{display:'inline-block',padding:'14px 32px',background:'rgba(59,130,246,0.1)',border:'2px solid rgba(59,130,246,0.35)',borderRadius:14}}>
                             <span style={{fontSize:32,fontWeight:900,fontFamily:"'JetBrains Mono',monospace",color:'#60A5FA',letterSpacing:'0.25em'}}>{shareResult.code}</span>
                           </div>
+                        </div>
+
+                        {/* Copy Code button */}
+                        <div style={{display:'flex',justifyContent:'center',marginBottom:16}}>
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(shareResult.code).then(() => { setShareCodeCopied(true); setTimeout(() => setShareCodeCopied(false), 2500); }); }}
+                            style={{display:'flex',alignItems:'center',gap:6,padding:'9px 20px',background:shareCodeCopied?'rgba(16,185,129,0.12)':'rgba(59,130,246,0.1)',border:`1px solid ${shareCodeCopied?'rgba(16,185,129,0.3)':'rgba(59,130,246,0.3)'}`,borderRadius:10,color:shareCodeCopied?'#10B981':'#60A5FA',fontFamily:'DM Sans,sans-serif',fontWeight:700,fontSize:12,cursor:'pointer',transition:'all 0.2s'}}
+                          >
+                            {shareCodeCopied ? <Check style={{width:13,height:13}} /> : <Copy style={{width:13,height:13}} />}
+                            {shareCodeCopied ? 'Code Copied!' : 'Copy Code'}
+                          </button>
                         </div>
 
                         {/* Info chips */}
@@ -5242,8 +5260,8 @@ export default function PaperCreate() {
                             <Clock style={{width:12,height:12,color:'#10B981'}} />
                             <span style={{fontSize:11,color:'#10B981',fontFamily:'DM Sans,sans-serif',fontWeight:600}}>Expires in 24 hours</span>
                           </div>
-                          <div style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',background:'rgba(123,92,229,0.08)',border:'1px solid rgba(123,92,229,0.2)',borderRadius:8}}>
-                            <span style={{fontSize:11,color:'#9D7FF0',fontFamily:'DM Sans,sans-serif',fontWeight:600}}>{shareResult.total_questions} questions</span>
+                          <div style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',background:'rgba(16,185,129,0.08)',border:'1px solid rgba(16,185,129,0.2)',borderRadius:8}}>
+                            <span style={{fontSize:11,color:'#34D399',fontFamily:'DM Sans,sans-serif',fontWeight:600}}>{shareResult.total_questions} questions</span>
                           </div>
                         </div>
 
@@ -5319,20 +5337,20 @@ export default function PaperCreate() {
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{background:'#0F1120',border:'1px solid rgba(123,92,229,0.25)',borderRadius:24,maxWidth:580,width:'100%',maxHeight:'85vh',overflowY:'auto',position:'relative',boxShadow:'0 32px 80px rgba(0,0,0,0.6)',animation:'pc-scale-in 0.25s ease'}}
+            style={{background:'#0F1120',border:'1px solid rgba(16,185,129,0.25)',borderRadius:24,maxWidth:580,width:'100%',maxHeight:'85vh',overflowY:'auto',position:'relative',boxShadow:'0 32px 80px rgba(0,0,0,0.6)',animation:'pc-scale-in 0.25s ease'}}
           >
             {/* Top bar */}
-            <div style={{height:3,background:'linear-gradient(90deg,#7B5CE5,#9D7FF0)',borderRadius:'24px 24px 0 0'}} />
+            <div style={{height:3,background:'linear-gradient(90deg,#10B981,#34D399)',borderRadius:'24px 24px 0 0'}} />
             <div style={{padding:'28px 32px 32px'}}>
               {/* Header */}
               <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:28}}>
                 <div style={{display:'flex',alignItems:'center',gap:14}}>
-                  <div style={{width:44,height:44,borderRadius:14,background:'rgba(123,92,229,0.18)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                    <FileDown style={{width:20,height:20,color:'#9D7FF0'}} />
+                  <div style={{width:44,height:44,borderRadius:14,background:'rgba(16,185,129,0.18)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    <FileDown style={{width:20,height:20,color:'#34D399'}} />
                   </div>
                   <div>
                     <h2 style={{fontSize:18,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display', Georgia, serif",margin:'0 0 3px'}}>How to Use</h2>
-                    <p style={{fontSize:12,color:'#7B5CE5',fontFamily:'DM Sans, sans-serif',margin:0,fontWeight:600}}>Abacus Paper Generator</p>
+                    <p style={{fontSize:12,color:'#10B981',fontFamily:'DM Sans, sans-serif',margin:0,fontWeight:600}}>Abacus Paper Generator</p>
                   </div>
                 </div>
                 <button
@@ -5382,7 +5400,7 @@ export default function PaperCreate() {
                 },
               ].map(step => (
                 <div key={step.num} style={{display:'flex',gap:16,marginBottom:20}}>
-                  <div style={{width:28,height:28,borderRadius:8,background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:13,fontWeight:800,color:'white',fontFamily:'JetBrains Mono, monospace'}}>
+                  <div style={{width:28,height:28,borderRadius:8,background:'linear-gradient(135deg,#10B981,#34D399)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:13,fontWeight:800,color:'white',fontFamily:'JetBrains Mono, monospace'}}>
                     {step.num}
                   </div>
                   <div>
@@ -5393,15 +5411,15 @@ export default function PaperCreate() {
               ))}
 
               {/* Footer tip */}
-              <div style={{marginTop:8,padding:'12px 16px',background:'rgba(123,92,229,0.08)',border:'1px solid rgba(123,92,229,0.2)',borderRadius:12}}>
-                <p style={{fontSize:12,color:'#9D7FF0',fontFamily:'DM Sans, sans-serif',margin:0,fontWeight:500}}>
+              <div style={{marginTop:8,padding:'12px 16px',background:'rgba(16,185,129,0.08)',border:'1px solid rgba(16,185,129,0.2)',borderRadius:12}}>
+                <p style={{fontSize:12,color:'#34D399',fontFamily:'DM Sans, sans-serif',margin:0,fontWeight:500}}>
                   💡 Tip — Changing the Level dropdown auto-loads preset blocks for that level. Switch to "Custom" to start with a blank slate.
                 </p>
               </div>
 
               <button
                 onClick={() => setShowGuide(false)}
-                style={{marginTop:20,width:'100%',padding:'12px',background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',color:'white',border:'none',borderRadius:12,fontWeight:700,fontSize:14,fontFamily:'DM Sans, sans-serif',cursor:'pointer'}}
+                style={{marginTop:20,width:'100%',padding:'12px',background:'linear-gradient(135deg,#10B981,#34D399)',color:'white',border:'none',borderRadius:12,fontWeight:700,fontSize:14,fontFamily:'DM Sans, sans-serif',cursor:'pointer'}}
               >
                 Got it
               </button>
@@ -5442,12 +5460,12 @@ export default function PaperCreate() {
           onClick={(e) => { if (e.target === e.currentTarget) setShowSaveModal(false); }}
           style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:'20px'}}
         >
-          <div style={{background:'#0F1120',border:'1px solid rgba(123,92,229,0.3)',borderRadius:20,padding:'28px 32px',width:'100%',maxWidth:440,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
+          <div style={{background:'#0F1120',border:'1px solid rgba(16,185,129,0.3)',borderRadius:20,padding:'28px 32px',width:'100%',maxWidth:440,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
             {/* Header */}
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
               <div style={{display:'flex',alignItems:'center',gap:12}}>
-                <div style={{width:38,height:38,borderRadius:10,background:'rgba(123,92,229,0.18)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                  <BookmarkPlus style={{width:18,height:18,color:'#9D7FF0'}} />
+                <div style={{width:38,height:38,borderRadius:10,background:'rgba(16,185,129,0.18)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  <BookmarkPlus style={{width:18,height:18,color:'#34D399'}} />
                 </div>
                 <div>
                   <h3 style={{fontSize:16,fontWeight:800,color:'#F0F2FF',fontFamily:"'Playfair Display',Georgia,serif",margin:0}}>
@@ -5498,8 +5516,8 @@ export default function PaperCreate() {
             </div>
 
             {/* Summary chip */}
-            <div style={{padding:'10px 14px',background:'rgba(123,92,229,0.07)',border:'1px solid rgba(123,92,229,0.18)',borderRadius:10,marginBottom:22}}>
-              <span style={{fontSize:12,color:'#9D7FF0',fontFamily:'DM Sans,sans-serif',fontWeight:600}}>
+            <div style={{padding:'10px 14px',background:'rgba(16,185,129,0.07)',border:'1px solid rgba(16,185,129,0.18)',borderRadius:10,marginBottom:22}}>
+              <span style={{fontSize:12,color:'#34D399',fontFamily:'DM Sans,sans-serif',fontWeight:600}}>
                 {blocks.length} block{blocks.length !== 1 ? 's' : ''} · {blocks.reduce((s, b) => s + (b.count || 0), 0)} questions
                 {level && level !== 'Custom' ? ` · ${level}` : ''}
               </span>
@@ -5516,7 +5534,7 @@ export default function PaperCreate() {
               <button
                 onClick={handleSaveModalSubmit}
                 disabled={createTemplateMutation.isPending || updateTemplateMutation.isPending}
-                style={{flex:2,padding:'12px',background:'linear-gradient(135deg,#7B5CE5,#9D7FF0)',border:'none',borderRadius:10,color:'white',fontWeight:700,fontFamily:'DM Sans,sans-serif',fontSize:14,cursor:createTemplateMutation.isPending||updateTemplateMutation.isPending?'not-allowed':'pointer',opacity:createTemplateMutation.isPending||updateTemplateMutation.isPending?0.6:1,transition:'opacity 0.2s'}}
+                style={{flex:2,padding:'12px',background:'linear-gradient(135deg,#10B981,#34D399)',border:'none',borderRadius:10,color:'white',fontWeight:700,fontFamily:'DM Sans,sans-serif',fontSize:14,cursor:createTemplateMutation.isPending||updateTemplateMutation.isPending?'not-allowed':'pointer',opacity:createTemplateMutation.isPending||updateTemplateMutation.isPending?0.6:1,transition:'opacity 0.2s'}}
               >
                 {createTemplateMutation.isPending || updateTemplateMutation.isPending
                   ? 'Saving…'

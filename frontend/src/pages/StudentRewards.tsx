@@ -6,7 +6,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearch, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Award, Flame, Trophy, Clock, BarChart3 } from "lucide-react";
+import { Award, Flame, Trophy, Clock, BarChart3, FlaskConical } from "lucide-react";
+import { useStreakCelebrationStore } from "../stores/streakCelebrationStore";
+import { useAuthSafe } from "../contexts/AuthContext";
 import RewardsSummaryBar from "../components/rewards/RewardsSummaryBar";
 import StreakDisplay from "../components/rewards/StreakDisplay";
 import BadgeGrid from "../components/rewards/BadgeGrid";
@@ -35,6 +37,9 @@ export default function StudentRewards({
   currentUserId?: number;
 }) {
   const search = useSearch();
+  const auth = useAuthSafe();
+  const user = auth?.user ?? null;
+  const triggerCelebration = useStreakCelebrationStore((s) => s.trigger);
   const [, setLocation] = useLocation();
   const tabSectionRef = useRef<HTMLDivElement>(null);
   const VALID_TABS: Tab[] = ["badges", "streak", "leaderboard", "weekly", "history"];
@@ -126,7 +131,34 @@ export default function StudentRewards({
           transition={{ duration: 0.25 }}
         >
           {activeTab === "badges" && <BadgeGrid />}
-          {activeTab === "streak" && <StreakDisplay />}
+          {activeTab === "streak" && (
+            <div className="space-y-4">
+              <StreakDisplay />
+              {/* ── Dev test button ── */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex justify-center pt-2"
+              >
+                <button
+                  onClick={() => {
+                    const streak = (user as any)?.current_streak ?? 7;
+                    triggerCelebration(streak, {
+                      prevStreak: Math.max(0, streak - 1),
+                      pointsEarned: 42,
+                      newBadge: [3, 7, 14, 30, 60, 100].includes(streak)
+                        ? { name: `${streak}-Day Streak Badge`, days: streak, emoji: "🔥" }
+                        : null,
+                    });
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-zinc-500 bg-zinc-900/40 border border-zinc-800 hover:border-zinc-600 hover:text-zinc-300 transition-all"
+                >
+                  <FlaskConical className="w-3.5 h-3.5" />
+                  Test Celebration Animation
+                </button>
+              </motion.div>
+            </div>
+          )}
           {activeTab === "leaderboard" && (
             <LeaderboardTable currentUserId={currentUserId} />
           )}

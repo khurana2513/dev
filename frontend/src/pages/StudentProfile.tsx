@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
+import { useLocation } from "wouter";
 import {
   getStudentProfile,
   getStudentProfileById,
@@ -25,6 +26,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  ArrowLeft,
 } from "lucide-react";
 
 const COURSES = ["Abacus", "Vedic Maths", "Handwriting"];
@@ -32,9 +34,92 @@ const LEVEL_TYPES = ["Regular", "Junior"];
 const BRANCHES = ["Rohini-16", "Rohini-11", "Gurgaon", "Online"];
 const STATUSES = ["active", "inactive", "closed"];
 
+/* ─────────────────────────── Static palette & layout helpers (outside component to prevent remount blink) ── */
+const P = {
+  bg:        "#07070F",
+  card:      "#0d0d1a",
+  card2:     "#111125",
+  border:    "rgba(255,255,255,0.07)",
+  border2:   "rgba(255,255,255,0.13)",
+  purple:    "#8b5cf6",
+  purpleB:   "rgba(139,92,246,0.18)",
+  purpleGlow:"rgba(139,92,246,0.35)",
+  indigo:    "#6366f1",
+  green:     "#22c55e",
+  greenDim:  "rgba(34,197,94,0.1)",
+  red:       "#f87171",
+  redDim:    "rgba(248,113,113,0.1)",
+  text:      "#f1f5f9",
+  muted:     "rgba(255,255,255,0.4)",
+  subtle:    "rgba(255,255,255,0.06)",
+};
+
+const iStyle = {
+  width: "100%",
+  background: "rgba(255,255,255,0.04)",
+  border: `1.5px solid ${P.border2}`,
+  borderRadius: 12,
+  padding: "11px 14px",
+  color: P.text,
+  fontSize: 14,
+  outline: "none",
+  fontFamily: "inherit",
+  transition: "border-color .2s, box-shadow .2s",
+};
+const selStyle = {
+  ...iStyle,
+  background: "#0c0c1f",
+  appearance: "none" as const,
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+  backgroundRepeat: "no-repeat" as const,
+  backgroundPosition: "right 13px center",
+  paddingRight: 36,
+};
+const lbl: React.CSSProperties = {
+  display: "block",
+  fontSize: 10.5,
+  fontWeight: 700,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+  color: "rgba(255,255,255,0.5)",
+  marginBottom: 7,
+  fontFamily: "'DM Mono','JetBrains Mono',monospace",
+};
+const avatarGradients = [
+  "linear-gradient(135deg,#7c3aed,#db2777)",
+  "linear-gradient(135deg,#1d4ed8,#7c3aed)",
+  "linear-gradient(135deg,#059669,#0891b2)",
+  "linear-gradient(135deg,#d97706,#dc2626)",
+  "linear-gradient(135deg,#7c3aed,#2563eb)",
+  "linear-gradient(135deg,#0f766e,#7c3aed)",
+];
+const SCard = ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) => (
+  <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 20, padding: "clamp(18px,3vw,26px)", ...style }}>
+    {children}
+  </div>
+);
+const SHead = ({ icon, label }: { icon: React.ReactNode; label: string }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, paddingBottom: 14, borderBottom: `1px solid ${P.border}` }}>
+    <div style={{ width: 32, height: 32, borderRadius: 9, background: P.purpleB, border: `1px solid rgba(139,92,246,0.3)`, display: "flex", alignItems: "center", justifyContent: "center", color: P.purple, flexShrink: 0 }}>
+      {icon}
+    </div>
+    <span style={{ fontWeight: 700, fontSize: 14, color: P.text, letterSpacing: "0.01em" }}>{label}</span>
+  </div>
+);
+const FRow = ({ label: fl, children }: { label: string; children: React.ReactNode }) => (
+  <div>
+    <label style={lbl}>{fl}</label>
+    {children}
+  </div>
+);
+const FVal = ({ v }: { v?: string | null }) => (
+  <p style={{ fontSize: 14.5, color: v ? P.text : P.muted, fontWeight: v ? 500 : 400 }}>{v || "\u2014"}</p>
+);
+
 export default function StudentProfile() {
   const { user, isAdmin, refreshUser } = useAuth();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [profile, setProfile] = useState<StudentProfileType | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -326,279 +411,311 @@ export default function StudentProfile() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#07070F' }}>
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <p className="text-white">Failed to load profile</p>
-          {error && <p className="text-red-400 mt-2">{error}</p>}
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: '#07070F' }}>
+        <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+        <p className="text-white text-lg font-semibold">Failed to load profile</p>
+        {error && <p className="text-red-400 mt-2 text-sm">{error}</p>}
       </div>
     );
   }
 
-  const D = {
-    bg:      "#07070F",
-    surf:    "#131629",
-    surf2:   "#181b2e",
-    border:  "rgba(255,255,255,0.08)",
-    border2: "rgba(255,255,255,0.14)",
-    purple:  "#7c5af6",
-    purpleDim: "rgba(124,90,246,0.13)",
-    green:   "#22c55e",
-    greenDim: "rgba(34,197,94,0.1)",
-    red:     "#f87171",
-    redDim:  "rgba(248,113,113,0.1)",
-    text:    "#e2e8f0",
-    muted:   "rgba(255,255,255,0.45)",
-    white2:  "rgba(255,255,255,0.7)",
-    font:    "'Playfair Display',Georgia,serif",
-    mono:    "'JetBrains Mono','DM Mono',monospace",
+  const statusCfg = {
+    active:   { bg: "rgba(34,197,94,0.12)",  border: "rgba(34,197,94,0.3)",  color: "#4ade80" },
+    inactive: { bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.3)", color: "#fbbf24" },
+    closed:   { bg: "rgba(248,113,113,0.12)",border: "rgba(248,113,113,0.3)",color: "#f87171" },
   };
+  const sc = statusCfg[profile.status as keyof typeof statusCfg] ?? statusCfg.active;
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%", background: "rgba(255,255,255,0.05)",
-    border: `1px solid ${D.border2}`, borderRadius: 12,
-    padding: "10px 14px", color: D.text, fontSize: 13.5,
-    outline: "none", fontFamily: "inherit", transition: "border-color 0.2s",
-  };
-
-  const selectStyle: React.CSSProperties = {
-    ...inputStyle, background: "#12142a",
-    appearance: "none" as const,
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "right 12px center",
-    paddingRight: 36,
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: "block", fontSize: 11, fontWeight: 600,
-    fontFamily: D.mono, letterSpacing: "0.1em",
-    textTransform: "uppercase", color: "#e2e8f0", marginBottom: 7,
-  };
-
-  const valueStyle: React.CSSProperties = {
-    fontSize: 14.5, color: D.text, fontWeight: 500,
-  };
-
-  const sectionCard: React.CSSProperties = {
-    background: D.surf, border: `1px solid ${D.border}`,
-    borderRadius: 20, padding: "clamp(18px,3vw,24px) clamp(16px,3vw,28px)",
-  };
-
-  const sectionTitle = (icon: React.ReactNode, title: string) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22, paddingBottom: 14, borderBottom: `1px solid ${D.border}` }}>
-      <div style={{ width: 34, height: 34, borderRadius: 10, background: D.purpleDim, border: `1px solid rgba(124,90,246,0.28)`, display: "flex", alignItems: "center", justifyContent: "center", color: D.purple }}>
-        {icon}
-      </div>
-      <h3 style={{ fontFamily: D.font, fontSize: 17, fontWeight: 700, color: D.text, margin: 0 }}>{title}</h3>
-    </div>
-  );
+  /* ── Avatar gradient based on name ── */
+  const avatarLetter = (profile.display_name?.[0] || user?.name?.[0] || "?").toUpperCase();
+  const nameHash = (profile.display_name || user?.name || "").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const avatarGrad = avatarGradients[nameHash % avatarGradients.length];
 
   return (
     <>
       <style>{`
-        .sp-input:focus { border-color: rgba(124,90,246,0.7) !important; box-shadow: 0 0 0 3px rgba(124,90,246,0.12); }
-        .sp-input:disabled { opacity: 0.45; cursor: not-allowed; }
-        .sp-select option { background: #12142a; color: #e2e8f0; }
-        @media(max-width:640px){
-          .sp-section-card{padding:18px 16px!important;border-radius:16px!important}
-        }
-        @media(max-width:480px){
-          .sp-section-card{padding:14px 12px!important;border-radius:14px!important}
-        }
+        .sp-i:focus { border-color: rgba(139,92,246,0.75) !important; box-shadow: 0 0 0 3px rgba(139,92,246,0.14) !important; }
+        .sp-i:disabled { opacity: 0.4; cursor: not-allowed; }
+        .sp-i option { background: #0c0c1f; color: #f1f5f9; }
+        @keyframes sp-rise { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes sp-float { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-8px)} }
+        @keyframes sp-shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+        @keyframes sp-pulse-ring { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(1.5);opacity:0} }
+        @keyframes sp-spin { to{transform:rotate(360deg)} }
+        .sp-anim { animation: sp-rise .45s ease both; }
+        .sp-anim-1 { animation-delay:.06s }
+        .sp-anim-2 { animation-delay:.12s }
+        .sp-anim-3 { animation-delay:.18s }
+        .sp-anim-4 { animation-delay:.24s }
+        .sp-avatar-pulse::after { content:''; position:absolute; inset:-4px; border-radius:50%; border:2px solid rgba(139,92,246,0.4); animation:sp-pulse-ring 2.5s ease-out infinite; }
+        .sp-btn-edit:hover { transform:translateY(-1px); box-shadow: 0 8px 28px rgba(139,92,246,0.45) !important; }
+        .sp-btn-cancel:hover { background: rgba(255,255,255,0.08) !important; }
+        .sp-btn-save:hover { transform:translateY(-1px); box-shadow: 0 8px 28px rgba(139,92,246,0.5) !important; }
+        .sp-back:hover { color: #f1f5f9 !important; }
+        .sp-shimmer { background: linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%); background-size:200% auto; animation:sp-shimmer 2s linear infinite; }
       `}</style>
-      <div style={{ minHeight: "100vh", background: D.bg, paddingTop: "4rem", paddingBottom: "4rem" }}>
-        <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 clamp(0.75rem,3vw,1.5rem)" }}>
 
-          {/* Page Header */}
-          <header style={{ marginBottom: "2.5rem" }}>
-            <h1 style={{ fontFamily: D.font, fontSize: "clamp(2rem,4vw,2.75rem)", fontWeight: 800, color: D.text, marginBottom: 6, lineHeight: 1.15 }}>
-              Student Profile
-            </h1>
-            <p style={{ color: D.muted, fontSize: 15 }}>Manage your profile information and track your progress</p>
-          </header>
+      <div style={{ minHeight: "100vh", background: P.bg, paddingBottom: "5rem", position: "relative", overflow: "hidden" }}>
 
-          {/* Profile Header Card */}
-          <div style={{ ...sectionCard, marginBottom: 20, borderTop: `3px solid ${D.purple}` }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <div style={{ width: 68, height: 68, borderRadius: "50%", background: "linear-gradient(135deg,#7c5af6,#a78bfa)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, fontWeight: 900, color: "#fff", flexShrink: 0 }}>
-                  {(profile.display_name?.[0] || user?.name?.[0] || "?").toUpperCase()}
+        {/* Ambient background orbs */}
+        <div style={{ position: "fixed", top: "-15%", left: "-10%", width: "50vw", height: "50vw", maxWidth: 600, maxHeight: 600, borderRadius: "50%", background: "radial-gradient(circle,rgba(99,66,246,0.08) 0%,transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
+        <div style={{ position: "fixed", bottom: "-10%", right: "-5%", width: "40vw", height: "40vw", maxWidth: 500, maxHeight: 500, borderRadius: "50%", background: "radial-gradient(circle,rgba(139,92,246,0.06) 0%,transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
+
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 980, margin: "0 auto", padding: "clamp(1rem,4vw,2rem) clamp(0.75rem,3vw,1.5rem)" }}>
+
+          {/* ── Back button ── */}
+          <button
+            onClick={() => setLocation(isAdmin ? "/admin" : "/dashboard")}
+            className="sp-back"
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: `1px solid ${P.border}`, color: P.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: "2rem", transition: "color .2s, background .2s" }}
+          >
+            <ArrowLeft size={14} /> Back
+          </button>
+
+          {/* ── Hero card ── */}
+          <div className="sp-anim" style={{ background: "linear-gradient(135deg,#0d0d20 0%,#0f0f25 50%,#100d1f 100%)", border: `1px solid rgba(139,92,246,0.18)`, borderRadius: 28, padding: "clamp(22px,4vw,36px)", marginBottom: 18, position: "relative", overflow: "hidden" }}>
+            {/* Card shimmer line */}
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg,transparent,rgba(139,92,246,0.7),rgba(99,102,241,0.7),transparent)", borderRadius: "28px 28px 0 0" }} />
+
+            {/* Decorative math symbols */}
+            <div aria-hidden style={{ position: "absolute", top: 20, right: 24, fontSize: 72, opacity: 0.025, fontWeight: 900, color: "#fff", pointerEvents: "none", userSelect: "none", lineHeight: 1 }}>∑</div>
+            <div aria-hidden style={{ position: "absolute", bottom: 16, right: 80, fontSize: 40, opacity: 0.03, fontWeight: 900, color: "#fff", pointerEvents: "none", userSelect: "none" }}>π</div>
+
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+              {/* Left: avatar + identity */}
+              <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                {/* Avatar */}
+                <div style={{ position: "relative", flexShrink: 0 }} className="sp-avatar-pulse">
+                  <div style={{ width: 80, height: 80, borderRadius: "50%", background: avatarGrad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 900, color: "#fff", letterSpacing: "-1px", boxShadow: "0 0 32px rgba(139,92,246,0.3)" }}>
+                    {avatarLetter}
+                  </div>
+                  {/* Status dot */}
+                  <div style={{ position: "absolute", bottom: 3, right: 3, width: 14, height: 14, borderRadius: "50%", background: profile.status === "active" ? "#22c55e" : profile.status === "inactive" ? "#f59e0b" : "#ef4444", border: "2.5px solid #07070F", boxShadow: profile.status === "active" ? "0 0 8px rgba(34,197,94,0.7)" : "none" }} />
                 </div>
+
+                {/* Name + meta */}
                 <div>
-                  <h2 style={{ fontFamily: D.font, fontSize: 22, fontWeight: 800, color: D.text, marginBottom: 4 }}>
-                    {profile.display_name || user?.name || "Student Profile"}
-                  </h2>
-                  {profile.public_id && (
-                    <span style={{ fontFamily: D.mono, fontSize: 11, color: D.purple, background: D.purpleDim, padding: "3px 10px", borderRadius: 100, border: `1px solid rgba(124,90,246,0.28)` }}>
-                      ID: {profile.public_id}
+                  <h1 style={{ fontSize: "clamp(1.4rem,3vw,2rem)", fontWeight: 900, color: P.text, marginBottom: 5, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
+                    {profile.display_name || user?.name || "My Profile"}
+                  </h1>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center" }}>
+                    {profile.public_id && (
+                      <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: P.purple, background: P.purpleB, padding: "3px 11px", borderRadius: 100, border: "1px solid rgba(139,92,246,0.3)", letterSpacing: "0.06em" }}>
+                        ID: {profile.public_id}
+                      </span>
+                    )}
+                    <span style={{ fontSize: 12, padding: "3px 11px", borderRadius: 100, fontWeight: 700, background: sc.bg, border: `1px solid ${sc.border}`, color: sc.color }}>
+                      {profile.status.charAt(0).toUpperCase() + profile.status.slice(1)}
                     </span>
+                    {profile.course && (
+                      <span style={{ fontSize: 12, padding: "3px 11px", borderRadius: 100, fontWeight: 600, background: "rgba(255,255,255,0.05)", border: `1px solid ${P.border2}`, color: "rgba(255,255,255,0.6)" }}>
+                        {profile.course}
+                      </span>
+                    )}
+                    {profile.level && (
+                      <span style={{ fontSize: 12, padding: "3px 11px", borderRadius: 100, fontWeight: 600, background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc" }}>
+                        Level {profile.level}
+                      </span>
+                    )}
+                  </div>
+                  {profile.branch && (
+                    <p style={{ marginTop: 7, fontSize: 12.5, color: P.muted, display: "flex", alignItems: "center", gap: 5 }}>
+                      <MapPin size={11} style={{ opacity: 0.6 }} />{profile.branch}
+                    </p>
                   )}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 10 }}>
+
+              {/* Right: action buttons */}
+              <div style={{ display: "flex", gap: 10, alignSelf: "flex-start", marginTop: 4 }}>
                 {editing ? (
                   <>
-                    <button onClick={handleCancel} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", border: `1px solid ${D.border2}`, borderRadius: 10, background: "rgba(255,255,255,0.05)", color: D.white2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                      <X size={15} /> Cancel
+                    <button
+                      onClick={handleCancel}
+                      className="sp-btn-cancel"
+                      style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, background: "rgba(255,255,255,0.05)", border: `1px solid ${P.border2}`, color: "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "background .2s" }}
+                    >
+                      <X size={14} /> Cancel
                     </button>
-                    <button onClick={handleSave} disabled={saving} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", border: "none", borderRadius: 10, background: "linear-gradient(135deg,#4F46E5,#7C3AED)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.65 : 1, fontFamily: "inherit" }}>
-                      {saving ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Save size={15} />}
-                      Save Changes
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="sp-btn-save"
+                      style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", borderRadius: 11, background: "linear-gradient(135deg,#4f46e5,#7c3aed)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.65 : 1, transition: "transform .2s, box-shadow .2s" }}
+                    >
+                      {saving ? <Loader2 size={14} style={{ animation: "sp-spin 1s linear infinite" }} /> : <Save size={14} />}
+                      Save
                     </button>
                   </>
                 ) : (
-                  <button onClick={handleEdit} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", border: "none", borderRadius: 10, background: "linear-gradient(135deg,#4F46E5,#7C3AED)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                    <Edit2 size={15} /> Edit Profile
+                  <button
+                    onClick={handleEdit}
+                    className="sp-btn-edit"
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", borderRadius: 11, background: "linear-gradient(135deg,#4f46e5,#7c3aed)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "transform .2s, box-shadow .2s", boxShadow: "0 4px 18px rgba(139,92,246,0.3)" }}
+                  >
+                    <Edit2 size={14} /> Edit Profile
                   </button>
                 )}
               </div>
             </div>
 
+            {/* Alerts */}
             {success && (
-              <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: D.greenDim, border: `1px solid rgba(34,197,94,0.3)`, borderRadius: 12, color: D.green, fontSize: 13, fontWeight: 500 }}>
-                <CheckCircle2 size={16} /> {success}
+              <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: P.greenDim, border: "1px solid rgba(34,197,94,0.28)", borderRadius: 12, color: "#4ade80", fontSize: 13, fontWeight: 500 }}>
+                <CheckCircle2 size={15} />{success}
               </div>
             )}
             {error && (
-              <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: D.redDim, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 12, color: D.red, fontSize: 13, fontWeight: 500 }}>
-                <AlertCircle size={16} /> {error}
+              <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: P.redDim, border: "1px solid rgba(248,113,113,0.28)", borderRadius: 12, color: P.red, fontSize: 13, fontWeight: 500 }}>
+                <AlertCircle size={15} />{error}
               </div>
             )}
           </div>
 
-          {/* 2-column grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 16 }}>
-
-            {/* Basic Information */}
-            <div style={sectionCard}>
-              {sectionTitle(<User size={16} />, "Basic Information")}
-              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                <div>
-                  <label style={labelStyle}>Display Name</label>
-                  {editing ? (
-                    <input className="sp-input" style={inputStyle} type="text" value={formData.display_name || ""} onChange={(e) => handleInputChange("display_name", e.target.value)} minLength={2} maxLength={50} placeholder="Name shown throughout the site" required />
-                  ) : (
-                    <p style={valueStyle}>{profile.display_name || "—"}</p>
-                  )}
+          {/* ── Stats strip (visual only) ── */}
+          {!editing && (
+            <div className="sp-anim sp-anim-1" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 12, marginBottom: 18 }}>
+              {[
+                { label: "Course",     value: profile.course || "—",              icon: "📚" },
+                { label: "Level Type", value: profile.level_type || "—",          icon: "🎯" },
+                { label: "Class",      value: profile.class_name ? `Class ${profile.class_name}` : "—", icon: "🏫" },
+                { label: "Branch",     value: profile.branch || "—",              icon: "📍" },
+              ].map(item => (
+                <div key={item.label} style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 16, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: 18 }} aria-hidden>{item.icon}</span>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: P.muted, fontFamily: "'DM Mono',monospace" }}>{item.label}</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: item.value === "—" ? P.muted : P.text }}>{item.value}</p>
                 </div>
-                <div>
-                  <label style={labelStyle}>Class</label>
-                  {editing ? (
-                    <input className="sp-input" style={inputStyle} type="number" value={formData.class_name || ""} onChange={(e) => { const val = e.target.value; if (val === "" || (parseInt(val) >= 1 && parseInt(val) <= 12)) handleInputChange("class_name", val); }} min={1} max={12} placeholder="1 – 12" />
-                  ) : (
-                    <p style={valueStyle}>{profile.class_name || "—"}</p>
-                  )}
+              ))}
+            </div>
+          )}
+
+          {/* ── Main content grid ── */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 14 }}>
+
+            {/* ─── Basic Information ─── */}
+            <SCard style={{ animationDelay: ".1s" }} >
+              <div className="sp-anim sp-anim-2">
+                <SHead icon={<User size={15} />} label="Basic Information" />
+                <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                  <FRow label="Display Name">
+                    {editing ? (
+                      <input className="sp-i" style={iStyle} type="text" value={formData.display_name || ""} onChange={e => handleInputChange("display_name", e.target.value)} minLength={2} maxLength={50} placeholder="Name shown throughout the site" />
+                    ) : <FVal v={profile.display_name} />}
+                  </FRow>
+                  <FRow label="Class">
+                    {editing ? (
+                      <input className="sp-i" style={iStyle} type="number" value={formData.class_name || ""} onChange={e => { const v = e.target.value; if (v === "" || (parseInt(v) >= 1 && parseInt(v) <= 12)) handleInputChange("class_name", v); }} min={1} max={12} placeholder="1 – 12" />
+                    ) : <FVal v={profile.class_name ? `Class ${profile.class_name}` : undefined} />}
+                  </FRow>
+                  <FRow label={<><Phone size={11} style={{ display:"inline",marginRight:5 }} />Parent Contact</>  as any}>
+                    {editing ? (
+                      <input className="sp-i" style={iStyle} type="tel" value={formData.parent_contact_number || ""} onChange={e => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); handleInputChange("parent_contact_number", v); }} placeholder="10-digit mobile number" maxLength={10} inputMode="numeric" />
+                    ) : <FVal v={profile.parent_contact_number} />}
+                  </FRow>
                 </div>
               </div>
-            </div>
+            </SCard>
 
-            {/* Course Information */}
-            <div style={sectionCard}>
-              {sectionTitle(<BookOpen size={16} />, "Course Information")}
-              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                <div>
-                  <label style={labelStyle}>Course</label>
-                  {editing && isAdmin ? (
-                    <select className="sp-input sp-select" style={selectStyle} value={formData.course || ""} onChange={(e) => { const c = e.target.value; setFormData({ ...formData, course: c, level: "" }); setError(null); }}>
-                      <option value="">Select Course</option>
-                      {COURSES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  ) : (
-                    <p style={valueStyle}>{profile.course || "—"}</p>
-                  )}
-                </div>
-                <div>
-                  <label style={labelStyle}>Level Type</label>
-                  {editing && isAdmin ? (
-                    <select className="sp-input sp-select" style={selectStyle} value={formData.level_type || ""} onChange={(e) => { const lt = e.target.value; setFormData({ ...formData, level_type: lt, level: "" }); setError(null); }}>
-                      <option value="">Select Level Type</option>
-                      {LEVEL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  ) : (
-                    <p style={valueStyle}>{profile.level_type || "—"}</p>
-                  )}
-                </div>
-                <div>
-                  <label style={labelStyle}>Level{loadingLevels ? " (loading…)" : ""}</label>
-                  {editing && isAdmin ? (
-                    <select className="sp-input sp-select" style={{ ...selectStyle, opacity: (!formData.course || !formData.level_type || loadingLevels || validLevels.length === 0) ? 0.5 : 1 }} value={formData.level || ""} onChange={(e) => handleInputChange("level", e.target.value)} disabled={!formData.course || !formData.level_type || loadingLevels || validLevels.length === 0}>
-                      <option value="">{!formData.course || !formData.level_type ? "Select Course & Level Type first" : loadingLevels ? "Loading…" : validLevels.length === 0 ? "No levels available" : "Select Level"}</option>
-                      {validLevels.map((l) => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                  ) : (
-                    <p style={valueStyle}>{profile.level || "—"}</p>
-                  )}
+            {/* ─── Course Information ─── */}
+            <SCard>
+              <div className="sp-anim sp-anim-2">
+                <SHead icon={<BookOpen size={15} />} label="Course Information" />
+                <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                  <FRow label="Course">
+                    {editing && isAdmin ? (
+                      <select className="sp-i" style={selStyle} value={formData.course || ""} onChange={e => { setFormData({ ...formData, course: e.target.value, level: "" }); setError(null); }}>
+                        <option value="">Select Course</option>
+                        {COURSES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : <FVal v={profile.course} />}
+                  </FRow>
+                  <FRow label="Level Type">
+                    {editing && isAdmin ? (
+                      <select className="sp-i" style={selStyle} value={formData.level_type || ""} onChange={e => { setFormData({ ...formData, level_type: e.target.value, level: "" }); setError(null); }}>
+                        <option value="">Select Level Type</option>
+                        {LEVEL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    ) : <FVal v={profile.level_type} />}
+                  </FRow>
+                  <FRow label={`Level${loadingLevels ? " (loading…)" : ""}`}>
+                    {editing && isAdmin ? (
+                      <select className="sp-i" style={{ ...selStyle, opacity: (!formData.course || !formData.level_type || loadingLevels || validLevels.length === 0) ? 0.45 : 1 }} value={formData.level || ""} onChange={e => handleInputChange("level", e.target.value)} disabled={!formData.course || !formData.level_type || loadingLevels || validLevels.length === 0}>
+                        <option value="">{!formData.course || !formData.level_type ? "Select Course & Type first" : loadingLevels ? "Loading…" : validLevels.length === 0 ? "No levels available" : "Select Level"}</option>
+                        {validLevels.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    ) : <FVal v={profile.level} />}
+                  </FRow>
                 </div>
               </div>
-            </div>
+            </SCard>
 
-            {/* Branch & Status */}
-            <div style={sectionCard}>
-              {sectionTitle(<MapPin size={16} />, "Branch & Status")}
-              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                <div>
-                  <label style={labelStyle}>Branch</label>
-                  {editing && isAdmin ? (
-                    <select className="sp-input sp-select" style={selectStyle} value={formData.branch || ""} onChange={(e) => handleInputChange("branch", e.target.value)}>
-                      <option value="">Select Branch</option>
-                      {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                  ) : (
-                    <p style={valueStyle}>{profile.branch || "—"}</p>
-                  )}
-                </div>
-                <div>
-                  <label style={labelStyle}>Status</label>
-                  {editing && isAdmin ? (
-                    <select className="sp-input sp-select" style={selectStyle} value={formData.status || "active"} onChange={(e) => handleInputChange("status", e.target.value)}>
-                      {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-                    </select>
-                  ) : (
-                    <span style={{ display: "inline-block", padding: "4px 14px", borderRadius: 100, fontSize: 13, fontWeight: 700, letterSpacing: "0.04em", background: profile.status === "active" ? "rgba(34,197,94,0.12)" : profile.status === "inactive" ? "rgba(245,158,11,0.12)" : "rgba(248,113,113,0.12)", color: profile.status === "active" ? "#22c55e" : profile.status === "inactive" ? "#f59e0b" : "#f87171", border: `1px solid ${profile.status === "active" ? "rgba(34,197,94,0.3)" : profile.status === "inactive" ? "rgba(245,158,11,0.3)" : "rgba(248,113,113,0.3)"}` }}>
-                      {profile.status.charAt(0).toUpperCase() + profile.status.slice(1)}
-                    </span>
-                  )}
+            {/* ─── Branch & Status ─── */}
+            <SCard>
+              <div className="sp-anim sp-anim-3">
+                <SHead icon={<MapPin size={15} />} label="Branch & Status" />
+                <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                  <FRow label="Branch">
+                    {editing && isAdmin ? (
+                      <select className="sp-i" style={selStyle} value={formData.branch || ""} onChange={e => handleInputChange("branch", e.target.value)}>
+                        <option value="">Select Branch</option>
+                        {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    ) : <FVal v={profile.branch} />}
+                  </FRow>
+                  <FRow label="Status">
+                    {editing && isAdmin ? (
+                      <select className="sp-i" style={selStyle} value={formData.status || "active"} onChange={e => handleInputChange("status", e.target.value)}>
+                        {STATUSES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                      </select>
+                    ) : (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 100, fontSize: 13, fontWeight: 700, background: sc.bg, border: `1px solid ${sc.border}`, color: sc.color }}>
+                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: sc.color, boxShadow: profile.status === "active" ? `0 0 6px ${sc.color}` : "none" }} />
+                        {profile.status.charAt(0).toUpperCase() + profile.status.slice(1)}
+                      </span>
+                    )}
+                  </FRow>
                 </div>
               </div>
-            </div>
+            </SCard>
 
-            {/* Dates & Contact */}
-            <div style={sectionCard}>
-              {sectionTitle(<Calendar size={16} />, isAdmin ? "Dates & Contact" : "Contact")}
-              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                {isAdmin && (
-                  <>
-                    <div>
-                      <label style={labelStyle}>Join Date</label>
-                      {editing ? (
-                        <input className="sp-input" style={{ ...inputStyle, colorScheme: "dark" }} type="date" value={formData.join_date || ""} onChange={(e) => handleInputChange("join_date", e.target.value)} />
-                      ) : (
-                        <p style={valueStyle}>{profile.join_date ? formatDateOnlyToIST(profile.join_date) : "—"}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Finish Date</label>
-                      {editing ? (
-                        <input className="sp-input" style={{ ...inputStyle, colorScheme: "dark" }} type="date" value={formData.finish_date || ""} onChange={(e) => handleInputChange("finish_date", e.target.value)} />
-                      ) : (
-                        <p style={valueStyle}>{profile.finish_date ? formatDateOnlyToIST(profile.finish_date) : "—"}</p>
-                      )}
-                    </div>
-                  </>
-                )}
-                <div>
-                  <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 6 }}><Phone size={11} />Parent Contact Number</label>
-                  {editing ? (
-                    <input className="sp-input" style={inputStyle} type="tel" value={formData.parent_contact_number || ""} onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 10); handleInputChange("parent_contact_number", v); }} placeholder="1234567890" maxLength={10} inputMode="numeric" />
-                  ) : (
-                    <p style={valueStyle}>{profile.parent_contact_number || "—"}</p>
-                  )}
+            {/* ─── Dates & Contact ─── */}
+            {(isAdmin || profile.parent_contact_number) && (
+              <SCard>
+                <div className="sp-anim sp-anim-4">
+                  <SHead icon={<Calendar size={15} />} label={isAdmin ? "Dates & Contact" : "Contact"} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                    {isAdmin && (
+                      <>
+                        <FRow label="Join Date">
+                          {editing ? (
+                            <input className="sp-i" style={{ ...iStyle, colorScheme: "dark" }} type="date" value={formData.join_date || ""} onChange={e => handleInputChange("join_date", e.target.value)} />
+                          ) : <FVal v={profile.join_date ? formatDateOnlyToIST(profile.join_date) : undefined} />}
+                        </FRow>
+                        <FRow label="Finish Date">
+                          {editing ? (
+                            <input className="sp-i" style={{ ...iStyle, colorScheme: "dark" }} type="date" value={formData.finish_date || ""} onChange={e => handleInputChange("finish_date", e.target.value)} />
+                          ) : <FVal v={profile.finish_date ? formatDateOnlyToIST(profile.finish_date) : undefined} />}
+                        </FRow>
+                      </>
+                    )}
+                    {!isAdmin && (
+                      <FRow label="Parent Contact">
+                        <FVal v={profile.parent_contact_number} />
+                      </FRow>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
+              </SCard>
+            )}
           </div>
+
+          {/* ── Bottom decorative hint ── */}
+          {!editing && (
+            <p style={{ textAlign: "center", marginTop: 32, fontSize: 12, color: P.muted }}>
+              {isAdmin ? "Admin view — all fields editable" : "You can edit your display name, class and parent contact"}
+            </p>
+          )}
         </div>
       </div>
     </>

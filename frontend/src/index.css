@@ -454,3 +454,842 @@ input[type="number"] {
   .rsp-5col { grid-template-columns: 1fr !important; }
   .rsp-stem-tabs { grid-template-columns: repeat(2, 1fr) !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 1 — MOBILE FOUNDATION
+   Design tokens, mobile baseline rules, touch targets, safe areas,
+   animation keyframes, utility classes.
+   Target breakpoints: 375 · 390 · 430 · 768 · 1024px
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Token System ──────────────────────────────────────────────────── */
+:root {
+  /* Spacing scale — 4px base unit */
+  --sp-1: 4px;   --sp-2: 8px;   --sp-3: 12px;  --sp-4: 16px;
+  --sp-5: 20px;  --sp-6: 24px;  --sp-8: 32px;  --sp-10: 40px;
+  --sp-12: 48px; --sp-16: 64px;
+
+  /* Touch targets — 44px iOS HIG minimum, 48px Material comfortable */
+  --touch-sm:  36px;  /* absolute min, use sparingly */
+  --touch-min: 44px;  /* iOS HIG required minimum */
+  --touch-std: 48px;  /* comfortable (Material Design) */
+  --touch-lg:  56px;  /* primary actions, FABs */
+
+  /* Bottom tab bar dimensions */
+  --tab-bar-h:     56px;
+  --tab-bar-total: calc(var(--tab-bar-h) + env(safe-area-inset-bottom, 0px));
+
+  /* Typography scale — fluid via clamp()
+     Rule: nothing visible to users below 12px                         */
+  --fs-2xs:    clamp(0.6875rem, 1.8vw,  0.75rem);    /* 11–12px */
+  --fs-xs:     clamp(0.75rem,   2vw,    0.8125rem);   /* 12–13px */
+  --fs-sm:     clamp(0.8125rem, 2.2vw,  0.875rem);    /* 13–14px */
+  --fs-base:   1rem;                                   /* 16px — input floor */
+  --fs-md:     clamp(1rem,      2.5vw,  1.0625rem);   /* 16–17px */
+  --fs-lg:     clamp(1rem,      3vw,    1.125rem);     /* 16–18px */
+  --fs-xl:     clamp(1.125rem,  3.5vw,  1.25rem);     /* 18–20px */
+  --fs-2xl:    clamp(1.25rem,   4vw,    1.5rem);       /* 20–24px */
+  --fs-3xl:    clamp(1.5rem,    5vw,    1.875rem);     /* 24–30px */
+  --fs-4xl:    clamp(1.75rem,   6vw,    2.25rem);      /* 28–36px */
+  --fs-5xl:    clamp(2rem,      8vw,    3rem);          /* 32–48px */
+  --fs-display:clamp(2.25rem,   10vw,   4rem);          /* 36–64px */
+
+  /* Border radius scale */
+  --r-xs:  4px;  --r-sm:  8px;  --r-md: 12px;  --r-lg: 16px;
+  --r-xl: 20px;  --r-2xl:24px;  --r-full: 9999px;
+
+  /* Z-index layer cake */
+  --z-base:      1;    --z-float:     10;
+  --z-dropdown: 100;   --z-sticky:   200;
+  --z-tab-bar:  300;   --z-overlay:  400;
+  --z-modal:    500;   --z-toast:    700;
+  --z-top:      9999;
+
+  /* Motion easings */
+  --ease-spring: cubic-bezier(0.16, 1,    0.3,  1);
+  --ease-smooth: cubic-bezier(0.4,  0,    0.2,  1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in:     cubic-bezier(0.4,  0,    1,    1);
+  --ease-out:    cubic-bezier(0,    0,    0.2,  1);
+
+  /* Duration scale */
+  --dur-instant: 80ms;
+  --dur-fast:   150ms;
+  --dur-norm:   250ms;
+  --dur-slow:   400ms;
+  --dur-xl:     600ms;
+
+  /* App color shortcuts */
+  --c-accent:  #F97316;
+  --c-accent2: #FB923C;
+  --c-success: #10B981;
+  --c-danger:  #EF4444;
+  --c-warn:    #F59E0B;
+  --c-info:    #3B82F6;
+  --c-violet:  #8B5CF6;
+
+  /* Surface stack */
+  --surf-0: #07070F;  --surf-1: #0B0D1A;  --surf-2: #0F1120;
+  --surf-3: #141729;  --surf-4: #1A1F38;
+
+  /* Border opacity steps */
+  --bdr:   rgba(255,255,255,0.06);
+  --bdr-2: rgba(255,255,255,0.10);
+  --bdr-3: rgba(255,255,255,0.16);
+}
+
+/* ── Mobile Baseline Rules ─────────────────────────────────────────── */
+
+/* 1. Eliminate iOS blue flash on all interactive elements */
+*, button, a, [role="button"], [tabindex], input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 2. Fast tap / prevent double-tap zoom on interactive elements */
+button, a, [role="button"], [tabindex], label {
+  touch-action: manipulation;
+}
+
+/* 3. Input font-size ≥ 16px prevents iOS keyboard zoom on focus
+      max() ensures we never go below 16px but respect larger values  */
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+textarea,
+select {
+  font-size: max(16px, 1em);
+}
+
+/* 4. All visible interactive elements need a 44px touch area minimum.
+      Use .touch-compact to opt out for decorative/icon-only elements  */
+button:not(.touch-compact):not([aria-hidden]),
+[role="button"]:not(.touch-compact):not([aria-hidden]),
+a:not(.touch-compact):not([aria-hidden]) {
+  min-height: var(--touch-min);
+}
+
+/* 5. Active-state press feedback — all pressable elements */
+button:active:not(.no-press),
+[role="button"]:active:not(.no-press),
+a:active:not(.no-press) {
+  transform: scale(0.97);
+  transition: transform var(--dur-instant) var(--ease-smooth);
+}
+
+/* 6. Accessible focus rings — keyboard only (hidden for mouse/touch) */
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+:focus:not(:focus-visible) { outline: none; }
+
+/* 7. Horizontal overflow guard — prevents page-level overflow from
+      mis-sized child elements */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* ── Bottom Tab Bar Content Clearance ─────────────────────────────── */
+/* Applied only when body.has-tab-bar is set by MobileTabBar.tsx.
+   !important overrides the inline paddingBottom on <main> in App.tsx  */
+@media (max-width: 1023px) {
+  body.has-tab-bar main {
+    padding-bottom: calc(var(--tab-bar-total) + 8px) !important;
+  }
+}
+
+/* ── Utility Classes ───────────────────────────────────────────────── */
+
+/* Momentum scrolling containers */
+.scroll-momentum {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Horizontal scroll strip (hides scrollbar, touch-enabled) */
+.scroll-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+}
+.scroll-x::-webkit-scrollbar { display: none; }
+
+/* Safe area padding helpers */
+.pt-safe  { padding-top:    env(safe-area-inset-top,    0px); }
+.pb-safe  { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pl-safe  { padding-left:   env(safe-area-inset-left,   0px); }
+.pr-safe  { padding-right:  env(safe-area-inset-right,  0px); }
+.mt-safe  { margin-top:     env(safe-area-inset-top,    0px); }
+.mb-safe  { margin-bottom:  env(safe-area-inset-bottom, 0px); }
+
+/* Opt-out of press scale */
+.no-press, .no-press:active { transform: none !important; }
+
+/* Opt-out of minimum touch target */
+.touch-compact {
+  min-height: unset !important;
+  min-width:  unset !important;
+}
+
+/* Text truncation helpers */
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* Pressable card — mobile-optimized interactive surface */
+.touch-card {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    transform  var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth);
+}
+.touch-card:active { transform: scale(0.975); }
+/* Hover only for pointer devices (not touch) */
+@media (hover: hover) and (pointer: fine) {
+  .touch-card:hover { transform: translateY(-2px); }
+}
+
+/* ── Skeleton Loader System ──────────────────────────────────────── */
+@keyframes skeleton-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.09) 50%,
+    rgba(255,255,255,0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+  border-radius: var(--r-sm);
+}
+.skeleton-round  { border-radius: var(--r-full) !important; }
+.skeleton-text   { height: 1em;   margin-bottom: 0.4em; width: 100%; }
+.skeleton-title  { height: 1.4em; margin-bottom: 0.5em; width: 70%; }
+.skeleton-block  { height: 100px; width: 100%; }
+
+/* ── Animation Keyframes (Mobile UX) ────────────────────────────── */
+
+/* Slide up from bottom (sheets, drawers, toasts) */
+@keyframes m-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Fade scale in (modals, popovers) */
+@keyframes m-fade-scale-in {
+  from { opacity: 0; transform: scale(0.93) translateY(10px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+
+/* Toast slide in from bottom */
+@keyframes m-toast-in {
+  from { transform: translateY(120%) scale(0.9); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);   opacity: 1; }
+}
+@keyframes m-toast-out {
+  from { transform: translateY(0)    scale(1);   opacity: 1; }
+  to   { transform: translateY(120%) scale(0.9); opacity: 0; }
+}
+
+/* Error shake */
+@keyframes m-shake {
+  0%, 100% { transform: translateX(0);   }
+  20%       { transform: translateX(-6px);}
+  40%       { transform: translateX(6px); }
+  60%       { transform: translateX(-4px);}
+  80%       { transform: translateX(4px); }
+}
+
+/* Success glow pulse */
+@keyframes m-success-glow {
+  0%   { box-shadow: 0 0 0 0   rgba(16,185,129,0.5); }
+  70%  { box-shadow: 0 0 0 8px rgba(16,185,129,0);   }
+  100% { box-shadow: 0 0 0 0   rgba(16,185,129,0);   }
+}
+
+/* Tab icon pop */
+@keyframes m-tab-pop {
+  0%   { transform: scale(1);    }
+  40%  { transform: scale(0.82); }
+  100% { transform: scale(1);    }
+}
+
+/* Utility animation classes */
+.animate-slide-up      { animation: m-slide-up      var(--dur-norm) var(--ease-spring) both; }
+.animate-fade-scale-in { animation: m-fade-scale-in var(--dur-norm) var(--ease-spring) both; }
+.animate-shake         { animation: m-shake 0.45s var(--ease-smooth); }
+.animate-success-glow  { animation: m-success-glow 0.6s ease-out forwards; }
+
+/* ── Form Mobile Reset ───────────────────────────────────────────── */
+/* Full-width inputs on mobile, proper height */
+@media (max-width: 767px) {
+  .mobile-input {
+    width: 100% !important;
+    min-height: var(--touch-std) !important;
+    font-size: max(16px, 1em) !important;
+    border-radius: var(--r-md) !important;
+  }
+  .mobile-btn-full {
+    width: 100% !important;
+    min-height: var(--touch-std) !important;
+    justify-content: center !important;
+  }
+  /* Submit buttons always full-width at bottom on mobile */
+  .mobile-submit {
+    position: sticky;
+    bottom: calc(var(--tab-bar-total) + var(--sp-4));
+    width: 100%;
+    z-index: var(--z-float);
+  }
+}
+
+/* ── System: Home page feature cards (hover → active on mobile) ──── */
+@media (hover: none) {
+  .home-feature-card:hover,
+  .home-step-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE 3 — Auth / Login page
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Shrink the card padding on phones */
+@media (max-width: 430px) {
+  /* Login card inner padding */
+  .lg-headline { font-size: clamp(26px, 7vw, 36px) !important; }
+  /* Reduce inner card padding via wrapper selector written with data attr */
+  [data-login-card] { padding: 28px 20px !important; }
+}
+
+/* Connection status widget: lift it above the tab bar on mobile */
+@media (max-width: 1023px) {
+  [data-conn-widget] {
+    bottom: calc(var(--tab-bar-total, 56px) + env(safe-area-inset-bottom, 0px) + 10px) !important;
+  }
+}
+
+/* Google Sign-In button: force fill on mobile */
+@media (max-width: 540px) {
+  #google-signin-button > div,
+  #google-signin-button iframe {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE 4 — Core page layouts
+   ════════════════════════════════════════════════════════════════════ */
+
+/* StudentDashboard: collapse 7fr/3fr side-by-side to single column */
+@media (max-width: 900px) {
+  .db-content-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Session filter pills: horizontal scroll on tiny screens */
+.db-filter-bar {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 2px; /* prevent clipping */
+}
+.db-filter-bar::-webkit-scrollbar { display: none; }
+.db-filter-bar > * { scroll-snap-align: start; flex-shrink: 0; }
+
+/* Session rows: better touch press on mobile */
+@media (hover: none) {
+  .db-sess-row:hover {
+    background: transparent !important;
+    border-color: rgba(255,255,255,0.07) !important;
+  }
+  .db-sess-row:active {
+    background: rgba(255,255,255,0.04) !important;
+    border-color: rgba(124,90,246,0.35) !important;
+  }
+}
+
+/* Stats cards: already auto-fit minmax — just ensure sane min on tiny phones */
+@media (max-width: 360px) {
+  .db-stat-card { padding: 0.875rem !important; }
+}
+
+/* BurstMode: operation card grid — 2 col on phones (was 5/5/3) */
+@media (max-width: 480px) {
+  .bm-number-slam {
+    font-size: clamp(60px, 14vw, 100px) !important;
+    line-height: 1.05 !important;
+  }
+  .bm-input {
+    font-size: 20px !important;
+    padding: 15px 16px !important;
+  }
+  /* Config modal padding on phone */
+  .bm-config-modal-header { padding: 20px 16px 12px !important; }
+  .bm-config-modal-body   { padding: 0 16px 8px !important;     }
+  .bm-config-modal-footer { margin: 12px 16px 16px !important;  }
+}
+
+/* Mental/BurstMode fullscreen pages: don't clip behind tab bar when active */
+.app-fullscreen .lg\\:hidden,
+.app-nobar .lg\\:hidden {
+  display: none !important;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE 5 — Complex Components
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Certificates / any data table: horizontal-scroll wrapper */
+.mobile-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -1rem;
+  padding: 0 1rem;
+}
+.mobile-table-scroll table { min-width: 520px; }
+
+/* Data table row → card on phone */
+@media (max-width: 600px) {
+  table.mobile-cards,
+  .mobile-cards table { display: block; }
+
+  .mobile-cards thead { display: none; }
+
+  .mobile-cards tbody { display: flex; flex-direction: column; gap: 10px; }
+
+  .mobile-cards tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .mobile-cards td {
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+    padding: 0;
+  }
+  .mobile-cards td::before {
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.45;
+    margin-bottom: 2px;
+  }
+}
+
+/* Chart wrappers: allow horizontal scroll on small screens */
+.chart-scroll-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.chart-scroll-container > * { min-width: 300px; }
+
+/* Filter chips (general) */
+.chip-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 8px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 1px;
+}
+.chip-scroll::-webkit-scrollbar { display: none; }
+.chip-scroll > * { flex-shrink: 0; }
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE 6 — Modals → Mobile-friendly
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Global modal overlay on mobile: push to bottom sheet */
+@media (max-width: 600px) {
+  /* Any modal wrapper that has both a backdrop + card child */
+  .m-modal-wrap {
+    align-items: flex-end !important;
+  }
+  .m-modal-card {
+    border-radius: 22px 22px 0 0 !important;
+    max-height: 88dvh !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+  }
+}
+
+/* Points log modal — slide-up sheet on mobile */
+@media (max-width: 1023px) {
+  [data-points-modal] {
+    max-height: 85dvh;
+    overflow-y: auto;
+    border-radius: 22px 22px 0 0;
+    bottom: 0; top: auto !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  }
+}
+
+/* Attendance modal — same treatment */
+@media (max-width: 1023px) {
+  [data-att-modal] {
+    max-height: 88dvh;
+    overflow-y: auto;
+    border-radius: 22px 22px 0 0;
+    bottom: 0; top: auto !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE 7 — Forms & Inputs
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Universal input floor (backs up the Phase 1 rule) */
+input, textarea, select {
+  font-size: max(16px, 1em) !important; /* prevent iOS zoom */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Input focus ring — matches Phase 1 accent system */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--c-accent, #F97316) !important;
+  outline-offset: 2px;
+}
+
+/* Range / slider: larger touch area on mobile */
+@media (max-width: 1023px) {
+  input[type="range"] {
+    height: 36px;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* Checkbox / radio: larger tap target */
+@media (max-width: 1023px) {
+  input[type="checkbox"],
+  input[type="radio"] {
+    width:  20px;
+    height: 20px;
+    cursor: pointer;
+  }
+}
+
+/* Select dropdown: native look reset */
+@media (max-width: 1023px) {
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2.5rem;
+    min-height: var(--touch-min, 44px);
+  }
+}
+
+/* Button reset for forms */
+@media (max-width: 1023px) {
+  button[type="submit"],
+  button[type="button"],
+  input[type="submit"] {
+    min-height: var(--touch-std, 48px);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* TimeLimitSlider and similar premium-select */
+.premium-select {
+  min-height: var(--touch-min, 44px) !important;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE 8 — Empty / Error / Loading States
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Centered empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+}
+.empty-state-icon {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  margin-bottom: 4px;
+}
+.empty-state-title {
+  font-size: 15px; font-weight: 700;
+  color: var(--c-text, #F0F2FF);
+  margin: 0;
+}
+.empty-state-sub {
+  font-size: 13px;
+  color: rgba(255,255,255,0.38);
+  margin: 0; max-width: 280px;
+  line-height: 1.55;
+}
+
+/* Error message strip */
+.error-strip {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.22);
+  border-radius: 12px;
+  font-size: 14px;
+  color: #fca5a5;
+  line-height: 1.5;
+}
+.error-strip-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  flex-shrink: 0;
+  margin-top: 5px;
+  animation: m-pulse 1.4s ease-in-out infinite;
+}
+@keyframes m-pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+/* Loading screen: full-page centre alignment safety */
+.loading-screen-centre {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE 9 — Micro-interactions
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Press lift for interactive cards */
+.interactive-card {
+  transition: transform 0.18s var(--ease-spring, cubic-bezier(.34,1.56,.64,1)),
+              box-shadow 0.18s ease;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  .interactive-card:hover { transform: translateY(-4px); box-shadow: 0 16px 48px rgba(0,0,0,.4); }
+}
+.interactive-card:active { transform: scale(0.97); }
+
+/* Ripple utility class (JS-less CSS approximation) */
+.ripple-btn {
+  position: relative;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.ripple-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--rx, 50%) var(--ry, 50%),
+    rgba(255,255,255,0.18) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.ripple-btn:active::after { opacity: 1; transition: none; }
+
+/* Smooth reveal for any element entering the DOM */
+.reveal-in {
+  animation: m-fade-scale-in 0.22s var(--ease-spring, cubic-bezier(.34,1.56,.64,1)) both;
+}
+
+/* Button micro-bounce on press */
+.btn-bounce:active { animation: m-tab-pop 0.18s ease both; }
+
+/* Badge pop */
+.badge-pop { animation: m-tab-pop 0.3s cubic-bezier(.34,1.56,.64,1) both; }
+
+/* Icon spin */
+.icon-spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Success flash */
+.flash-success {
+  animation: m-success-glow 0.6s ease both;
+}
+
+/* Error shake */
+.flash-error {
+  animation: m-shake 0.4s ease both;
+}
+
+/* Nav link active underline fill */
+.nav-link-indicator {
+  position: relative;
+}
+.nav-link-indicator::after {
+  content: "";
+  position: absolute;
+  bottom: -2px; left: 50%; right: 50%;
+  height: 2px;
+  background: var(--c-accent, #F97316);
+  border-radius: 1px;
+  transition: left 0.2s ease, right 0.2s ease;
+}
+.nav-link-indicator.active::after { left: 0; right: 0; }
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE 10 — Final polish: safe-area, overflow guards, font baseline
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Prevent any horizontal scroll bleed */
+html, body { max-width: 100%; overflow-x: hidden; }
+
+/* Page shells: ensure bottom content is never hidden by tab bar */
+@media (max-width: 1023px) {
+  body.has-tab-bar .page-content {
+    padding-bottom: calc(var(--tab-bar-total, 72px) + 16px) !important;
+  }
+  /* Sticky bottom elements (e.g. Create buttons) */
+  body.has-tab-bar .sticky-bottom {
+    bottom: calc(var(--tab-bar-total, 72px) + env(safe-area-inset-bottom, 0px) + 8px) !important;
+  }
+}
+
+/* Ensure premium gradient buttons always have legible text */
+.premium-gradient { color: #fff !important; }
+
+/* DM Sans baseline for all inline-styled text nodes */
+body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+
+/* Thin scrollbar for desktop, hidden on touch */
+@media (hover: hover) {
+  ::-webkit-scrollbar       { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+}
+@media (hover: none) {
+  ::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
+}
+
+/* Prevent text-size adjustment after rotation */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ── Accessibility: respect reduced-motion ──────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:       0.01ms !important;
+    animation-iteration-count:1      !important;
+    transition-duration:      0.01ms !important;
+    scroll-behavior:          auto   !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE 10 ADDENDUM — Page-level padding / section spacing on mobile
+   ════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Home page: hero and section padding are hard-coded to 80–120px.
+ * At < 640px, halve the vertical padding so content isn't buried.
+ */
+@media (max-width: 639px) {
+  /* Hero section */
+  .home-hero-section {
+    padding-top:    clamp(72px, 14vw, 120px) !important;
+    padding-bottom: clamp(48px, 8vw, 80px)   !important;
+    min-height:     auto !important;
+  }
+  /* Generic home sub-sections */
+  .home-section {
+    padding-top:    clamp(40px, 8vw, 80px)  !important;
+    padding-bottom: clamp(40px, 8vw, 80px)  !important;
+    padding-left:   clamp(14px, 4vw, 24px)  !important;
+    padding-right:  clamp(14px, 4vw, 24px)  !important;
+  }
+}
+
+/* About / Policy / Account-deletion pages: reduce hero gap */
+@media (max-width: 639px) {
+  .prose-page-outer {
+    padding-top:    clamp(48px, 10vw, 80px)   !important;
+    padding-bottom: clamp(48px, 8vw, 120px)   !important;
+  }
+}
+
+/* StudentDashboard header margin */
+@media (max-width: 639px) {
+  .db-page-header { margin-bottom: 1.25rem !important; }
+  .db-page-header h1 { font-size: clamp(1.5rem, 6vw, 2rem) !important; }
+}
+
+/* Quick fix: certificates table — already wrapped with overflowX:auto inline;
+   add min-width guard via CSS so it scrolls instead of wrapping */
+table { min-width: min(520px, 100%); }
+
+/* Action button groups on mobile: stack full-width */
+@media (max-width: 480px) {
+  .btn-group-mobile {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+  .btn-group-mobile > * { width: 100% !important; flex: none !important; }
+}
+
+/* ────────────────────────────────────────────────────────────────── */

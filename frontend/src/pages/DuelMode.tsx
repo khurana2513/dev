@@ -266,7 +266,7 @@ function buildRankingsFromRoom(room: DuelRoomState): DuelRanking[] {
     };
   });
 
-  rankings.sort((a, b) => (-a.correct) || (a.wrong - b.wrong) || a.name.localeCompare(b.name));
+  rankings.sort((a, b) => (b.correct - a.correct) || (a.wrong - b.wrong) || a.name.localeCompare(b.name));
   rankings.forEach((entry, index) => {
     entry.rank = index + 1;
   });
@@ -310,8 +310,9 @@ export default function DuelMode() {
   const [, setLocation]   = useLocation();
 
   // ── Phase / nav ─────────────────────────────────────────────────────────
-  const [phase,      setPhase]     = useState<DuelPhase>(() => urlCode ? "joining" : "entry");
-  const [hostStep,   setHostStep]  = useState<HostConfigStep>("select");
+  const [phase,         setPhase]        = useState<DuelPhase>(() => urlCode ? "joining" : "entry");
+  const [entryReversed, setEntryReversed] = useState(false);
+  const [hostStep,      setHostStep]     = useState<HostConfigStep>("select");
   const [selectedOp,     setSelectedOp]     = useState<BurstOperationType | null>(null);
   const [selectedOption, setSelectedOption] = useState<string>("");
   const [selectedCombos, setSelectedCombos] = useState<SelectedCombo[]>([]);
@@ -774,11 +775,11 @@ export default function DuelMode() {
 
   // ── Render ──────────────────────────────────────────────────────────────
 
-  if (phase === "entry") return <EntryScreen isAdmin={isAdmin} onHost={() => setPhase("host-select")} onJoin={() => setPhase("join-input")} />;
+  if (phase === "entry") return <EntryScreen isAdmin={isAdmin} reversed={entryReversed} onHost={() => { setEntryReversed(false); setPhase("host-select"); }} onJoin={() => setLocation("/enter-code")} />;
 
   if (phase === "host-select") return (
     <HostSelectScreen
-      onBack={() => setPhase("entry")}
+      onBack={() => { setEntryReversed(true); setPhase("entry"); }}
       onSelectOp={op => { setSelectedOp(op); setSelectedOption(BURST_OPERATIONS[op].options[0].value); setHostStep("single-config"); setPhase("host-config"); }}
       onMix={() => { setSelectedCombos([]); setHostStep("mix"); setPhase("host-config"); }}
     />
@@ -965,40 +966,130 @@ function AdminLiveRoomsPanel({ onJoin }: { onJoin: (code: string) => void }) {
   );
 }
 
-function EntryScreen({ isAdmin, onHost, onJoin }: { isAdmin: boolean; onHost: () => void; onJoin: () => void }) {
+function EntryScreen({ isAdmin, reversed, onHost, onJoin }: { isAdmin: boolean; reversed?: boolean; onHost: () => void; onJoin: () => void }) {
   return (
-    <div className={BG} style={{ gap: 0 }}>
-      <div className="text-center mb-10">
-        <div className="text-5xl mb-4">⚔️</div>
-        <h1 className="text-4xl font-black tracking-tight mb-2" style={{ background: "linear-gradient(135deg,#f97316,#fb923c)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+    <div className={BG} style={{ gap: 0, position: "relative", overflow: "hidden" }}>
+      <style>{`
+        @keyframes dm-orb1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(30px,-20px) scale(1.08)} }
+        @keyframes dm-orb2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-20px,25px) scale(1.05)} }
+        @keyframes dm-sword-in { from{opacity:0;transform:rotate(-25deg) scale(.7)} to{opacity:1;transform:rotate(0deg) scale(1)} }
+        @keyframes dm-spark { 0%{opacity:0;transform:translate(0,0) scale(0)} 40%{opacity:1} 100%{opacity:0;transform:translate(var(--sx),var(--sy)) scale(.4)} }
+        @keyframes dm-title-in { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes dm-card-in { from{opacity:0;transform:translateY(24px) scale(.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes dm-shine { 0%,100%{left:-100%} 50%{left:120%} }
+        .dm-host-card:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 20px 60px rgba(249,115,22,.3) !important; }
+        .dm-join-card:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 20px 60px rgba(139,92,246,.3) !important; }
+        .dm-host-card:active { transform: scale(.97) !important; }
+        .dm-join-card:active { transform: scale(.97) !important; }
+        .dm-back-entry:hover { color: rgba(255,255,255,.75) !important; background: rgba(255,255,255,.06) !important; }
+      `}</style>
+
+      {/* Ambient orbs */}
+      <div aria-hidden style={{ position:"absolute",top:"-15%",left:"-8%",width:"50vw",height:"50vw",maxWidth:480,maxHeight:480,borderRadius:"50%",background:"radial-gradient(circle,rgba(249,115,22,0.08) 0%,transparent 65%)",pointerEvents:"none",animation:"dm-orb1 9s ease-in-out infinite" }} />
+      <div aria-hidden style={{ position:"absolute",bottom:"-10%",right:"-5%",width:"45vw",height:"45vw",maxWidth:440,maxHeight:440,borderRadius:"50%",background:"radial-gradient(circle,rgba(139,92,246,0.09) 0%,transparent 65%)",pointerEvents:"none",animation:"dm-orb2 11s ease-in-out infinite" }} />
+
+      {/* Back button — top-left */}
+      <Link
+        href="/burst"
+        className="dm-back-entry"
+        style={{ position:"absolute",top:20,left:20,display:"flex",alignItems:"center",gap:7,padding:"8px 14px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",fontSize:13,fontWeight:600,textDecoration:"none",transition:"color .2s,background .2s",zIndex:10 }}
+      >
+        ← Burst Mode
+      </Link>
+
+      {/* Hero graphic — crossed swords SVG */}
+      <div style={{ animation:"dm-sword-in .7s cubic-bezier(.22,1,.36,1) both", marginBottom:24, position:"relative" }}>
+        <svg width="90" height="90" viewBox="0 0 90 90" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter:"drop-shadow(0 0 22px rgba(249,115,22,0.55))" }}>
+          {/* Left blade */}
+          <line x1="15" y1="75" x2="62" y2="22" stroke="url(#sg1)" strokeWidth="5" strokeLinecap="round"/>
+          {/* Right blade */}
+          <line x1="75" y1="75" x2="28" y2="22" stroke="url(#sg2)" strokeWidth="5" strokeLinecap="round"/>
+          {/* Cross-guards */}
+          <rect x="8" y="67" width="22" height="6" rx="3" fill="#fb923c" opacity=".9" transform="rotate(-45 8 67)"/>
+          <rect x="60" y="67" width="22" height="6" rx="3" fill="#a78bfa" opacity=".9" transform="rotate(45 82 73)"/>
+          {/* Sparks at intersection */}
+          <circle cx="45" cy="46" r="5" fill="white" opacity=".9"/>
+          <circle cx="45" cy="46" r="9" fill="white" opacity=".2"/>
+          <circle cx="45" cy="46" r="13" fill="white" opacity=".07"/>
+          {/* Spark lines */}
+          <line x1="45" y1="46" x2="45" y2="30" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".5"/>
+          <line x1="45" y1="46" x2="57" y2="38" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".4"/>
+          <line x1="45" y1="46" x2="33" y2="38" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".4"/>
+          <defs>
+            <linearGradient id="sg1" x1="15" y1="75" x2="62" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#fb923c"/>
+              <stop offset="100%" stopColor="#fde68a"/>
+            </linearGradient>
+            <linearGradient id="sg2" x1="75" y1="75" x2="28" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#8b5cf6"/>
+              <stop offset="100%" stopColor="#c4b5fd"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      {/* Title */}
+      <div style={{ textAlign:"center",marginBottom:32,animation:"dm-title-in .55s ease .2s both" }}>
+        <h1 style={{ fontSize:"clamp(2rem,5vw,2.75rem)",fontWeight:900,letterSpacing:"-0.03em",lineHeight:1.05,marginBottom:10,background:"linear-gradient(135deg,#f97316,#fb923c,#fdba74)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>
           LIVE DUEL MODE
         </h1>
-        <p className="text-white/40 text-sm">Real-time math battle · Same questions · Same timer · May the best mind win</p>
+        <p style={{ color:"rgba(255,255,255,0.38)",fontSize:13.5,fontWeight:500,letterSpacing:"0.01em" }}>
+          Real-time math battle · Same questions · Same timer · May the best mind win
+        </p>
       </div>
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-        <button
-          onClick={onHost}
-          className="flex-1 flex flex-col items-center gap-3 p-7 rounded-2xl cursor-pointer transition-all hover:scale-105 active:scale-95"
-          style={{ background: "linear-gradient(135deg,rgba(249,115,22,.15),rgba(251,146,60,.08))", border: "1px solid rgba(249,115,22,.3)" }}
-        >
-          <span className="text-4xl">🏠</span>
-          <span className="font-black text-lg text-orange-400">Create Room</span>
-          <span className="text-white/40 text-xs text-center">Pick a game mode and invite friends</span>
-        </button>
-        <button
-          onClick={onJoin}
-          className="flex-1 flex flex-col items-center gap-3 p-7 rounded-2xl cursor-pointer transition-all hover:scale-105 active:scale-95"
-          style={{ background: "linear-gradient(135deg,rgba(124,58,237,.15),rgba(139,92,246,.08))", border: "1px solid rgba(124,58,237,.3)" }}
-        >
-          <span className="text-4xl">🚪</span>
-          <span className="font-black text-lg text-violet-400">Join Room</span>
-          <span className="text-white/40 text-xs text-center">Enter a 6-letter code to join</span>
-        </button>
+
+      {/* Cards row */}
+      <div style={{ display:"flex",flexDirection:"column",gap:14,width:"100%",maxWidth:420 }} className="sm:flex-row">
+        {/* sm:flex-row via Tailwind */}
+        <style>{`.dm-cards-row { display:flex; gap:14px; width:100%; max-width:420px; } @media(max-width:540px){.dm-cards-row{flex-direction:column;}}`}</style>
+        <div className="dm-cards-row">
+          {/* Create Room */}
+          <button
+            onClick={onHost}
+            className="dm-host-card"
+            style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:14,padding:"28px 20px",borderRadius:24,cursor:"pointer",background:"linear-gradient(160deg,rgba(249,115,22,.13) 0%,rgba(251,146,60,.06) 100%)",border:"1px solid rgba(249,115,22,.32)",transition:"transform .25s,box-shadow .25s",boxShadow:"0 8px 32px rgba(249,115,22,.12)",position:"relative",overflow:"hidden",animation:`dm-card-in .5s cubic-bezier(.22,1,.36,1) ${reversed ? '.45s' : '.35s'} both` }}
+          >
+            {/* Shine sweep */}
+            <div aria-hidden style={{ position:"absolute",top:0,bottom:0,width:"40%",background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent)",animation:`dm-shine 3.5s ease-in-out ${reversed ? '2s' : '1.5s'} infinite`,pointerEvents:"none" }} />
+            {/* Custom SVG icon: house outline */}
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter:"drop-shadow(0 0 10px rgba(249,115,22,0.6))" }}>
+              <path d="M6 24L24 7L42 24" stroke="#fb923c" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M11 20V40H37V20" stroke="#fb923c" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <rect x="19" y="28" width="10" height="12" rx="2" stroke="#fde68a" strokeWidth="2.5"/>
+              <line x1="35" y1="12" x2="35" y2="21" stroke="#fb923c" strokeWidth="3" strokeLinecap="round"/>
+            </svg>
+            <div style={{ textAlign:"center" }}>
+              <p style={{ fontSize:17,fontWeight:900,color:"#fb923c",marginBottom:5,letterSpacing:"-0.01em" }}>Create Room</p>
+              <p style={{ fontSize:12,color:"rgba(255,255,255,0.38)",lineHeight:1.4 }}>Pick a mode and invite friends</p>
+            </div>
+            <div style={{ display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:"50%",background:"rgba(249,115,22,0.15)",border:"1px solid rgba(249,115,22,0.3)",color:"#fb923c",fontSize:16,fontWeight:900,marginTop:2 }}>→</div>
+          </button>
+
+          {/* Join Room */}
+          <button
+            onClick={onJoin}
+            className="dm-join-card"
+            style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:14,padding:"28px 20px",borderRadius:24,cursor:"pointer",background:"linear-gradient(160deg,rgba(124,58,237,.13) 0%,rgba(139,92,246,.06) 100%)",border:"1px solid rgba(139,92,246,.32)",transition:"transform .25s,box-shadow .25s",boxShadow:"0 8px 32px rgba(139,92,246,.12)",position:"relative",overflow:"hidden",animation:`dm-card-in .5s cubic-bezier(.22,1,.36,1) ${reversed ? '.35s' : '.45s'} both` }}
+          >
+            {/* Shine sweep */}
+            <div aria-hidden style={{ position:"absolute",top:0,bottom:0,width:"40%",background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent)",animation:`dm-shine 3.5s ease-in-out ${reversed ? '1.5s' : '2s'} infinite`,pointerEvents:"none" }} />
+            {/* Custom SVG icon: key/portal */}
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter:"drop-shadow(0 0 10px rgba(139,92,246,0.6))" }}>
+              <circle cx="18" cy="20" r="9" stroke="#a78bfa" strokeWidth="3.5"/>
+              <line x1="24" y1="26" x2="42" y2="40" stroke="#a78bfa" strokeWidth="3.5" strokeLinecap="round"/>
+              <line x1="34" y1="33" x2="34" y2="39" stroke="#c4b5fd" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="38" y1="36" x2="38" y2="42" stroke="#c4b5fd" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+            <div style={{ textAlign:"center" }}>
+              <p style={{ fontSize:17,fontWeight:900,color:"#a78bfa",marginBottom:5,letterSpacing:"-0.01em" }}>Join Room</p>
+              <p style={{ fontSize:12,color:"rgba(255,255,255,0.38)",lineHeight:1.4 }}>Enter your code at Enter Code</p>
+            </div>
+            <div style={{ display:"flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:"50%",background:"rgba(139,92,246,0.15)",border:"1px solid rgba(139,92,246,0.3)",color:"#a78bfa",fontSize:16,fontWeight:900,marginTop:2 }}>→</div>
+          </button>
+        </div>
       </div>
-      <Link href="/burst" className="mt-8 text-white/30 text-xs hover:text-white/60 transition-colors">
-        ← Back to Burst Mode
-      </Link>
-      {isAdmin && <AdminLiveRoomsPanel onJoin={code => { onJoin(); /* navigate to join-input */ window.location.href = `/duel/${code}`; }} />}
+
+      {isAdmin && <AdminLiveRoomsPanel onJoin={code => { window.location.href = `/duel/${code}`; }} />}
     </div>
   );
 }
@@ -1011,11 +1102,11 @@ function HostSelectScreen({ onBack, onSelectOp, onMix }: {
   onMix: () => void;
 }) {
   return (
-    <div className="min-h-screen bg-[#07070F] text-white px-4 py-8 overflow-y-auto">
-      <div className="max-w-3xl mx-auto">
-        <button onClick={onBack} className="flex items-center gap-2 text-white/40 hover:text-white text-sm mb-6 transition-colors">
-          ← Back
-        </button>
+    <div className="min-h-screen bg-[#07070F] text-white px-4 py-8 overflow-y-auto" style={{ position: "relative" }}>
+      <button onClick={onBack} style={{ position: "absolute", top: 20, left: 20, display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: 600, cursor: "pointer", zIndex: 10, transition: "color .2s,background .2s" }}>
+        ← Back
+      </button>
+      <div className="max-w-3xl mx-auto" style={{ paddingTop: 60 }}>
         <div className="text-center mb-8">
           <h2 className="text-3xl font-black mb-2">Choose Your Battle Mode</h2>
           <p className="text-white/40 text-sm">Select the math operation for tonight's duel</p>
@@ -1075,9 +1166,9 @@ function HostConfigScreen({
     : selectedCombos.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#07070F] text-white px-4 py-8 overflow-y-auto">
-      <div className="max-w-xl mx-auto">
-        <button onClick={onBack} className="flex items-center gap-2 text-white/40 hover:text-white text-sm mb-6 transition-colors">← Back</button>
+    <div className="min-h-screen bg-[#07070F] text-white px-4 py-8 overflow-y-auto" style={{ position: "relative" }}>
+      <button onClick={onBack} style={{ position: "absolute", top: 20, left: 20, display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: 600, cursor: "pointer", zIndex: 10, transition: "color .2s,background .2s" }}>← Back</button>
+      <div className="max-w-xl mx-auto" style={{ paddingTop: 60 }}>
 
         {step === "single-config" && selectedOp && (
           <>
@@ -1193,9 +1284,9 @@ function JoinInputScreen({ value, onChange, onJoin, onBack, error }: {
   const chars = value.padEnd(6, " ").split("").slice(0, 6);
 
   return (
-    <div className={BG}>
-      <button onClick={onBack} className="self-start mb-6 text-white/40 hover:text-white text-sm transition-colors">← Back</button>
-      <div className="text-center mb-8">
+    <div className={BG} style={{ position: "relative" }}>
+      <button onClick={onBack} style={{ position: "absolute", top: 20, left: 20, display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: 600, cursor: "pointer", zIndex: 10, transition: "color .2s,background .2s" }}>← Back</button>
+      <div className="text-center mb-8" style={{ paddingTop: 20 }}>
         <div className="text-4xl mb-3">🚪</div>
         <h2 className="text-3xl font-black mb-1">Join a Duel</h2>
         <p className="text-white/40 text-sm">Enter the 6-character room code from your friend</p>
@@ -1253,12 +1344,16 @@ function LobbyScreen({ room, isHost, isConnected, myId, error, onStart, onBack }
   onStart:     () => void;
   onBack:      () => void;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
   const hasMinPlayers = room.players.length >= 2;
   const canStart = hasMinPlayers && isConnected;
 
+  function copyLink() {
+    navigator.clipboard.writeText(`${window.location.origin}/duel/${room.code}`).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); });
+  }
   function copyCode() {
-    navigator.clipboard.writeText(`${window.location.origin}/duel/${room.code}`).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    navigator.clipboard.writeText(room.code).then(() => { setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000); });
   }
 
   return (
@@ -1266,20 +1361,54 @@ function LobbyScreen({ room, isHost, isConnected, myId, error, onStart, onBack }
       <div className="w-full max-w-md">
         <button onClick={onBack} className="flex items-center gap-2 text-white/40 hover:text-white text-sm mb-6 transition-colors">← Leave</button>
 
-        {/* Room code display */}
-        <div className={`${CARD} p-6 mb-4 text-center`}>
-          <p className="text-white/40 text-xs uppercase tracking-widest font-bold mb-3">Room Code</p>
-          <div className="text-5xl font-black tracking-[0.2em] mb-4" style={{ fontFamily: "monospace", color: "#f97316", textShadow: "0 0 40px rgba(249,115,22,.4)" }}>
-            {room.code}
+        {/* Room code card — premium share panel */}
+        <div style={{ background:'#0F1120', borderRadius:20, boxShadow:'0 16px 60px rgba(0,0,0,0.55)', border:'1px solid rgba(249,115,22,0.22)', marginBottom:16, overflow:'hidden' }}>
+          {/* Top accent bar */}
+          <div style={{ height:3, background:'linear-gradient(90deg,#f97316,#fb923c,#fde68a)', borderRadius:'20px 20px 0 0' }} />
+          <div style={{ padding:'20px 20px 0' }}>
+            {/* Header */}
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+              <div style={{ width:42, height:42, borderRadius:13, background:'linear-gradient(135deg,#f97316,#fb923c)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 16px rgba(249,115,22,0.4)', flexShrink:0, fontSize:20 }}>⚔️</div>
+              <div>
+                <p style={{ fontSize:16, fontWeight:800, color:'#F0F2FF', margin:0, letterSpacing:'-0.01em' }}>Room Created!</p>
+                <p style={{ fontSize:11, color:'rgba(255,255,255,0.35)', margin:'2px 0 0', fontFamily:'DM Sans,sans-serif' }}>Share the code or link with your friends</p>
+              </div>
+            </div>
+
+            {/* Big code display */}
+            <div style={{ textAlign:'center', marginBottom:14 }}>
+              <p style={{ margin:'0 0 8px', fontSize:10, color:'rgba(255,255,255,0.35)', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase' }}>Room Code</p>
+              <div style={{ display:'inline-block', padding:'12px 28px', background:'rgba(249,115,22,0.1)', border:'2px solid rgba(249,115,22,0.35)', borderRadius:14 }}>
+                <span style={{ fontSize:34, fontWeight:900, fontFamily:"'JetBrains Mono',monospace", color:'#fb923c', letterSpacing:'0.25em' }}>{room.code}</span>
+              </div>
+            </div>
+
+            {/* Info chips */}
+            <div style={{ display:'flex', gap:8, justifyContent:'center', marginBottom:14, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 11px', background:'rgba(249,115,22,0.08)', border:'1px solid rgba(249,115,22,0.2)', borderRadius:8 }}>
+                <span style={{ fontSize:10, color:'#fb923c', fontFamily:'DM Sans,sans-serif', fontWeight:600 }}>Max 8 players</span>
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 11px', background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.2)', borderRadius:8 }}>
+                <span style={{ fontSize:10, color:'#34D399', fontFamily:'DM Sans,sans-serif', fontWeight:600 }}>60‑second timer</span>
+              </div>
+            </div>
+
+            {/* Copy Code + Copy Link buttons */}
+            <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+              <button
+                onClick={copyCode}
+                style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'10px 0', background: codeCopied ? 'rgba(16,185,129,0.12)' : 'rgba(249,115,22,0.1)', border:`1px solid ${codeCopied ? 'rgba(16,185,129,0.3)' : 'rgba(249,115,22,0.3)'}`, borderRadius:11, color: codeCopied ? '#34D399' : '#fb923c', fontFamily:'DM Sans,sans-serif', fontWeight:700, fontSize:12, cursor:'pointer', transition:'all 0.2s' }}
+              >
+                {codeCopied ? '✓ Code Copied!' : '📋 Copy Code'}
+              </button>
+              <button
+                onClick={copyLink}
+                style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'10px 0', background: linkCopied ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.05)', border:`1px solid ${linkCopied ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)'}`, borderRadius:11, color: linkCopied ? '#34D399' : 'rgba(255,255,255,0.5)', fontFamily:'DM Sans,sans-serif', fontWeight:700, fontSize:12, cursor:'pointer', transition:'all 0.2s' }}
+              >
+                {linkCopied ? '✓ Link Copied!' : '🔗 Copy Link'}
+              </button>
+            </div>
           </div>
-          <button
-            onClick={copyCode}
-            className="flex items-center gap-2 mx-auto px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-105 active:scale-95"
-            style={{ background: copied ? "rgba(34,197,94,.15)" : "rgba(255,255,255,.06)", border: `1px solid ${copied ? "rgba(34,197,94,.3)" : "rgba(255,255,255,.1)"}`, color: copied ? "#4ade80" : "rgba(255,255,255,.6)" }}
-          >
-            {copied ? "✓ Copied!" : "📋 Copy invite link"}
-          </button>
-          <p className="text-white/25 text-xs mt-3">Share with friends so they can join</p>
         </div>
 
         {/* Config summary */}

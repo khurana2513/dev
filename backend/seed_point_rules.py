@@ -210,6 +210,14 @@ RULES.append(R("mental_math", "integer_add_sub", "preset", "rows_10_up", 8, "10+
 
 
 # ================================================================
+# INTL ADD/SUB — Mental Math only (same tiers as add_sub)
+# ================================================================
+RULES.append(R("mental_math", "intl_add_sub", "preset", "rows_3_5",  3, "3–5 Rows",  "+3", 1))
+RULES.append(R("mental_math", "intl_add_sub", "preset", "rows_6_9",  5, "6–9 Rows",  "+5", 2))
+RULES.append(R("mental_math", "intl_add_sub", "preset", "rows_10_up", 8, "10+ Rows", "+8", 3))
+
+
+# ================================================================
 # CUSTOM CONFIG MODE — 0 points always
 # ================================================================
 _custom_ops = [

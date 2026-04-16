@@ -1,14 +1,13 @@
-import { Link, useLocation } from "wouter";
-import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { Link } from "wouter";
+import { X } from "lucide-react";
 import { GridGame } from "../tools/gridmaster/games/GridGame";
-import { MagicSquareGame } from "../tools/gridmaster/games/MagicSquareGame";
 import { ToastContainer } from "../tools/gridmaster/components/ToastContainer";
 import { useToast } from "../tools/gridmaster/hooks/useToast";
 
 /* ── CSS variables injected into .gridmaster-page scope ─────────────────────
-   --teal remapped to project purple (#7B5CE5) so GridGame.module.css and
-   MagicSquareGame.module.css automatically use the project palette.
-   --gold remapped to project orange (#F97316) accent.
+   --teal remapped to project purple (#7B5CE5) so GridGame.module.css
+   automatically uses the project palette.
 ──────────────────────────────────────────────────────────────────────────── */
 const CSS_VARS = `
   .gridmaster-page {
@@ -29,22 +28,20 @@ const CSS_VARS = `
     --r: 16px;
     --r-sm: 10px;
   }
+  @keyframes gm-orb1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(28px,-18px) scale(1.07)} }
+  @keyframes gm-orb2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-18px,22px) scale(1.05)} }
+  @keyframes gm-panel-in { from{opacity:0;transform:translateX(24px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes gm-fade-in { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  .gm-info-btn:hover { background: rgba(123,92,229,0.18) !important; border-color: rgba(123,92,229,0.5) !important; }
+  .gm-back-btn:hover { color: rgba(255,255,255,0.75) !important; background: rgba(255,255,255,0.06) !important; }
+  .gm-info-panel { animation: gm-panel-in 0.28s cubic-bezier(0.22,1,0.36,1) both; }
+  .gm-game-wrap { animation: gm-fade-in 0.4s ease 0.1s both; }
+  .gm-panel-close:hover { background: rgba(255,255,255,0.1) !important; }
 `;
 
-type Tab = "grid" | "magic";
-
 export default function GridMaster() {
-  const [location] = useLocation();
-  const activeTab: Tab = location === "/tools/gridmaster/magic" ? "magic" : "grid";
   const { toasts, add: addToast } = useToast();
-
-  const isGrid = activeTab === "grid";
-  const accentColor  = isGrid ? "#9D7FF0" : "#F97316";
-  const accentGlow   = isGrid ? "rgba(123,92,229,0.16)" : "rgba(249,115,22,0.14)";
-  const accentBorder = isGrid ? "rgba(123,92,229,0.28)" : "rgba(249,115,22,0.28)";
-  const heroGradient = isGrid
-    ? "linear-gradient(180deg, #0C0918 0%, #07070F 100%)"
-    : "linear-gradient(180deg, #100C07 0%, #07070F 100%)";
+  const [infoOpen, setInfoOpen] = useState(false);
 
   return (
     <>
@@ -57,15 +54,21 @@ export default function GridMaster() {
           background: "#07070F",
           fontFamily: "'DM Sans', sans-serif",
           color: "#F0F2FF",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
+        {/* ── Ambient orbs ── */}
+        <div aria-hidden style={{ position:"fixed",top:"-12%",left:"-6%",width:"52vw",height:"52vw",maxWidth:500,maxHeight:500,borderRadius:"50%",background:"radial-gradient(circle,rgba(123,92,229,0.07) 0%,transparent 65%)",pointerEvents:"none",animation:"gm-orb1 10s ease-in-out infinite",zIndex:0 }} />
+        <div aria-hidden style={{ position:"fixed",bottom:"-10%",right:"-4%",width:"46vw",height:"46vw",maxWidth:440,maxHeight:440,borderRadius:"50%",background:"radial-gradient(circle,rgba(157,127,240,0.06) 0%,transparent 65%)",pointerEvents:"none",animation:"gm-orb2 13s ease-in-out infinite",zIndex:0 }} />
+
         {/* ── Sticky Nav ── */}
         <div
           style={{
             borderBottom: "1px solid rgba(255,255,255,0.06)",
-            background: "rgba(7,7,15,0.92)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
+            background: "rgba(7,7,15,0.88)",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
             position: "sticky",
             top: 0,
             zIndex: 20,
@@ -73,204 +76,221 @@ export default function GridMaster() {
         >
           <div
             style={{
-              maxWidth: 1000,
+              maxWidth: 1040,
               margin: "0 auto",
-              padding: "0 clamp(12px,3vw,24px)",
-              height: 60,
+              padding: "0 clamp(14px,3vw,28px)",
+              height: 58,
               display: "flex",
               alignItems: "center",
+              justifyContent: "space-between",
               gap: 12,
             }}
           >
+            {/* Back */}
             <Link href="/">
               <button
+                className="gm-back-btn"
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
                   padding: "7px 14px",
                   borderRadius: 10,
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(255,255,255,0.04)",
-                  color: "#B8BDD8",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.03)",
+                  color: "rgba(255,255,255,0.4)",
                   fontSize: 13,
                   fontFamily: "'DM Sans', sans-serif",
-                  fontWeight: 500,
+                  fontWeight: 600,
                   cursor: "pointer",
-                  transition: "all 0.15s",
+                  transition: "color .2s, background .2s",
                   flexShrink: 0,
                 }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLButtonElement).style.color = "#F0F2FF";
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)";
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLButtonElement).style.color = "#B8BDD8";
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.04)";
-                }}
               >
-                <ArrowLeft size={14} />
-                Back
+                ← Home
               </button>
             </Link>
 
-            {/* ── Tab pills ── */}
-            <div style={{ display: "flex", gap: 4, flex: 1, justifyContent: "center" }}>
-              {([
-                { tab: "grid",  href: "/tools/gridmaster",       emoji: "🔢", label: "Vedic Grid" },
-                { tab: "magic", href: "/tools/gridmaster/magic", emoji: "✨", label: "Magic Square" },
-              ] as const).map(({ tab, href, emoji, label }) => {
-                const active    = activeTab === tab;
-                const tabAccent = tab === "grid" ? "#9D7FF0" : "#F97316";
-                const tabBorder = tab === "grid" ? "rgba(123,92,229,0.4)" : "rgba(249,115,22,0.4)";
-                const tabBg     = tab === "grid" ? "rgba(123,92,229,0.1)" : "rgba(249,115,22,0.1)";
-                return (
-                  <Link key={tab} href={href}>
-                    <button
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 7,
-                        padding: "7px 18px",
-                        borderRadius: 10,
-                        border: active ? `1px solid ${tabBorder}` : "1px solid rgba(255,255,255,0.07)",
-                        background: active ? tabBg : "transparent",
-                        color: active ? tabAccent : "#525870",
-                        fontSize: 14,
-                        fontFamily: "'DM Sans', sans-serif",
-                        fontWeight: active ? 700 : 500,
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                      }}
-                    >
-                      <span style={{ fontSize: 16 }}>{emoji}</span>
-                      {label}
-                    </button>
-                  </Link>
-                );
-              })}
+            {/* Title */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.01em", color: "#C4B5FD" }}>
+                Vedic Grid
+              </span>
+              <span style={{
+                padding: "2px 10px",
+                borderRadius: 20,
+                background: "rgba(123,92,229,0.12)",
+                border: "1px solid rgba(123,92,229,0.28)",
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase" as const,
+                color: "#9D7FF0",
+              }}>
+                Siamese Method
+              </span>
             </div>
 
-            <div style={{ width: 80, flexShrink: 0 }} />
+            {/* Info button */}
+            <button
+              className="gm-info-btn"
+              onClick={() => setInfoOpen(o => !o)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "7px 14px",
+                borderRadius: 10,
+                border: "1px solid rgba(123,92,229,0.28)",
+                background: "rgba(123,92,229,0.08)",
+                color: "#9D7FF0",
+                fontSize: 13,
+                fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "background .2s, border-color .2s",
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ fontSize: 15 }}>ℹ</span>
+              How to Play
+            </button>
           </div>
         </div>
 
-        {/* ── Hero Section ── */}
+        {/* ── Slide-in Info Panel ── */}
+        {infoOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              onClick={() => setInfoOpen(false)}
+              style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 30, backdropFilter: "blur(2px)" }}
+            />
+            {/* Panel */}
+            <div
+              className="gm-info-panel"
+              style={{
+                position: "fixed",
+                top: 58,
+                right: 0,
+                bottom: 0,
+                width: "min(420px, 100vw)",
+                background: "linear-gradient(180deg, #0E0B1A 0%, #09091A 100%)",
+                borderLeft: "1px solid rgba(123,92,229,0.25)",
+                zIndex: 40,
+                overflowY: "auto",
+                padding: "28px 28px 48px",
+                fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
+                <div>
+                  <h2 style={{ fontSize: 18, fontWeight: 800, color: "#C4B5FD", letterSpacing: "-0.02em", margin: "0 0 4px" }}>
+                    Vedic Grid
+                  </h2>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "#9D7FF0" }}>
+                    Siamese Method
+                  </span>
+                </div>
+                <button
+                  className="gm-panel-close"
+                  onClick={() => setInfoOpen(false)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    width: 34, height: 34, borderRadius: 8,
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "#B8BDD8", cursor: "pointer",
+                    transition: "background .2s",
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <p style={{ fontSize: 14, color: "#B8BDD8", lineHeight: 1.75, marginBottom: 24 }}>
+                Master the <strong style={{ color: "#F0F2FF" }}>ancient Siamese method</strong> to build a perfect magic square — click each cell in the correct sequence and every row, column, and diagonal will sum to the same magic constant.
+              </p>
+
+              {[
+                { emoji: "1️⃣", title: "Start is set for you", desc: "Number 1 is pre-placed in the middle cell of the top row. The Siamese method always begins there." },
+                { emoji: "↗️", title: "Move Up & Right", desc: "Each next number goes one step UP and one step RIGHT. Both axes wrap around the edges." },
+                { emoji: "⬇️", title: "Blocked? Go Below", desc: "If the target cell is already filled, place the number directly BELOW the last placed number instead." },
+                { emoji: "🔲", title: "Click to place", desc: "Tap the correct cell to drop the next number — no typing needed. Wrong cell? A red flash lets you know." },
+                { emoji: "💡", title: "Use hints wisely", desc: "3 hints per game. Each hint highlights the correct next cell in purple for 8 seconds." },
+                { emoji: "✨", title: "Magic property", desc: "When complete, every row, every column, and both diagonals sum to the exact same magic constant." },
+              ].map(({ emoji, title, desc }) => (
+                <div key={title} style={{ display: "flex", gap: 14, marginBottom: 18 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: "rgba(123,92,229,0.15)",
+                    border: "1px solid rgba(123,92,229,0.28)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 17, flexShrink: 0,
+                  }}>{emoji}</div>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: "#E2DAFF", margin: "0 0 3px" }}>{title}</p>
+                    <p style={{ fontSize: 13, color: "#7E86A6", lineHeight: 1.6, margin: 0 }}>{desc}</p>
+                  </div>
+                </div>
+              ))}
+
+              <div style={{
+                marginTop: 8,
+                padding: "16px 18px",
+                borderRadius: 14,
+                background: "rgba(123,92,229,0.08)",
+                border: "1px solid rgba(123,92,229,0.22)",
+              }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "#9D7FF0", margin: "0 0 8px", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>
+                  📌 Wrap Example (5×5)
+                </p>
+                <p style={{ fontSize: 13, color: "#B8BDD8", margin: 0, lineHeight: 1.7 }}>
+                  Number 15 is at top-right (row 1, col 5). Moving up+right wraps to bottom-left (row 5, col 1). Since 11 is already there, 16 goes <strong style={{ color: "#E2DAFF" }}>directly below 15</strong> at row 2, col 5.
+                </p>
+              </div>
+
+              <div style={{
+                marginTop: 16,
+                padding: "16px 18px",
+                borderRadius: 14,
+                background: "rgba(249,115,22,0.07)",
+                border: "1px solid rgba(249,115,22,0.22)",
+              }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "#F97316", margin: "0 0 6px", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>
+                  Magic Constant Formula
+                </p>
+                <p style={{ fontSize: 13, color: "#B8BDD8", margin: 0, lineHeight: 1.6 }}>
+                  For an n×n grid: <strong style={{ color: "#E2DAFF", fontFamily: "'JetBrains Mono', monospace" }}>n(n²+1)/2</strong>
+                  <br />3×3 → 15 · 5×5 → 65 · 7×7 → 175
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Game Area ── */}
         <div
+          className="gm-game-wrap"
           style={{
-            background: heroGradient,
-            borderBottom: `1px solid ${accentBorder}`,
-            padding: "clamp(28px,5vw,52px) clamp(16px,4vw,32px) clamp(24px,4vw,44px)",
-            textAlign: "center",
             position: "relative",
-            overflow: "hidden",
+            zIndex: 1,
+            maxWidth: 1040,
+            margin: "0 auto",
+            padding: "clamp(20px,3.5vw,32px) clamp(14px,3vw,28px) 80px",
           }}
         >
-          {/* Ambient glow */}
-          <div style={{
-            position: "absolute",
-            top: "50%", left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: 600, height: 300,
-            background: `radial-gradient(ellipse, ${accentGlow} 0%, transparent 70%)`,
-            filter: "blur(50px)",
-            pointerEvents: "none",
-          }} />
-
-          <div style={{ position: "relative", zIndex: 1 }}>
-            {/* Icon badge */}
-            <div style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 70,
-              height: 70,
-              borderRadius: 22,
-              background: accentGlow,
-              border: `1px solid ${accentBorder}`,
-              marginBottom: 18,
-              boxShadow: `0 8px 32px ${accentGlow}`,
-            }}>
-              <span style={{ fontSize: 34 }}>{isGrid ? "🔢" : "✨"}</span>
-            </div>
-
-            {/* Title */}
-            <h1 style={{
-              fontFamily: "'Playfair Display', Georgia, serif",
-              fontSize: "clamp(26px,5vw,42px)",
-              fontWeight: 800,
-              letterSpacing: "-0.03em",
-              background: isGrid
-                ? "linear-gradient(135deg, #C4B5FD 0%, #9D7FF0 50%, #7B5CE5 100%)"
-                : "linear-gradient(135deg, #FED7AA 0%, #FB923C 50%, #F97316 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              margin: "0 0 12px",
-            }}>
-              {isGrid ? "Vedic Grid Builder" : "Magic Square Puzzle"}
-            </h1>
-
-            {/* Badge */}
-            <div style={{
-              display: "inline-block",
-              padding: "4px 16px",
-              borderRadius: 20,
-              background: accentGlow,
-              border: `1px solid ${accentBorder}`,
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.15em",
-              textTransform: "uppercase" as const,
-              color: accentColor,
-              marginBottom: 18,
-            }}>
-              {isGrid ? "🧮 Siamese Method" : "🎯 Number Logic Game"}
-            </div>
-
-            {/* Description */}
-            <p style={{
-              fontSize: "clamp(14px,2vw,16px)",
-              color: "#B8BDD8",
-              maxWidth: 580,
-              margin: "0 auto",
-              lineHeight: 1.7,
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              {isGrid ? (
-                <>
-                  Build an odd-order magic square step-by-step using the{" "}
-                  <strong style={{ color: "#F0F2FF" }}>ancient Siamese method</strong>.
-                  {" "}Click cells to place numbers in sequence — the algorithm guides you to the correct position automatically!
-                </>
-              ) : (
-                <>
-                  Fill in the missing numbers to complete the magic square.{" "}
-                  <strong style={{ color: "#F0F2FF" }}>Every row, column and diagonal</strong>{" "}
-                  must add up to the same magic constant. Live sum indicators track your progress!
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-
-        {/* ── Main Content ── */}
-        <div style={{ maxWidth: 1000, margin: "0 auto", padding: "clamp(24px,4vw,36px) clamp(12px,3vw,24px) 80px" }}>
-
-          {/* ── Game Container ── */}
           <div
             style={{
-              background: "#0F1120",
-              border: `1px solid ${accentBorder}`,
+              background: "rgba(15,17,32,0.7)",
+              border: "1px solid rgba(123,92,229,0.18)",
               borderRadius: 20,
               padding: "clamp(16px,3vw,28px) clamp(14px,2.5vw,24px)",
-              boxShadow: `0 4px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.03)`,
+              boxShadow: "0 4px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03)",
+              backdropFilter: "blur(8px)",
             }}
           >
-            {activeTab === "grid" ? (
-              <GridGame onToast={addToast} />
-            ) : (
-              <MagicSquareGame onToast={addToast} />
-            )}
+            <GridGame onToast={addToast} />
           </div>
         </div>
 

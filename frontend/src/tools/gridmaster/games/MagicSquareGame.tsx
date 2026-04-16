@@ -41,9 +41,13 @@ export function MagicSquareGame({ onToast }: Props) {
   const [running, setRunning] = useState(false);
   const [paused, setPaused] = useState(false);
   const [solved, setSolved] = useState(false);
-  const [showModal, setShowModal] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFs = () => {
+    if (document.fullscreenElement) { document.exitFullscreen(); }
+    else { containerRef.current?.requestFullscreen?.(); }
+  };
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const { secs, reset: resetTimer } = useTimer(running && !paused && !solved);
@@ -53,7 +57,7 @@ export function MagicSquareGame({ onToast }: Props) {
       if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const tag = (e.target as HTMLElement)?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-        import("@/lib/fullscreen").then(fs => fs.toggleFullscreen());
+        toggleFs();
       }
     };
     const handleFsChange = async () => {
@@ -222,30 +226,6 @@ export function MagicSquareGame({ onToast }: Props) {
   return (
     <div ref={containerRef} className={`${styles.wrap}${isFullscreen ? ' ' + styles.wrapFs : ''}`}>
 
-      {/* ── How to Play Modal ── */}
-      {showModal && (
-        <div className={styles.modalOverlay} onClick={() => setShowModal(false)}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2 className={styles.modalTitle}>How to Play — Magic Square</h2>
-              <button className={styles.modalClose} onClick={() => setShowModal(false)}>✕</button>
-            </div>
-            <div className={styles.modalBody}>
-              {HOW_TO_STEPS.map(([title, desc], i) => (
-                <div key={i} className={styles.howStep}>
-                  <div className={styles.stepNum}>{i + 1}</div>
-                  <p><strong>{title}:</strong> {desc}</p>
-                </div>
-              ))}
-              <div className={styles.exampleNote}>
-                <strong>🔢 Magic Sum for {n}×{n}:</strong> All rows, columns, and diagonals must sum to <strong className={styles.goldText}>{magicSum}</strong>.
-                The formula is <em>n(n²+1)/2</em>.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Controls bar ── */}
       <div className={styles.controlsBar}>
         <div className={styles.controlsLeft}>
@@ -278,12 +258,9 @@ export function MagicSquareGame({ onToast }: Props) {
           <button className={`${styles.btn} ${styles.btnDanger}`} onClick={revealAll} disabled={solved}>
             👁 Reveal
           </button>
-          <button className={`${styles.btn} ${styles.btnInfo}`} onClick={() => setShowModal(true)}>
-            ? How to Play
-          </button>
           <button
             className={`${styles.btn} ${styles.btnGhost}`}
-            onClick={() => { import("@/lib/fullscreen").then(fs => fs.toggleFullscreen()); }}
+            onClick={toggleFs}
             title="Fullscreen (press F)"
           >
             {isFullscreen ? '⛶ Exit' : '⛶ Full'}

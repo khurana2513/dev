@@ -208,12 +208,25 @@ export interface AdminSiteInsightsResponse {
 // ─── Combined Dashboard Interfaces ──────────────────────────────────────────
 // Single-call endpoints that replace 5+ separate API calls per dashboard load
 
+export interface CodeSessionSummary {
+  session_type: "exam" | "duel" | "shared_paper";
+  session_id: number;
+  title: string;
+  code: string;
+  status: string;
+  started_at: string | null;
+  ended_at: string | null;
+  score: number | null;
+  rank: number | null;
+}
+
 export interface StudentDashboardData {
   stats: StudentStats;
   profile: StudentProfile | null;
   paper_attempts: PaperAttempt[];
   // Pre-aggregated per-paper attempt counts: "{seed}_{paper_title}" → count
   attempt_counts: Record<string, number>;
+  code_sessions?: CodeSessionSummary[];
 }
 
 export interface AdminDashboardData {
