@@ -160,7 +160,7 @@ function CreateOrgModal({ onClose, onCreated }: CreateOrgModalProps) {
             </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 800, color: TEXT }}>New Organization</div>
-              <div style={{ fontSize: 12, color: TEXT3, marginTop: 1 }}>Add a school or coaching centre to TalentHub</div>
+              <div style={{ fontSize: 12, color: TEXT3, marginTop: 1 }}>Add a school or coaching centre to BlackMonkey</div>
             </div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: TEXT3, cursor: "pointer", padding: 4, borderRadius: 8 }}>
@@ -186,7 +186,7 @@ function CreateOrgModal({ onClose, onCreated }: CreateOrgModalProps) {
               <label style={{ fontSize: 12, fontWeight: 600, color: TEXT3, letterSpacing: 0.5, display: "block", marginBottom: 6 }}>
                 ORGANIZATION NAME *
               </label>
-              <input style={inp()} placeholder="e.g. TalentHub Academy" value={form.name}
+              <input style={inp()} placeholder="e.g. BlackMonkey Academy" value={form.name}
                 onChange={(e) => set("name", e.target.value)} />
             </div>
             <div>
@@ -474,7 +474,7 @@ export default function AdminOrgs() {
                   Organization Management
                 </h1>
                 <p style={{ fontSize: 13, color: TEXT3, margin: "4px 0 0", fontFamily: "DM Sans, system-ui" }}>
-                  Create and manage schools & coaching centers on TalentHub
+                  Create and manage schools & coaching centers on BlackMonkey
                 </p>
               </div>
             </div>

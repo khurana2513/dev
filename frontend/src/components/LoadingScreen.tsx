@@ -33,7 +33,7 @@ export function LoadingScreen({
         {/* Logo */}
         <div className="th-loading__brand" aria-hidden="true">
           <img
-            src="/imagesproject/logo.ico.jpg"
+            src="/imagesproject/blackmonkey_logo_transparent.png"
             alt="BlackMonkey"
             style={{ width: 64, height: 64, borderRadius: 16, objectFit: 'cover', animation: 'th-logo-float 3s ease-in-out infinite' }}
           />

@@ -1,0 +1,2132 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ChevronRight,
+  Crown,
+  Keyboard,
+  Maximize,
+  Mic,
+  MicOff,
+  Pause,
+  Play,
+  Plus,
+  RotateCcw,
+  SkipForward,
+  Sparkles,
+  Trophy,
+  Users,
+  Volume2,
+  Wand2,
+  X,
+  Zap,
+} from "lucide-react";
+import { Link } from "wouter";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  applyMentalPreset,
+  compareMentalAnswer,
+  createDefaultMentalConfig,
+  describeMentalConfig,
+  formatMentalQuestion,
+  generateMentalQuestions,
+  getAddSubItems,
+  getPresetKeyForConfig,
+  isAddSubFamily,
+  MENTAL_PRESETS,
+  type AddSubQuestion,
+  type IntlAddSubQuestion,
+  type IntegerAddSubQuestion,
+  type MentalQuestionConfig,
+  type OperationType,
+  type Question,
+} from "../lib/mentalMathEngine";
+import {
+  formatParsedSpeechNumber,
+  getSpeechRecognitionCtor,
+  parseSpokenNumber,
+  type SpeechRecognitionErrorEventLike,
+  type SpeechRecognitionEventLike,
+  type SpeechRecognitionLike,
+} from "../lib/speechToNumber";
+
+type ArenaPhase = "setup" | "countdown" | "playing" | "results";
+type ArenaStage = "idle" | "announce" | "revealing" | "answering" | "feedback" | "paused";
+type OrderMode = "sequential" | "snake" | "random";
+type VoiceMode = "auto" | "push_to_talk";
+type MicPermission = "unknown" | "granted" | "denied";
+
+interface ArenaSettings {
+  rounds: number;
+  questionsPerRound: number;
+  orderMode: OrderMode;
+  voiceEnabled: boolean;
+  voiceMode: VoiceMode;
+  timeLimitSeconds: number;
+  addSubRevealSeconds: number;
+  autoAdvanceMs: number;
+  showCorrectOnWrong: boolean;
+  allowKeyboardFallback: boolean;
+}
+
+interface ArenaAttempt {
+  question: Question;
+  transcript: string;
+  parsedAnswer: number | null;
+  answerDisplay: string;
+  isCorrect: boolean;
+  timedOut: boolean;
+  skipped: boolean;
+  pointsAwarded: number;
+  round: number;
+  slot: number;
+  timeTakenMs: number;
+}
+
+interface ArenaPlayer {
+  id: string;
+  name: string;
+  avatar: string;
+  accent: string;
+  config: MentalQuestionConfig;
+  questions: Question[];
+  attempts: ArenaAttempt[];
+  score: number;
+  streak: number;
+  bestStreak: number;
+  correctCount: number;
+  wrongCount: number;
+}
+
+interface ArenaTurn {
+  round: number;
+  slot: number;
+  playerId: string;
+  questionIndex: number;
+  orderIndex: number;
+}
+
+interface FeedbackState {
+  correct: boolean;
+  title: string;
+  subtitle: string;
+  points: number;
+}
+
+const PLAYER_AVATARS = ["🦁", "🐯", "🦊", "🐼", "🦄", "🐸", "🐵", "🦈", "🦋", "🐢", "🐙", "🐧"];
+const PLAYER_ACCENTS = ["#7C3AED", "#2563EB", "#059669", "#EA580C", "#DB2777", "#0891B2", "#CA8A04", "#DC2626"];
+
+const OPERATION_LABELS: Record<OperationType, string> = {
+  multiplication: "Multiplication",
+  division: "Division",
+  add_sub: "Add / Subtract",
+  decimal_multiplication: "Decimal Multiplication",
+  decimal_division: "Decimal Division",
+  integer_add_sub: "Integer Add / Subtract",
+  intl_add_sub: "International Add / Subtract",
+  lcm: "LCM",
+  gcd: "GCD",
+  square_root: "Square Root",
+  cube_root: "Cube Root",
+  percentage: "Percentage",
+};
+
+const OPERATION_OPTIONS = Object.entries(OPERATION_LABELS) as Array<[OperationType, string]>;
+
+const DEFAULT_SETTINGS: ArenaSettings = {
+  rounds: 3,
+  questionsPerRound: 3,
+  orderMode: "sequential",
+  voiceEnabled: true,
+  voiceMode: "auto",
+  timeLimitSeconds: 12,
+  addSubRevealSeconds: 1.1,
+  autoAdvanceMs: 1400,
+  showCorrectOnWrong: true,
+  allowKeyboardFallback: true,
+};
+
+function makeId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const swapIndex = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[swapIndex]] = [copy[swapIndex], copy[i]];
+  }
+  return copy;
+}
+
+function createPlayer(seedIndex: number, name = ""): ArenaPlayer {
+  return {
+    id: makeId(),
+    name,
+    avatar: PLAYER_AVATARS[seedIndex % PLAYER_AVATARS.length],
+    accent: PLAYER_ACCENTS[seedIndex % PLAYER_ACCENTS.length],
+    config: createDefaultMentalConfig("add_sub"),
+    questions: [],
+    attempts: [],
+    score: 0,
+    streak: 0,
+    bestStreak: 0,
+    correctCount: 0,
+    wrongCount: 0,
+  };
+}
+
+function formatMs(ms: number): string {
+  if (ms <= 0) return "0.0s";
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function ordinalPlace(index: number): string {
+  if (index === 0) return "1st";
+  if (index === 1) return "2nd";
+  if (index === 2) return "3rd";
+  return `${index + 1}th`;
+}
+
+function formatAccuracy(player: ArenaPlayer): string {
+  const attempts = player.attempts.length;
+  if (!attempts) return "0%";
+  return `${Math.round((player.correctCount / attempts) * 100)}%`;
+}
+
+function getAverageTime(player: ArenaPlayer): number | null {
+  const validAttempts = player.attempts.filter((attempt) => !attempt.timedOut && !attempt.skipped && attempt.parsedAnswer !== null);
+  if (!validAttempts.length) return null;
+  return validAttempts.reduce((total, attempt) => total + attempt.timeTakenMs, 0) / validAttempts.length;
+}
+
+function scoreTurn(isCorrect: boolean, timeLimitSeconds: number, timeTakenMs: number, streakBefore: number): number {
+  if (!isCorrect) return 0;
+  const base = 100;
+  const timeTakenSeconds = timeTakenMs / 1000;
+  const speedRatio = clamp((timeLimitSeconds - timeTakenSeconds) / Math.max(timeLimitSeconds, 1), 0, 1);
+  const speedBonus = Math.round(speedRatio * 45);
+  const streakBonus = Math.min(streakBefore, 4) * 15;
+  return base + speedBonus + streakBonus;
+}
+
+function buildTurns(players: ArenaPlayer[], settings: ArenaSettings): ArenaTurn[] {
+  const turns: ArenaTurn[] = [];
+  const playerIds = players.map((player) => player.id);
+
+  for (let roundIndex = 0; roundIndex < settings.rounds; roundIndex += 1) {
+    for (let slotIndex = 0; slotIndex < settings.questionsPerRound; slotIndex += 1) {
+      let order = [...playerIds];
+      if (settings.orderMode === "snake" && roundIndex % 2 === 1) {
+        order = [...order].reverse();
+      }
+      if (settings.orderMode === "random") {
+        order = shuffle(order);
+      }
+      order.forEach((playerId, orderIndex) => {
+        turns.push({
+          round: roundIndex + 1,
+          slot: slotIndex + 1,
+          playerId,
+          questionIndex: roundIndex * settings.questionsPerRound + slotIndex,
+          orderIndex,
+        });
+      });
+    }
+  }
+
+  return turns;
+}
+
+function updatePlayerConfig(
+  config: MentalQuestionConfig,
+  patch: Partial<MentalQuestionConfig>,
+): MentalQuestionConfig {
+  return {
+    ...config,
+    ...patch,
+  };
+}
+
+function NumericField({
+  label,
+  min,
+  max,
+  value,
+  step = 1,
+  onChange,
+  suffix,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  value: number;
+  step?: number;
+  onChange: (value: number) => void;
+  suffix?: string;
+}) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <span className="arena-label">{label}</span>
+      <div className="arena-input-shell">
+        <input
+          className="arena-input"
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => {
+            const nextValue = Number(event.target.value);
+            if (Number.isNaN(nextValue)) return;
+            onChange(clamp(nextValue, min, max));
+          }}
+        />
+        {suffix ? <span className="arena-input-suffix">{suffix}</span> : null}
+      </div>
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <span className="arena-label">{label}</span>
+      <select className="arena-select" value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+export default function ClassroomArena() {
+  const { user } = useAuth();
+  const [phase, setPhase] = useState<ArenaPhase>("setup");
+  const [stage, setStage] = useState<ArenaStage>("idle");
+  const [players, setPlayers] = useState<ArenaPlayer[]>([
+    createPlayer(0, ""),
+    createPlayer(1, ""),
+    createPlayer(2, ""),
+  ]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
+  const [newPlayerName, setNewPlayerName] = useState("");
+  const [setupError, setSetupError] = useState("");
+  const [settings, setSettings] = useState<ArenaSettings>(DEFAULT_SETTINGS);
+  const [turns, setTurns] = useState<ArenaTurn[]>([]);
+  const [currentTurnIndex, setCurrentTurnIndex] = useState(0);
+  const [countdown, setCountdown] = useState(0);
+  const [timeRemainingMs, setTimeRemainingMs] = useState(settings.timeLimitSeconds * 1000);
+  const [keyboardAnswer, setKeyboardAnswer] = useState("");
+  const [speechTranscript, setSpeechTranscript] = useState("");
+  const [speechPreview, setSpeechPreview] = useState("");
+  const [speechError, setSpeechError] = useState("");
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [currentRevealItem, setCurrentRevealItem] = useState("");
+  const [revealedItems, setRevealedItems] = useState<string[]>([]);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [isListening, setIsListening] = useState(false);
+  const [micPermission, setMicPermission] = useState<MicPermission>("unknown");
+  const [micStatus, setMicStatus] = useState("Ready to test the microphone.");
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recognitionShouldRestartRef = useRef(false);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recognitionRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const answerPhaseStartedAtRef = useRef(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const meterFrameRef = useRef<number | null>(null);
+  const playersRef = useRef(players);
+  const turnsRef = useRef(turns);
+  const currentTurnIndexRef = useRef(currentTurnIndex);
+  const settingsRef = useRef(settings);
+  const phaseRef = useRef(phase);
+  const stageRef = useRef(stage);
+  const recognitionSessionRef = useRef(0);
+  const recognitionFinalTranscriptRef = useRef("");
+  const recognitionInterimTranscriptRef = useRef("");
+  const recognitionBestCandidateRef = useRef<{ transcript: string; parsed: number | null; formatted: string | null }>({
+    transcript: "",
+    parsed: null,
+    formatted: null,
+  });
+  const recognitionManualStopRef = useRef(false);
+  const turnSubmissionRef = useRef(false);
+
+  const speechSupported = useMemo(() => getSpeechRecognitionCtor() !== null, []);
+
+  useEffect(() => {
+    const initialName = ((user as { display_name?: string; name?: string } | null)?.display_name
+      ?? (user as { name?: string } | null)?.name
+      ?? "")
+      .split(" ")[0]
+      .trim();
+    setPlayers((prev) => {
+      if (!prev.length) return prev;
+      if (prev[0].name.trim()) return prev;
+      const next = [...prev];
+      next[0] = { ...next[0], name: initialName };
+      return next;
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (!selectedPlayerId && players.length) {
+      setSelectedPlayerId(players[0].id);
+    }
+  }, [players, selectedPlayerId]);
+
+  useEffect(() => {
+    playersRef.current = players;
+  }, [players]);
+
+  useEffect(() => {
+    turnsRef.current = turns;
+  }, [turns]);
+
+  useEffect(() => {
+    currentTurnIndexRef.current = currentTurnIndex;
+  }, [currentTurnIndex]);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
+
+  useEffect(() => {
+    const styleId = "classroom-arena-styles";
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,600;700&family=JetBrains+Mono:wght@500;700;800&display=swap');
+      :root{
+        --arena-bg:#070A15;
+        --arena-bg2:#09101F;
+        --arena-surface:rgba(15,19,37,0.88);
+        --arena-surface-2:rgba(20,27,51,0.95);
+        --arena-border:rgba(255,255,255,0.08);
+        --arena-border-strong:rgba(255,255,255,0.14);
+        --arena-text:#F6F7FF;
+        --arena-muted:#9EA6C6;
+        --arena-soft:#5B678B;
+        --arena-gold:#F59E0B;
+        --arena-green:#10B981;
+        --arena-red:#EF4444;
+        --arena-blue:#38BDF8;
+        --arena-violet:#7C3AED;
+        --arena-pink:#EC4899;
+        --arena-shadow:0 20px 80px rgba(0,0,0,0.35);
+      }
+      @keyframes arena-fade-up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+      @keyframes arena-pop{0%{opacity:0;transform:scale(.85)}100%{opacity:1;transform:scale(1)}}
+      @keyframes arena-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+      @keyframes arena-wave{0%,100%{transform:scaleY(.55)}50%{transform:scaleY(1)}}
+      @keyframes arena-shine{0%{transform:translateX(-140%)}100%{transform:translateX(140%)}}
+      .arena-shell{min-height:100vh;background:
+        radial-gradient(circle at 12% 18%, rgba(56,189,248,.12), transparent 28%),
+        radial-gradient(circle at 82% 10%, rgba(236,72,153,.13), transparent 22%),
+        radial-gradient(circle at 50% 100%, rgba(124,58,237,.18), transparent 30%),
+        linear-gradient(180deg, #060913 0%, #08111F 50%, #060913 100%);
+        color:var(--arena-text);}
+      .arena-card{background:var(--arena-surface);border:1px solid var(--arena-border);box-shadow:var(--arena-shadow);backdrop-filter:blur(18px);border-radius:28px;}
+      .arena-section-title{font:800 1rem 'JetBrains Mono',monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--arena-muted)}
+      .arena-heading{font:700 clamp(2rem,4vw,4rem) 'Fraunces',serif;line-height:.95;letter-spacing:-.04em}
+      .arena-copy{font:500 1rem/1.7 'DM Sans',sans-serif;color:var(--arena-muted)}
+      .arena-label{font:700 .72rem 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--arena-muted)}
+      .arena-input-shell{display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(8,12,26,.78);border:1px solid var(--arena-border);border-radius:16px}
+      .arena-input,.arena-select{width:100%;min-height:48px;background:transparent;border:none;outline:none;color:var(--arena-text);font:600 1rem 'DM Sans',sans-serif}
+      .arena-select{padding:0 14px;background:rgba(8,12,26,.78);border:1px solid var(--arena-border);border-radius:16px}
+      .arena-input-shell:focus-within,.arena-select:focus{border-color:rgba(56,189,248,.55);box-shadow:0 0 0 3px rgba(56,189,248,.14)}
+      .arena-input:focus,.arena-select:focus{outline:none;box-shadow:none}
+      .arena-input-suffix{font:700 .75rem 'JetBrains Mono',monospace;color:var(--arena-soft)}
+      .arena-chip{border:1px solid var(--arena-border);background:rgba(255,255,255,.04);padding:10px 14px;border-radius:999px;color:var(--arena-muted);font:700 .8rem 'JetBrains Mono',monospace;cursor:pointer;transition:all .18s ease}
+      .arena-chip.active{background:linear-gradient(135deg, rgba(124,58,237,.28), rgba(56,189,248,.18));border-color:rgba(56,189,248,.45);color:var(--arena-text);box-shadow:0 14px 30px rgba(56,189,248,.12)}
+      .arena-button{display:inline-flex;align-items:center;justify-content:center;gap:10px;border:none;border-radius:18px;padding:14px 20px;font:800 .95rem 'DM Sans',sans-serif;cursor:pointer;transition:transform .18s ease, box-shadow .18s ease, opacity .18s ease}
+      .arena-button:hover{transform:translateY(-2px)}
+      .arena-button.primary{background:linear-gradient(135deg, #7C3AED, #2563EB);color:#fff;box-shadow:0 18px 48px rgba(37,99,235,.3)}
+      .arena-button.secondary{background:rgba(255,255,255,.06);color:var(--arena-text);border:1px solid var(--arena-border)}
+      .arena-button.success{background:linear-gradient(135deg, #059669, #10B981);color:#fff;box-shadow:0 18px 48px rgba(16,185,129,.25)}
+      .arena-button.warn{background:linear-gradient(135deg, #EA580C, #F59E0B);color:#fff;box-shadow:0 18px 48px rgba(245,158,11,.22)}
+      .arena-player-card{position:relative;overflow:hidden;border-radius:24px;padding:18px;background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));border:1px solid var(--arena-border);cursor:pointer;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+      .arena-player-card:hover{transform:translateY(-2px);border-color:var(--arena-border-strong)}
+      .arena-player-card.active{border-color:rgba(56,189,248,.45);box-shadow:0 18px 42px rgba(56,189,248,.12)}
+      .arena-progress{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+      .arena-progress > span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg, #38BDF8, #7C3AED);transition:width .18s ease}
+      .arena-wave{display:flex;align-items:flex-end;gap:6px;height:48px}
+      .arena-wave span{width:8px;border-radius:999px;background:linear-gradient(180deg, rgba(56,189,248,.45), rgba(124,58,237,.95));animation:arena-wave 1.05s ease-in-out infinite}
+      .arena-wave span:nth-child(2){animation-delay:.1s}
+      .arena-wave span:nth-child(3){animation-delay:.2s}
+      .arena-wave span:nth-child(4){animation-delay:.3s}
+      .arena-wave span:nth-child(5){animation-delay:.4s}
+      .arena-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,6,14,.68);backdrop-filter:blur(14px);z-index:90}
+      .arena-countdown{font:800 clamp(5rem,18vw,10rem) 'JetBrains Mono',monospace;line-height:1;color:#fff;text-shadow:0 18px 48px rgba(124,58,237,.35);animation:arena-pop .3s ease}
+      .arena-sheen{position:absolute;inset:-1px;overflow:hidden;border-radius:inherit;pointer-events:none}
+      .arena-sheen::before{content:"";position:absolute;top:0;bottom:0;width:40%;background:linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);animation:arena-shine 3.6s ease-in-out infinite}
+      .arena-fade-up{animation:arena-fade-up .35s ease both}
+      .arena-stat-pill{padding:10px 14px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+      .arena-side-card{padding:18px;border-radius:22px;background:rgba(7,10,21,.56);border:1px solid rgba(255,255,255,.08)}
+      .app-fullscreen .arena-shell{min-height:100vh;overflow:hidden}
+      @media (max-width: 1024px){
+        .arena-grid{grid-template-columns:1fr !important}
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.getElementById(styleId)?.remove();
+    };
+  }, []);
+
+  const clearStageTimers = useCallback(() => {
+    if (stageTimerRef.current) {
+      clearTimeout(stageTimerRef.current);
+      stageTimerRef.current = null;
+    }
+    if (revealTimerRef.current) {
+      clearTimeout(revealTimerRef.current);
+      revealTimerRef.current = null;
+    }
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
+    }
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (recognitionRestartTimerRef.current) {
+      clearTimeout(recognitionRestartTimerRef.current);
+      recognitionRestartTimerRef.current = null;
+    }
+  }, []);
+
+  const stopMetering = useCallback(() => {
+    if (meterFrameRef.current) {
+      cancelAnimationFrame(meterFrameRef.current);
+      meterFrameRef.current = null;
+    }
+    setAudioLevel(0);
+  }, []);
+
+  const stopListening = useCallback((abort = false) => {
+    recognitionShouldRestartRef.current = false;
+    recognitionManualStopRef.current = true;
+    setIsListening(false);
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (recognitionRestartTimerRef.current) {
+      clearTimeout(recognitionRestartTimerRef.current);
+      recognitionRestartTimerRef.current = null;
+    }
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
+    try {
+      if (abort) recognition.abort();
+      else recognition.stop();
+    } catch {
+      // Ignore repeated stop errors from browsers that already ended recognition.
+    }
+  }, []);
+
+  const cleanupMedia = useCallback(() => {
+    stopMetering();
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => undefined);
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+  }, [stopMetering]);
+
+  const cleanupSession = useCallback(() => {
+    clearStageTimers();
+    stopListening(true);
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+  }, [clearStageTimers, stopListening]);
+
+  const playTone = useCallback((kind: "countdown" | "correct" | "wrong" | "start") => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+      }
+      const context = audioContextRef.current;
+      const time = context.currentTime;
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+
+      if (kind === "correct") oscillator.frequency.setValueAtTime(680, time);
+      if (kind === "wrong") oscillator.frequency.setValueAtTime(220, time);
+      if (kind === "countdown") oscillator.frequency.setValueAtTime(480, time);
+      if (kind === "start") oscillator.frequency.setValueAtTime(900, time);
+
+      oscillator.type = kind === "wrong" ? "sawtooth" : "sine";
+      gain.gain.setValueAtTime(0.001, time);
+      gain.gain.exponentialRampToValueAtTime(0.08, time + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + (kind === "correct" ? 0.26 : 0.18));
+
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(time);
+      oscillator.stop(time + 0.3);
+    } catch {
+      // Audio should never block gameplay.
+    }
+  }, []);
+
+  const startMetering = useCallback(() => {
+    if (!analyserRef.current) return;
+    const analyser = analyserRef.current;
+    const data = new Uint8Array(analyser.frequencyBinCount);
+
+    const tick = () => {
+      analyser.getByteFrequencyData(data);
+      const total = data.reduce((sum, value) => sum + value, 0);
+      const normalized = total / data.length / 255;
+      setAudioLevel((prev) => prev * 0.55 + normalized * 0.45);
+      meterFrameRef.current = requestAnimationFrame(tick);
+    };
+
+    tick();
+  }, []);
+
+  const setupMicrophone = useCallback(async (): Promise<boolean> => {
+    if (!settingsRef.current.voiceEnabled) return true;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setMicPermission("denied");
+      setMicStatus("This browser does not expose microphone APIs.");
+      return false;
+    }
+    try {
+      if (!mediaStreamRef.current) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        mediaStreamRef.current = stream;
+      }
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+      }
+      if (!analyserRef.current) {
+        const source = audioContextRef.current.createMediaStreamSource(mediaStreamRef.current);
+        const analyser = audioContextRef.current.createAnalyser();
+        analyser.fftSize = 128;
+        analyser.smoothingTimeConstant = 0.7;
+        source.connect(analyser);
+        analyserRef.current = analyser;
+      }
+      setMicPermission("granted");
+      setMicStatus("Microphone live and ready for classroom turns.");
+      startMetering();
+      return true;
+    } catch (error) {
+      console.error("Microphone setup failed", error);
+      setMicPermission("denied");
+      setMicStatus("Microphone access was blocked. Keyboard fallback is still available.");
+      return false;
+    }
+  }, [startMetering]);
+
+  const currentTurn = phase === "playing" && turns.length ? turns[currentTurnIndex] ?? null : null;
+  const currentPlayer = currentTurn ? players.find((player) => player.id === currentTurn.playerId) ?? null : null;
+  const currentQuestion = currentTurn && currentPlayer
+    ? currentPlayer.questions[currentTurn.questionIndex] ?? null
+    : null;
+
+  const leaderboard = useMemo(() => {
+    return [...players].sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      if (right.correctCount !== left.correctCount) return right.correctCount - left.correctCount;
+      return left.wrongCount - right.wrongCount;
+    });
+  }, [players]);
+
+  const selectedPlayer = useMemo(
+    () => players.find((player) => player.id === selectedPlayerId) ?? null,
+    [players, selectedPlayerId],
+  );
+
+  const updatePlayerById = useCallback((playerId: string, updater: (player: ArenaPlayer) => ArenaPlayer) => {
+    setPlayers((prev) => prev.map((player) => (player.id === playerId ? updater(player) : player)));
+  }, []);
+
+  const finishSession = useCallback(() => {
+    cleanupSession();
+    stopListening(true);
+    turnSubmissionRef.current = false;
+    setFeedback(null);
+    setSpeechTranscript("");
+    setSpeechPreview("");
+    setSpeechError("");
+    setCurrentRevealItem("");
+    setRevealedItems([]);
+    setIsListening(false);
+    setStage("idle");
+    setPhase("results");
+  }, [cleanupSession, stopListening]);
+
+  const beginAnswerPhase = useCallback(async () => {
+    clearStageTimers();
+    setStage("answering");
+    setSpeechError("");
+    setKeyboardAnswer("");
+    setSpeechTranscript("");
+    setSpeechPreview("");
+    recognitionFinalTranscriptRef.current = "";
+    recognitionInterimTranscriptRef.current = "";
+    recognitionBestCandidateRef.current = { transcript: "", parsed: null, formatted: null };
+    recognitionManualStopRef.current = false;
+    turnSubmissionRef.current = false;
+    answerPhaseStartedAtRef.current = Date.now();
+    const totalMs = settingsRef.current.timeLimitSeconds * 1000;
+    setTimeRemainingMs(totalMs);
+
+    timerIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - answerPhaseStartedAtRef.current;
+      const remaining = Math.max(totalMs - elapsed, 0);
+      setTimeRemainingMs(remaining);
+      if (remaining <= 0) {
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
+      }
+    }, 80);
+  }, [clearStageTimers]);
+
+  const startTurn = useCallback(async (turnIndex: number) => {
+    cleanupSession();
+    setFeedback(null);
+    setCurrentTurnIndex(turnIndex);
+    if (!turnsRef.current[turnIndex]) {
+      finishSession();
+      return;
+    }
+
+    setStage("announce");
+    setCurrentRevealItem("");
+    setRevealedItems([]);
+    setSpeechTranscript("");
+    setSpeechPreview("");
+    setSpeechError("");
+    setKeyboardAnswer("");
+    recognitionFinalTranscriptRef.current = "";
+    recognitionInterimTranscriptRef.current = "";
+    recognitionBestCandidateRef.current = { transcript: "", parsed: null, formatted: null };
+    turnSubmissionRef.current = false;
+    setTimeRemainingMs(settingsRef.current.timeLimitSeconds * 1000);
+
+    const turn = turnsRef.current[turnIndex];
+    const player = playersRef.current.find((entry) => entry.id === turn.playerId);
+    const question = player?.questions[turn.questionIndex] ?? null;
+    const isRowRevealQuestion = question && isAddSubFamily(question.type);
+
+    stageTimerRef.current = setTimeout(async () => {
+      if (stageRef.current === "paused") return;
+      if (!question) {
+        finishSession();
+        return;
+      }
+      if (isRowRevealQuestion) {
+        setStage("revealing");
+        const items = getAddSubItems(question as AddSubQuestion | IntegerAddSubQuestion | IntlAddSubQuestion);
+        let index = 0;
+        setCurrentRevealItem(items[index] ?? "");
+        setRevealedItems([]);
+        const stepReveal = () => {
+          if (stageRef.current === "paused") return;
+          if (index >= items.length - 1) {
+            setRevealedItems(items);
+            setCurrentRevealItem("");
+            void beginAnswerPhase();
+            return;
+          }
+          setRevealedItems(items.slice(0, index + 1));
+          index += 1;
+          setCurrentRevealItem(items[index] ?? "");
+          revealTimerRef.current = setTimeout(stepReveal, settingsRef.current.addSubRevealSeconds * 1000);
+        };
+        revealTimerRef.current = setTimeout(stepReveal, settingsRef.current.addSubRevealSeconds * 1000);
+        return;
+      }
+      await beginAnswerPhase();
+    }, 900);
+  }, [beginAnswerPhase, cleanupSession, finishSession]);
+
+  const submitAnswer = useCallback((params: {
+    parsedAnswer: number | null;
+    transcript: string;
+    answerDisplay: string;
+    timedOut?: boolean;
+    skipped?: boolean;
+  }) => {
+    if (turnSubmissionRef.current) return;
+    turnSubmissionRef.current = true;
+    const turn = turnsRef.current[currentTurnIndexRef.current];
+    const player = playersRef.current.find((entry) => entry.id === turn?.playerId);
+    const question = player?.questions[turn?.questionIndex ?? -1];
+    if (!turn || !player || !question) {
+      turnSubmissionRef.current = false;
+      return;
+    }
+
+    cleanupSession();
+    stopListening(true);
+
+    const timeTakenMs = answerPhaseStartedAtRef.current
+      ? Date.now() - answerPhaseStartedAtRef.current
+      : settingsRef.current.timeLimitSeconds * 1000;
+    const isCorrect = compareMentalAnswer(params.parsedAnswer, question.answer);
+    const pointsAwarded = scoreTurn(
+      isCorrect,
+      settingsRef.current.timeLimitSeconds,
+      timeTakenMs,
+      player.streak,
+    );
+
+    updatePlayerById(player.id, (entry) => {
+      const nextStreak = isCorrect ? entry.streak + 1 : 0;
+      const nextCorrect = entry.correctCount + (isCorrect ? 1 : 0);
+      const nextWrong = entry.wrongCount + (isCorrect ? 0 : 1);
+      return {
+        ...entry,
+        attempts: [
+          ...entry.attempts,
+          {
+            question,
+            transcript: params.transcript,
+            parsedAnswer: params.parsedAnswer,
+            answerDisplay: params.answerDisplay,
+            isCorrect,
+            timedOut: params.timedOut ?? false,
+            skipped: params.skipped ?? false,
+            pointsAwarded,
+            round: turn.round,
+            slot: turn.slot,
+            timeTakenMs,
+          },
+        ],
+        score: entry.score + pointsAwarded,
+        streak: nextStreak,
+        bestStreak: Math.max(entry.bestStreak, nextStreak),
+        correctCount: nextCorrect,
+        wrongCount: nextWrong,
+      };
+    });
+
+    setStage("feedback");
+    setSpeechTranscript(params.transcript);
+    setSpeechPreview(params.answerDisplay);
+    setFeedback({
+      correct: isCorrect,
+      title: isCorrect ? "Beautiful answer" : params.timedOut ? "Time slipped away" : params.skipped ? "Turn skipped" : "Close, but not this one",
+      subtitle: isCorrect
+        ? `+${pointsAwarded} points • ${formatParsedSpeechNumber(question.answer)} locked in`
+        : settingsRef.current.showCorrectOnWrong
+          ? `Correct answer: ${formatParsedSpeechNumber(question.answer)}`
+          : "Moving to the next player",
+      points: pointsAwarded,
+    });
+
+    playTone(isCorrect ? "correct" : "wrong");
+
+    const nextIndex = currentTurnIndexRef.current + 1;
+    feedbackTimerRef.current = setTimeout(() => {
+      setFeedback(null);
+      if (nextIndex >= turnsRef.current.length) {
+        finishSession();
+        return;
+      }
+      void startTurn(nextIndex);
+    }, settingsRef.current.autoAdvanceMs);
+  }, [cleanupSession, finishSession, playTone, startTurn, stopListening, updatePlayerById]);
+
+  useEffect(() => {
+    if (stage !== "answering") return;
+    if (timeRemainingMs > 0) return;
+    submitAnswer({
+      parsedAnswer: null,
+      transcript: "",
+      answerDisplay: "No answer",
+      timedOut: true,
+    });
+  }, [stage, submitAnswer, timeRemainingMs]);
+
+  const startListening = useCallback(async () => {
+    if (!settingsRef.current.voiceEnabled) return;
+    if (!speechSupported) return;
+    if (stageRef.current !== "answering") return;
+    if (turnSubmissionRef.current) return;
+    if (isListening) return;
+
+    const micReady = await setupMicrophone();
+    if (!micReady) {
+      setSpeechError("Voice capture is unavailable. Use keyboard fallback for this turn.");
+      return;
+    }
+
+    const RecognitionCtor = getSpeechRecognitionCtor();
+    if (!RecognitionCtor) return;
+
+    if (!recognitionRef.current) {
+      recognitionRef.current = new RecognitionCtor();
+    }
+
+    const recognition = recognitionRef.current;
+    const sessionId = recognitionSessionRef.current + 1;
+    recognitionSessionRef.current = sessionId;
+    recognitionFinalTranscriptRef.current = "";
+    recognitionInterimTranscriptRef.current = "";
+    recognitionBestCandidateRef.current = { transcript: "", parsed: null, formatted: null };
+    recognitionManualStopRef.current = false;
+    // continuous = true keeps the session alive so the browser never cuts off before
+    // onresult fires for short single-word answers ("seven", "twenty", "9", etc.).
+    // With continuous = false the VAD can fire onend before onresult for brief utterances.
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-IN";
+    // More alternatives give the number-parser more chances to find a valid reading.
+    recognition.maxAlternatives = 3;
+
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      if (recognitionSessionRef.current !== sessionId || stageRef.current !== "answering") return;
+
+      let nextFinal = recognitionFinalTranscriptRef.current;
+      let nextInterim = "";
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        // Try every alternative and prefer the first one that parses as a number.
+        // This handles cases where the top-ranked transcript is a non-numeric word
+        // but a lower-ranked alternative is the correct digit/word.
+        let chunk = result?.[0]?.transcript?.trim() ?? "";
+        for (let altIdx = 1; altIdx < Math.min(result.length, 3); altIdx += 1) {
+          const altText = result?.[altIdx]?.transcript?.trim() ?? "";
+          if (!altText) continue;
+          if (parseSpokenNumber(altText).value !== null) {
+            chunk = altText;
+            break;
+          }
+        }
+        if (!chunk) continue;
+        if (result.isFinal) {
+          nextFinal = `${nextFinal} ${chunk}`.trim();
+        } else {
+          nextInterim = `${nextInterim} ${chunk}`.trim();
+        }
+      }
+
+      recognitionFinalTranscriptRef.current = nextFinal;
+      recognitionInterimTranscriptRef.current = nextInterim;
+
+      const transcript = [nextFinal, nextInterim].filter(Boolean).join(" ").trim();
+      setSpeechTranscript(transcript);
+
+      const liveParse = parseSpokenNumber(transcript);
+      setSpeechPreview(liveParse.formatted ?? "");
+
+      if (liveParse.value !== null && liveParse.formatted) {
+        recognitionBestCandidateRef.current = {
+          transcript,
+          parsed: liveParse.value,
+          formatted: liveParse.formatted,
+        };
+      }
+
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      if (liveParse.value !== null && liveParse.formatted) {
+        recognitionShouldRestartRef.current = false;
+        silenceTimerRef.current = setTimeout(() => {
+          submitAnswer({
+            parsedAnswer: liveParse.value,
+            transcript,
+            answerDisplay: liveParse.formatted ?? transcript,
+          });
+        }, nextFinal ? 260 : 520);
+        setSpeechError("");
+      } else if (transcript) {
+        setSpeechPreview("");
+        setSpeechError("Listening... keep speaking if the number is not complete yet.");
+      } else {
+        setSpeechPreview("");
+      }
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
+      if (recognitionSessionRef.current !== sessionId) return;
+      if (event.error === "aborted") return;
+      if (event.error === "no-speech") {
+        setSpeechError("Didn't catch that. Try the number once, clearly.");
+        return;
+      }
+      if (event.error === "audio-capture" || event.error === "not-allowed" || event.error === "service-not-allowed") {
+        recognitionShouldRestartRef.current = false;
+        setMicPermission("denied");
+        setMicStatus("Microphone access is unavailable right now. Keyboard fallback stays ready.");
+      }
+      setSpeechError(`Voice recognition issue: ${event.error}.`);
+    };
+
+    recognition.onend = () => {
+      if (recognitionSessionRef.current !== sessionId) return;
+      setIsListening(false);
+      if (turnSubmissionRef.current) return;
+      if (recognitionManualStopRef.current) return;
+      const finalTranscript = recognitionFinalTranscriptRef.current.trim();
+      const interimTranscript = recognitionInterimTranscriptRef.current.trim();
+      const fallbackCandidate = finalTranscript
+        ? parseSpokenNumber(finalTranscript)
+        : interimTranscript
+          ? parseSpokenNumber(interimTranscript)
+          : recognitionBestCandidateRef.current.formatted
+            ? {
+                value: recognitionBestCandidateRef.current.parsed,
+                formatted: recognitionBestCandidateRef.current.formatted,
+                transcript: recognitionBestCandidateRef.current.transcript,
+              }
+            : null;
+
+      if (
+        fallbackCandidate &&
+        fallbackCandidate.value !== null &&
+        fallbackCandidate.formatted &&
+        stageRef.current === "answering"
+      ) {
+        recognitionShouldRestartRef.current = false;
+        submitAnswer({
+          parsedAnswer: fallbackCandidate.value,
+          transcript: fallbackCandidate.transcript,
+          answerDisplay: fallbackCandidate.formatted,
+        });
+        return;
+      }
+
+      if (!(recognitionShouldRestartRef.current && settingsRef.current.voiceMode === "auto" && stageRef.current === "answering")) {
+        return;
+      }
+      if (recognitionRestartTimerRef.current) {
+        clearTimeout(recognitionRestartTimerRef.current);
+      }
+      recognitionRestartTimerRef.current = window.setTimeout(() => {
+        if (
+          recognitionSessionRef.current === sessionId &&
+          !turnSubmissionRef.current &&
+          stageRef.current === "answering"
+        ) {
+          void startListening();
+        }
+      }, 220);
+    };
+
+    try {
+      recognitionShouldRestartRef.current = settingsRef.current.voiceMode === "auto";
+      recognition.start();
+      setSpeechError("");
+      setIsListening(true);
+    } catch (error) {
+      console.error("Speech recognition start failed", error);
+      setSpeechError("Voice recognition is warming up. Try again in a moment.");
+    }
+  }, [isListening, setupMicrophone, speechSupported, submitAnswer]);
+
+  useEffect(() => {
+    if (phase === "playing" && stage === "answering" && settings.voiceEnabled && settings.voiceMode === "auto") {
+      void startListening();
+    }
+  }, [phase, settings.voiceEnabled, settings.voiceMode, stage, startListening]);
+
+  useEffect(() => {
+    return () => {
+      cleanupSession();
+      cleanupMedia();
+      if (recognitionRef.current) {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+      }
+    };
+  }, [cleanupMedia, cleanupSession]);
+
+  useEffect(() => {
+    const onFullscreenChange = async () => {
+      const fullscreenLib = await import("../lib/fullscreen");
+      setIsFullScreen(fullscreenLib.isFullscreen());
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    const fullscreenLib = await import("../lib/fullscreen");
+    if (fullscreenLib.isFullscreen()) {
+      await fullscreenLib.exitFullscreen();
+    } else {
+      await fullscreenLib.enterFullscreen();
+    }
+    setIsFullScreen(fullscreenLib.isFullscreen());
+  }, []);
+
+  const applyConfigToAll = useCallback(() => {
+    if (!selectedPlayer) return;
+    setPlayers((prev) => prev.map((player) => ({ ...player, config: { ...selectedPlayer.config } })));
+  }, [selectedPlayer]);
+
+  const addPlayer = useCallback(() => {
+    setPlayers((prev) => [...prev, createPlayer(prev.length, newPlayerName.trim())]);
+    setNewPlayerName("");
+  }, [newPlayerName]);
+
+  const removePlayer = useCallback((playerId: string) => {
+    setPlayers((prev) => prev.filter((player) => player.id !== playerId));
+    if (selectedPlayerId === playerId) {
+      const survivor = players.find((player) => player.id !== playerId);
+      if (survivor) setSelectedPlayerId(survivor.id);
+    }
+  }, [players, selectedPlayerId]);
+
+  const updateSelectedPlayerConfig = useCallback((patch: Partial<MentalQuestionConfig>) => {
+    if (!selectedPlayer) return;
+    updatePlayerById(selectedPlayer.id, (player) => ({
+      ...player,
+      config: updatePlayerConfig(player.config, patch),
+    }));
+  }, [selectedPlayer, updatePlayerById]);
+
+  const changeSelectedOperation = useCallback((operationType: string) => {
+    if (!selectedPlayer) return;
+    const nextOperation = operationType as OperationType;
+    updatePlayerById(selectedPlayer.id, (player) => ({
+      ...player,
+      config: {
+        ...createDefaultMentalConfig(nextOperation),
+        operationType: nextOperation,
+      },
+    }));
+  }, [selectedPlayer, updatePlayerById]);
+
+  const startArena = useCallback(async () => {
+    const trimmedPlayers = players.map((player, index) => ({
+      ...player,
+      name: player.name.trim() || `Player ${index + 1}`,
+    }));
+
+    if (trimmedPlayers.length < 2) {
+      setSetupError("Add at least two players to make the arena feel alive.");
+      return;
+    }
+
+    if (!settings.voiceEnabled && !settings.allowKeyboardFallback) {
+      setSetupError("Enable voice or keyboard fallback so players have a way to answer.");
+      return;
+    }
+
+    if (settings.voiceEnabled && !speechSupported && !settings.allowKeyboardFallback) {
+      setSetupError("This browser does not support voice recognition, and keyboard fallback is disabled.");
+      return;
+    }
+
+    setSetupError("");
+
+    if (settings.voiceEnabled) {
+      const micReady = await setupMicrophone();
+      if (!micReady && !settings.allowKeyboardFallback) {
+        setSetupError("Microphone access is required unless keyboard fallback is enabled.");
+        return;
+      }
+    }
+
+    const questionsPerPlayer = settings.rounds * settings.questionsPerRound;
+    const preparedPlayers = trimmedPlayers.map((player) => ({
+      ...player,
+      questions: generateMentalQuestions(player.config, questionsPerPlayer),
+      attempts: [],
+      score: 0,
+      streak: 0,
+      bestStreak: 0,
+      correctCount: 0,
+      wrongCount: 0,
+    }));
+    const preparedTurns = buildTurns(preparedPlayers, settings);
+
+    setPlayers(preparedPlayers);
+    setTurns(preparedTurns);
+    setCurrentTurnIndex(0);
+    setPhase("countdown");
+    setStage("idle");
+    setCountdown(3);
+    playTone("countdown");
+
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+          }
+          playTone("start");
+          setPhase("playing");
+          void startTurn(0);
+          return 0;
+        }
+        playTone("countdown");
+        return prev - 1;
+      });
+    }, 1000);
+  }, [players, playTone, settings, setupMicrophone, speechSupported, startTurn]);
+
+  const pauseArena = useCallback(() => {
+    cleanupSession();
+    stopListening(true);
+    setStage("paused");
+  }, [cleanupSession, stopListening]);
+
+  const resumeArena = useCallback(() => {
+    if (phase !== "playing") return;
+    void startTurn(currentTurnIndexRef.current);
+  }, [phase, startTurn]);
+
+  const resetArena = useCallback(() => {
+    cleanupSession();
+    stopListening(true);
+    turnSubmissionRef.current = false;
+    setPlayers((prev) => prev.map((player, index) => ({
+      ...createPlayer(index, player.name),
+      id: player.id,
+      avatar: player.avatar,
+      accent: player.accent,
+      config: { ...player.config },
+    })));
+    setTurns([]);
+    setPhase("setup");
+    setStage("idle");
+    setCurrentTurnIndex(0);
+    setCountdown(0);
+    setFeedback(null);
+    setCurrentRevealItem("");
+    setRevealedItems([]);
+    setSpeechTranscript("");
+    setSpeechPreview("");
+    setSpeechError("");
+    setKeyboardAnswer("");
+  }, [cleanupSession, stopListening]);
+
+  const submitKeyboard = useCallback(() => {
+    const trimmed = keyboardAnswer.trim();
+    if (!trimmed) return;
+    const numeric = Number(trimmed);
+    if (Number.isNaN(numeric)) return;
+    submitAnswer({
+      parsedAnswer: numeric,
+      transcript: trimmed,
+      answerDisplay: trimmed,
+    });
+  }, [keyboardAnswer, submitAnswer]);
+
+  const currentPlayerPlace = currentPlayer
+    ? leaderboard.findIndex((player) => player.id === currentPlayer.id)
+    : -1;
+  const currentQuestionLabel = currentQuestion
+    ? isAddSubFamily(currentQuestion.type)
+      ? stage === "revealing"
+        ? "Watch the rows"
+        : "What is the final total?"
+      : formatMentalQuestion(currentQuestion)
+    : "";
+
+  const awards = useMemo(() => {
+    if (!leaderboard.length || phase !== "results") return [];
+    const fastest = [...leaderboard]
+      .map((player) => ({ player, avg: getAverageTime(player) }))
+      .filter((entry) => entry.avg !== null)
+      .sort((left, right) => (left.avg ?? Infinity) - (right.avg ?? Infinity))[0];
+    const hottest = [...leaderboard].sort((left, right) => right.bestStreak - left.bestStreak)[0];
+    const sharpest = [...leaderboard].sort((left, right) => {
+      const rightAccuracy = right.attempts.length ? right.correctCount / right.attempts.length : 0;
+      const leftAccuracy = left.attempts.length ? left.correctCount / left.attempts.length : 0;
+      return rightAccuracy - leftAccuracy;
+    })[0];
+
+    return [
+      fastest ? { label: "Fastest Thinker", value: `${fastest.player.avatar} ${fastest.player.name}`, meta: fastest.avg ? formatMs(fastest.avg) : "—" } : null,
+      hottest ? { label: "Hottest Streak", value: `${hottest.avatar} ${hottest.name}`, meta: `${hottest.bestStreak} in a row` } : null,
+      sharpest ? { label: "Sharpest Accuracy", value: `${sharpest.avatar} ${sharpest.name}`, meta: formatAccuracy(sharpest) } : null,
+    ].filter(Boolean) as Array<{ label: string; value: string; meta: string }>;
+  }, [leaderboard, phase]);
+
+  const renderConfigEditor = () => {
+    if (!selectedPlayer) return null;
+    const config = selectedPlayer.config;
+    const activePresetKey = getPresetKeyForConfig(config);
+
+    return (
+      <div className="arena-card arena-fade-up" style={{ padding: 28, display: "flex", flexDirection: "column", gap: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div>
+            <div className="arena-section-title">Player Config</div>
+            <div style={{ font: "700 1.7rem 'Fraunces', serif", marginTop: 8 }}>{selectedPlayer.avatar} {selectedPlayer.name || "Selected Player"}</div>
+            <div className="arena-copy" style={{ marginTop: 8 }}>{describeMentalConfig(config)}</div>
+          </div>
+          <button className="arena-button secondary" onClick={applyConfigToAll} type="button">
+            <Wand2 size={16} />
+            Apply to all
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <span className="arena-label">Player Name</span>
+            <input
+              className="arena-select"
+              value={selectedPlayer.name}
+              placeholder="Enter player name"
+              onChange={(event) => updatePlayerById(selectedPlayer.id, (player) => ({ ...player, name: event.target.value }))}
+            />
+          </label>
+
+          <SelectField
+            label="Operation"
+            value={config.operationType}
+            options={OPERATION_OPTIONS.map(([value, label]) => ({ value, label }))}
+            onChange={changeSelectedOperation}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {MENTAL_PRESETS[config.operationType].map((preset) => (
+            <button
+              key={preset.presetKey}
+              type="button"
+              className={`arena-chip ${activePresetKey === preset.presetKey ? "active" : ""}`}
+              onClick={() => updatePlayerById(selectedPlayer.id, (player) => ({
+                ...player,
+                config: applyMentalPreset(player.config, preset.presetKey),
+              }))}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {config.operationType === "multiplication" && (
+            <>
+              <NumericField label="Multiplicand digits" min={1} max={6} value={config.multiplicandDigits} onChange={(value) => updateSelectedPlayerConfig({ multiplicandDigits: value })} />
+              <NumericField label="Multiplier digits" min={1} max={4} value={config.multiplierDigits} onChange={(value) => updateSelectedPlayerConfig({ multiplierDigits: value })} />
+            </>
+          )}
+
+          {config.operationType === "division" && (
+            <>
+              <NumericField label="Dividend digits" min={2} max={6} value={config.dividendDigits} onChange={(value) => updateSelectedPlayerConfig({ dividendDigits: value })} />
+              <NumericField label="Divisor digits" min={1} max={4} value={config.divisorDigits} onChange={(value) => updateSelectedPlayerConfig({ divisorDigits: value })} />
+            </>
+          )}
+
+          {config.operationType === "add_sub" && (
+            <>
+              <NumericField label="Digits" min={1} max={6} value={config.addSubDigits} onChange={(value) => updateSelectedPlayerConfig({ addSubDigits: value })} />
+              <NumericField label="Rows" min={3} max={20} value={config.addSubRows} onChange={(value) => updateSelectedPlayerConfig({ addSubRows: value })} />
+            </>
+          )}
+
+          {config.operationType === "integer_add_sub" && (
+            <>
+              <NumericField label="Digits" min={1} max={6} value={config.integerAddSubDigits} onChange={(value) => updateSelectedPlayerConfig({ integerAddSubDigits: value })} />
+              <NumericField label="Rows" min={3} max={20} value={config.integerAddSubRows} onChange={(value) => updateSelectedPlayerConfig({ integerAddSubRows: value })} />
+            </>
+          )}
+
+          {config.operationType === "intl_add_sub" && (
+            <>
+              <SelectField
+                label="Digit mix"
+                value={config.intlAddSubPreset}
+                options={[
+                  { value: "1_2", label: "1 & 2 digits" },
+                  { value: "2_3", label: "2 & 3 digits" },
+                ]}
+                onChange={(value) => updateSelectedPlayerConfig({ intlAddSubPreset: value as "1_2" | "2_3" })}
+              />
+              <NumericField label="Rows" min={3} max={20} value={config.intlAddSubRows} onChange={(value) => updateSelectedPlayerConfig({ intlAddSubRows: value })} />
+            </>
+          )}
+
+          {config.operationType === "decimal_multiplication" && (
+            <>
+              <NumericField label="Left digits" min={1} max={4} value={config.decimalMultMultiplicandDigits} onChange={(value) => updateSelectedPlayerConfig({ decimalMultMultiplicandDigits: value })} />
+              <NumericField label="Right digits" min={0} max={3} value={config.decimalMultMultiplierDigits} onChange={(value) => updateSelectedPlayerConfig({ decimalMultMultiplierDigits: value })} />
+            </>
+          )}
+
+          {config.operationType === "decimal_division" && (
+            <>
+              <NumericField label="Dividend digits" min={2} max={6} value={config.decimalDivDividendDigits} onChange={(value) => updateSelectedPlayerConfig({ decimalDivDividendDigits: value })} />
+              <NumericField label="Divisor digits" min={1} max={4} value={config.decimalDivDivisorDigits} onChange={(value) => updateSelectedPlayerConfig({ decimalDivDivisorDigits: value })} />
+            </>
+          )}
+
+          {(config.operationType === "lcm" || config.operationType === "gcd") && (
+            <>
+              <NumericField label="First number digits" min={1} max={4} value={config.lcmGcdFirstDigits} onChange={(value) => updateSelectedPlayerConfig({ lcmGcdFirstDigits: value })} />
+              <NumericField label="Second number digits" min={1} max={4} value={config.lcmGcdSecondDigits} onChange={(value) => updateSelectedPlayerConfig({ lcmGcdSecondDigits: value })} />
+            </>
+          )}
+
+          {(config.operationType === "square_root" || config.operationType === "cube_root") && (
+            <NumericField label="Target digits" min={2} max={8} value={config.rootDigits} onChange={(value) => updateSelectedPlayerConfig({ rootDigits: value })} />
+          )}
+
+          {config.operationType === "percentage" && (
+            <>
+              <NumericField label="Percentage min" min={1} max={99} value={config.percentageMin} onChange={(value) => updateSelectedPlayerConfig({ percentageMin: value })} />
+              <NumericField label="Percentage max" min={1} max={100} value={config.percentageMax} onChange={(value) => updateSelectedPlayerConfig({ percentageMax: Math.max(value, config.percentageMin) })} />
+              <NumericField label="Number digits" min={2} max={7} value={config.percentageNumberDigits} onChange={(value) => updateSelectedPlayerConfig({ percentageNumberDigits: value })} />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  if (phase === "countdown") {
+    return (
+      <div className="arena-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div className="arena-countdown">{countdown || "GO"}</div>
+          <div style={{ font: "700 1rem 'JetBrains Mono', monospace", color: "var(--arena-muted)", letterSpacing: ".18em", textTransform: "uppercase" }}>
+            Classroom Arena
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "results") {
+    return (
+      <div className="arena-shell">
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "28px 20px 80px" }}>
+          <div className="arena-card arena-fade-up" style={{ padding: "22px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <Link href="/mental">
+                <button className="arena-button secondary" type="button">
+                  <ArrowLeft size={16} />
+                  Back to Practice
+                </button>
+              </Link>
+              <div>
+                <div className="arena-section-title">Arena Results</div>
+                <div style={{ font: "700 2.4rem 'Fraunces', serif", marginTop: 8 }}>Premium classroom energy, beautifully finished.</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button className="arena-button secondary" onClick={resetArena} type="button">
+                <RotateCcw size={16} />
+                New setup
+              </button>
+              <button className="arena-button primary" onClick={startArena} type="button">
+                <Play size={16} />
+                Play again
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1.2fr .8fr", gap: 24, marginTop: 24 }} className="arena-grid">
+            <div className="arena-card" style={{ padding: 28 }}>
+              <div className="arena-section-title">Podium</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "end", marginTop: 20 }}>
+                {leaderboard.slice(0, 3).map((player, index) => (
+                  <div
+                    key={player.id}
+                    style={{
+                      position: "relative",
+                      overflow: "hidden",
+                      padding: 18,
+                      borderRadius: 24,
+                      minHeight: index === 0 ? 250 : index === 1 ? 220 : 200,
+                      background: `linear-gradient(180deg, ${player.accent}28, rgba(255,255,255,.04))`,
+                      border: "1px solid rgba(255,255,255,.1)",
+                    }}
+                  >
+                    <div className="arena-sheen" />
+                    {index === 0 ? (
+                      <div style={{ position: "absolute", top: 16, right: 16, width: 38, height: 38, borderRadius: 14, display: "grid", placeItems: "center", background: "rgba(245,158,11,.18)", color: "var(--arena-gold)" }}>
+                        <Crown size={18} />
+                      </div>
+                    ) : null}
+                    <div style={{ fontSize: 40 }}>{player.avatar}</div>
+                    <div style={{ font: "800 1.6rem 'Fraunces', serif", marginTop: 14 }}>{player.name}</div>
+                    <div style={{ font: "700 .82rem 'JetBrains Mono', monospace", color: "var(--arena-muted)", marginTop: 6 }}>
+                      {ordinalPlace(index)} place
+                    </div>
+                    <div style={{ marginTop: 18, display: "grid", gap: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span className="arena-label">Score</span>
+                        <span style={{ font: "800 1rem 'JetBrains Mono', monospace" }}>{player.score}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span className="arena-label">Accuracy</span>
+                        <span style={{ font: "800 1rem 'JetBrains Mono', monospace" }}>{formatAccuracy(player)}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span className="arena-label">Best streak</span>
+                        <span style={{ font: "800 1rem 'JetBrains Mono', monospace" }}>{player.bestStreak}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 28, display: "grid", gap: 12 }}>
+                {leaderboard.map((player, index) => (
+                  <div key={player.id} style={{ display: "grid", gridTemplateColumns: "56px 1.2fr repeat(4, .7fr)", gap: 12, alignItems: "center", padding: "14px 16px", borderRadius: 18, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.07)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ fontSize: 26 }}>{player.avatar}</div>
+                      <div style={{ font: "800 1rem 'JetBrains Mono', monospace", color: "var(--arena-muted)" }}>{index + 1}</div>
+                    </div>
+                    <div>
+                      <div style={{ font: "700 1rem 'DM Sans', sans-serif" }}>{player.name}</div>
+                      <div style={{ font: "600 .9rem 'DM Sans', sans-serif", color: "var(--arena-muted)" }}>{OPERATION_LABELS[player.config.operationType]}</div>
+                    </div>
+                    <div>
+                      <div className="arena-label">Score</div>
+                      <div style={{ font: "800 1rem 'JetBrains Mono', monospace" }}>{player.score}</div>
+                    </div>
+                    <div>
+                      <div className="arena-label">Correct</div>
+                      <div style={{ font: "800 1rem 'JetBrains Mono', monospace" }}>{player.correctCount}</div>
+                    </div>
+                    <div>
+                      <div className="arena-label">Wrong</div>
+                      <div style={{ font: "800 1rem 'JetBrains Mono', monospace" }}>{player.wrongCount}</div>
+                    </div>
+                    <div>
+                      <div className="arena-label">Avg speed</div>
+                      <div style={{ font: "800 1rem 'JetBrains Mono', monospace" }}>{getAverageTime(player) ? formatMs(getAverageTime(player) ?? 0) : "—"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 24 }}>
+              <div className="arena-card" style={{ padding: 24 }}>
+                <div className="arena-section-title">Highlights</div>
+                <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
+                  {awards.map((award) => (
+                    <div key={award.label} style={{ padding: 16, borderRadius: 20, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)" }}>
+                      <div className="arena-label">{award.label}</div>
+                      <div style={{ font: "700 1.15rem 'Fraunces', serif", marginTop: 8 }}>{award.value}</div>
+                      <div className="arena-copy" style={{ marginTop: 6 }}>{award.meta}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="arena-card" style={{ padding: 24 }}>
+                <div className="arena-section-title">Session Settings</div>
+                <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
+                  {[
+                    ["Rounds", `${settings.rounds}`],
+                    ["Questions / round", `${settings.questionsPerRound}`],
+                    ["Turn order", settings.orderMode],
+                    ["Voice mode", settings.voiceEnabled ? settings.voiceMode.replace("_", " ") : "voice off"],
+                    ["Timer", `${settings.timeLimitSeconds}s`],
+                    ["Row reveal", `${settings.addSubRevealSeconds.toFixed(1)}s`],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                      <span className="arena-label">{label}</span>
+                      <span style={{ font: "800 .95rem 'JetBrains Mono', monospace", textTransform: "capitalize" }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "playing" && currentTurn && currentPlayer && currentQuestion) {
+    const progressPercent = ((currentTurnIndex + 1) / turns.length) * 100;
+    const timePercent = settings.timeLimitSeconds > 0
+      ? (timeRemainingMs / (settings.timeLimitSeconds * 1000)) * 100
+      : 0;
+    const compactMode = isFullScreen;
+
+    return (
+      <div className="arena-shell">
+        <div style={{ maxWidth: 1460, margin: "0 auto", padding: compactMode ? "10px 10px 16px" : "18px 16px 28px" }}>
+          <div className="arena-card" style={{ padding: compactMode ? "10px 12px" : "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, borderRadius: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              {!compactMode && (
+                <Link href="/mental">
+                  <button className="arena-button secondary" type="button" style={{ padding: "10px 14px", borderRadius: 14 }}>
+                    <ArrowLeft size={15} />
+                    Exit
+                  </button>
+                </Link>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 16, display: "grid", placeItems: "center", background: `${currentPlayer.accent}22`, fontSize: 22 }}>
+                  {currentPlayer.avatar}
+                </div>
+                <div>
+                  <div className="arena-section-title" style={{ fontSize: ".72rem" }}>Now Playing</div>
+                  <div style={{ font: `${compactMode ? 700 : 800} ${compactMode ? "1.1rem" : "1.35rem"} 'Fraunces', serif`, marginTop: 4 }}>
+                    {currentPlayer.name}'s turn
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="arena-button secondary" type="button" onClick={toggleFullscreen} style={{ padding: "10px 14px", borderRadius: 14 }}>
+                <Maximize size={15} />
+                {isFullScreen ? "Windowed" : "Fullscreen"}
+              </button>
+              <button className="arena-button secondary" type="button" onClick={pauseArena} style={{ padding: "10px 14px", borderRadius: 14 }}>
+                <Pause size={15} />
+                Pause
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: compactMode ? "1fr" : "minmax(0, 1.55fr) minmax(320px, .72fr)", gap: 14 }} className="arena-grid">
+            <div className="arena-card" style={{ padding: compactMode ? 18 : 24, background: `linear-gradient(180deg, ${currentPlayer.accent}20, rgba(8,12,26,.95))`, minHeight: compactMode ? "calc(100vh - 112px)" : 0 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                {[
+                  { label: "Round", value: `${currentTurn.round}/${settings.rounds}` },
+                  { label: "Seat", value: `${currentTurn.slot}/${settings.questionsPerRound}` },
+                  { label: "Place", value: currentPlayerPlace >= 0 ? ordinalPlace(currentPlayerPlace) : "—" },
+                  { label: "Timer", value: formatMs(timeRemainingMs) },
+                ].map((item) => (
+                  <div key={item.label} className="arena-stat-pill">
+                    <div className="arena-label">{item.label}</div>
+                    <div style={{ marginTop: 6, font: "800 .98rem 'JetBrains Mono', monospace" }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="arena-progress" style={{ marginBottom: compactMode ? 18 : 22 }}>
+                <span style={{ width: `${progressPercent}%` }} />
+              </div>
+
+              <div style={{ display: "grid", placeItems: "center", textAlign: "center", minHeight: compactMode ? "44vh" : "38vh", padding: compactMode ? "12px 6px" : "24px 14px" }}>
+                <div style={{ width: "100%" }}>
+                  <div className="arena-section-title" style={{ color: currentPlayer.accent, marginBottom: 14 }}>
+                    {OPERATION_LABELS[currentPlayer.config.operationType]}
+                  </div>
+                  <div style={{ font: `700 clamp(${compactMode ? "2.6rem,9vw,5.2rem" : "3rem,7vw,5.6rem"}) 'Fraunces', serif`, lineHeight: 1.02, letterSpacing: "-.05em" }}>
+                    {currentQuestionLabel}
+                  </div>
+                  <div className="arena-copy" style={{ marginTop: 16, fontSize: compactMode ? ".96rem" : "1rem" }}>
+                    {stage === "announce"
+                      ? `${currentPlayer.name}, get ready.`
+                      : isAddSubFamily(currentQuestion.type)
+                        ? "Watch the rows, then answer once the lane opens."
+                        : "Speak the answer once, clearly."}
+                  </div>
+                </div>
+              </div>
+
+              {stage === "revealing" ? (
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(220px, .85fr)", gap: 14 }} className="arena-grid">
+                  <div className="arena-side-card" style={{ minHeight: 220, display: "grid", placeItems: "center" }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div className="arena-label">Row Reveal</div>
+                      <div style={{ font: "800 clamp(3rem,9vw,5rem) 'JetBrains Mono', monospace", marginTop: 14, animation: "arena-pop .22s ease" }}>
+                        {currentRevealItem}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="arena-side-card">
+                    <div className="arena-label">Rows Shown</div>
+                    <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
+                      {revealedItems.map((item, index) => (
+                        <div key={`${item}-${index}`} style={{ padding: "10px 12px", borderRadius: 14, background: "rgba(255,255,255,.05)", font: "700 .98rem 'JetBrains Mono', monospace" }}>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {isAddSubFamily(currentQuestion.type) && (stage === "answering" || stage === "feedback" || stage === "paused") ? (
+                <div className="arena-side-card" style={{ marginTop: 14 }}>
+                  <div className="arena-label">Rows</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12, justifyContent: "center" }}>
+                    {revealedItems.map((item, index) => (
+                      <div key={`${item}-${index}`} style={{ padding: "10px 12px", borderRadius: 14, background: "rgba(255,255,255,.05)", font: "700 .96rem 'JetBrains Mono', monospace" }}>
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {(stage === "answering" || stage === "feedback" || stage === "paused") && (
+                <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+                  <div className="arena-side-card" style={{ display: "grid", gap: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                      <div>
+                        <div className="arena-label">Answer Lane</div>
+                        <div style={{ font: "700 1.04rem 'DM Sans', sans-serif", marginTop: 6 }}>
+                          {settings.voiceEnabled ? (isListening ? "Listening now" : "Mic ready") : "Keyboard only"}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {settings.voiceEnabled && (
+                          <button
+                            className={`arena-button ${isListening ? "warn" : "secondary"}`}
+                            type="button"
+                            style={{ padding: "10px 14px", borderRadius: 14 }}
+                            onClick={() => {
+                              if (isListening) stopListening();
+                              else void startListening();
+                            }}
+                          >
+                            {isListening ? <MicOff size={15} /> : <Mic size={15} />}
+                            {isListening ? "Stop" : "Mic"}
+                          </button>
+                        )}
+                        <button
+                          className="arena-button secondary"
+                          type="button"
+                          style={{ padding: "10px 14px", borderRadius: 14 }}
+                          onClick={() => submitAnswer({ parsedAnswer: null, transcript: "", answerDisplay: "Skipped", skipped: true })}
+                        >
+                          <SkipForward size={15} />
+                          Skip
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: settings.allowKeyboardFallback ? "minmax(0, 1fr) minmax(240px, .72fr)" : "1fr", gap: 12 }} className="arena-grid">
+                      <div style={{ display: "grid", gap: 10 }}>
+                        <div style={{ padding: "12px 14px", borderRadius: 18, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)" }}>
+                          <div className="arena-label">Transcript</div>
+                          <div style={{ marginTop: 8, minHeight: 26, font: "700 1rem 'DM Sans', sans-serif" }}>
+                            {speechTranscript || "Waiting for the answer..."}
+                          </div>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "88px 1fr", gap: 10, alignItems: "stretch" }}>
+                          <div style={{ padding: 12, borderRadius: 18, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)", display: "grid", placeItems: "center" }}>
+                            <div className="arena-wave">
+                              {Array.from({ length: 5 }).map((_, index) => (
+                                <span key={index} style={{ height: `${14 + audioLevel * 34 + index * 2}px` }} />
+                              ))}
+                            </div>
+                          </div>
+                          <div style={{ padding: "12px 14px", borderRadius: 18, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)" }}>
+                            <div className="arena-label">Detected Number</div>
+                            <div style={{ marginTop: 8, minHeight: 26, font: "800 1.2rem 'JetBrains Mono', monospace", color: "var(--arena-blue)" }}>
+                              {speechPreview || "—"}
+                            </div>
+                            <div className="arena-copy" style={{ marginTop: 8, fontSize: ".88rem", color: speechError ? "rgba(239,68,68,.95)" : "var(--arena-muted)" }}>
+                              {speechError || micStatus}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {settings.allowKeyboardFallback ? (
+                        <div style={{ padding: "12px 14px", borderRadius: 18, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)" }}>
+                          <div className="arena-label">Keyboard Fallback</div>
+                          <div style={{ position: "relative", marginTop: 10 }}>
+                            <input
+                              className="arena-select"
+                              inputMode="decimal"
+                              value={keyboardAnswer}
+                              placeholder="Type answer"
+                              onChange={(event) => {
+                                const nextValue = event.target.value;
+                                if (nextValue === "" || /^-?\d*\.?\d*$/.test(nextValue)) {
+                                  setKeyboardAnswer(nextValue);
+                                }
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") submitKeyboard();
+                              }}
+                            />
+                            <button
+                              className="arena-button success"
+                              type="button"
+                              style={{ position: "absolute", top: 6, right: 6, padding: "10px 12px", borderRadius: 14 }}
+                              onClick={submitKeyboard}
+                            >
+                              <ChevronRight size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div className="arena-card" style={{ padding: 18 }}>
+                <div className="arena-section-title">Leaderboard</div>
+                <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                  {leaderboard.map((player, index) => {
+                    const isCurrent = player.id === currentPlayer.id;
+                    return (
+                      <div
+                        key={player.id}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "34px 1fr auto",
+                          gap: 10,
+                          alignItems: "center",
+                          padding: "10px 12px",
+                          borderRadius: 16,
+                          background: isCurrent ? `${player.accent}22` : "rgba(255,255,255,.04)",
+                          border: isCurrent ? `1px solid ${player.accent}` : "1px solid rgba(255,255,255,.07)",
+                        }}
+                      >
+                        <div style={{ font: "800 .92rem 'JetBrains Mono', monospace", color: "var(--arena-muted)" }}>{index + 1}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 20 }}>{player.avatar}</span>
+                          <div>
+                            <div style={{ font: "700 .95rem 'DM Sans', sans-serif" }}>{player.name}{index === 0 ? " 👑" : ""}</div>
+                            <div className="arena-copy" style={{ fontSize: ".82rem" }}>{player.correctCount} correct • streak {player.streak}</div>
+                          </div>
+                        </div>
+                        <div style={{ font: "800 .98rem 'JetBrains Mono', monospace" }}>{player.score}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="arena-card" style={{ padding: 18 }}>
+                <div className="arena-section-title">Current Player</div>
+                <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+                  {[
+                    ["Score", `${currentPlayer.score}`],
+                    ["Correct", `${currentPlayer.correctCount}`],
+                    ["Streak", `${currentPlayer.streak}`],
+                    ["Mic", settings.voiceEnabled ? (micPermission === "granted" ? "ready" : micPermission) : "off"],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                      <span className="arena-label">{label}</span>
+                      <span style={{ font: "800 .92rem 'JetBrains Mono', monospace", textTransform: "capitalize" }}>{value}</span>
+                    </div>
+                  ))}
+                  <div className="arena-progress" style={{ marginTop: 4 }}>
+                    <span style={{ width: `${timePercent}%`, background: "linear-gradient(90deg, #10B981, #F59E0B, #EF4444)" }} />
+                  </div>
+                </div>
+              </div>
+
+              {feedback ? (
+                <div className="arena-card" style={{ padding: 18, background: feedback.correct ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.12)", borderColor: feedback.correct ? "rgba(16,185,129,.32)" : "rgba(239,68,68,.24)" }}>
+                  <div className="arena-section-title">{feedback.correct ? "Nice Hit" : "Turn Result"}</div>
+                  <div style={{ font: "700 1.2rem 'Fraunces', serif", marginTop: 10 }}>{feedback.title}</div>
+                  <div className="arena-copy" style={{ marginTop: 8, color: "var(--arena-text)" }}>{feedback.subtitle}</div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {stage === "paused" ? (
+          <div className="arena-overlay">
+            <div className="arena-card" style={{ padding: 28, width: "min(560px, calc(100vw - 32px))", textAlign: "center" }}>
+              <div className="arena-section-title">Paused</div>
+              <div style={{ font: "700 2rem 'Fraunces', serif", marginTop: 14 }}>We can resume the same turn smoothly.</div>
+              <div className="arena-copy" style={{ marginTop: 12 }}>
+                Resuming restarts the current turn cleanly so the student gets a fair shot again.
+              </div>
+              <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 20 }}>
+                <button className="arena-button secondary" onClick={resetArena} type="button">
+                  <X size={16} />
+                  End session
+                </button>
+                <button className="arena-button primary" onClick={resumeArena} type="button">
+                  <Play size={16} />
+                  Resume turn
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="arena-shell">
+      <div style={{ maxWidth: 1440, margin: "0 auto", padding: "22px 18px 48px" }}>
+        <div className="arena-card arena-fade-up" style={{ padding: "20px 22px", position: "relative", overflow: "hidden" }}>
+          <div className="arena-sheen" />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ maxWidth: 700 }}>
+              <div className="arena-section-title">Classroom Arena</div>
+              <div style={{ font: "700 clamp(1.8rem,4vw,3rem) 'Fraunces', serif", lineHeight: 1.02, letterSpacing: "-.04em", marginTop: 10 }}>
+                Fast multiplayer math for one screen and one teacher.
+              </div>
+              <div className="arena-copy" style={{ marginTop: 12, maxWidth: 560 }}>
+                Add players, tune each child’s question mix, test the mic, and launch.
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Link href="/mental">
+                <button className="arena-button secondary" type="button" style={{ padding: "12px 16px", borderRadius: 14 }}>
+                  <ArrowLeft size={16} />
+                  Back
+                </button>
+              </Link>
+              <button className="arena-button secondary" type="button" onClick={toggleFullscreen} style={{ padding: "12px 16px", borderRadius: 14 }}>
+                <Maximize size={16} />
+                Fullscreen
+              </button>
+              <button className="arena-button primary" type="button" onClick={() => void setupMicrophone()} style={{ padding: "12px 16px", borderRadius: 14 }}>
+                <Volume2 size={16} />
+                Test mic
+              </button>
+            </div>
+          </div>
+          <div className="arena-copy" style={{ marginTop: 14, color: micPermission === "denied" ? "rgba(239,68,68,.9)" : "var(--arena-muted)" }}>
+            {micStatus}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 20, marginTop: 20 }} className="arena-grid">
+          <div className="arena-card arena-fade-up" style={{ padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+              <div>
+                <div className="arena-section-title">Players</div>
+                <div style={{ font: "700 1.6rem 'Fraunces', serif", marginTop: 8 }}>Build the roster</div>
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <div className="arena-input-shell" style={{ minWidth: 220 }}>
+                  <input
+                    className="arena-input"
+                    value={newPlayerName}
+                    placeholder="Add player name"
+                    onChange={(event) => setNewPlayerName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") addPlayer();
+                    }}
+                  />
+                </div>
+                <button className="arena-button success" type="button" onClick={addPlayer} style={{ padding: "12px 16px", borderRadius: 14 }}>
+                  <Plus size={16} />
+                  Add
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
+              {players.map((player, index) => (
+                <div
+                  key={player.id}
+                  className={`arena-player-card ${selectedPlayerId === player.id ? "active" : ""}`}
+                  onClick={() => setSelectedPlayerId(player.id)}
+                  style={{ borderColor: selectedPlayerId === player.id ? `${player.accent}` : undefined, padding: 16, borderRadius: 22 }}
+                >
+                  <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, alignItems: "center" }}>
+                    <div style={{ width: 52, height: 52, borderRadius: 16, background: `${player.accent}25`, display: "grid", placeItems: "center", fontSize: 24 }}>
+                      {player.avatar}
+                    </div>
+                    <div>
+                      <div style={{ font: "700 1.02rem 'DM Sans', sans-serif" }}>{player.name || `Player ${index + 1}`}</div>
+                      <div className="arena-copy" style={{ marginTop: 4, fontSize: ".92rem" }}>
+                        {OPERATION_LABELS[player.config.operationType]} • {describeMentalConfig(player.config)}
+                      </div>
+                    </div>
+                    <button
+                      className="arena-button secondary"
+                      type="button"
+                      style={{ padding: 10, borderRadius: 14 }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        removePlayer(player.id);
+                      }}
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {renderConfigEditor()}
+        </div>
+
+        <div className="arena-card arena-fade-up" style={{ padding: 24, marginTop: 20 }}>
+          <div className="arena-section-title">Arena Settings</div>
+          <div style={{ font: "700 1.55rem 'Fraunces', serif", marginTop: 8 }}>Keep the flow tight</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, marginTop: 18 }} className="arena-grid">
+            <NumericField label="Rounds" min={1} max={5} value={settings.rounds} onChange={(value) => setSettings((prev) => ({ ...prev, rounds: value }))} />
+            <NumericField label="Questions / round" min={1} max={8} value={settings.questionsPerRound} onChange={(value) => setSettings((prev) => ({ ...prev, questionsPerRound: value }))} />
+            <SelectField
+              label="Turn order"
+              value={settings.orderMode}
+              options={[
+                { value: "sequential", label: "Sequential" },
+                { value: "snake", label: "Snake" },
+                { value: "random", label: "Random each slot" },
+              ]}
+              onChange={(value) => setSettings((prev) => ({ ...prev, orderMode: value as OrderMode }))}
+            />
+            <NumericField label="Timer per turn" min={5} max={30} value={settings.timeLimitSeconds} onChange={(value) => setSettings((prev) => ({ ...prev, timeLimitSeconds: value }))} suffix="sec" />
+            <NumericField label="Row reveal" min={0.4} max={2.5} step={0.1} value={settings.addSubRevealSeconds} onChange={(value) => setSettings((prev) => ({ ...prev, addSubRevealSeconds: value }))} suffix="sec" />
+            <NumericField label="Auto advance" min={800} max={3000} step={100} value={settings.autoAdvanceMs} onChange={(value) => setSettings((prev) => ({ ...prev, autoAdvanceMs: value }))} suffix="ms" />
+            <SelectField
+              label="Voice mode"
+              value={settings.voiceMode}
+              options={[
+                { value: "auto", label: "Auto listening" },
+                { value: "push_to_talk", label: "Push to talk" },
+              ]}
+              onChange={(value) => setSettings((prev) => ({ ...prev, voiceMode: value as VoiceMode }))}
+            />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 18 }} className="arena-grid">
+            {[
+              {
+                label: "Voice recognition",
+                description: speechSupported ? "Hear spoken numeric answers." : "Not supported in this browser.",
+                value: settings.voiceEnabled,
+                onChange: (checked: boolean) => setSettings((prev) => ({ ...prev, voiceEnabled: checked })),
+                disabled: !speechSupported,
+              },
+              {
+                label: "Keyboard fallback",
+                description: "Keep a quiet manual lane available.",
+                value: settings.allowKeyboardFallback,
+                onChange: (checked: boolean) => setSettings((prev) => ({ ...prev, allowKeyboardFallback: checked })),
+              },
+              {
+                label: "Show correct answer",
+                description: "Reveal the answer after wrong turns.",
+                value: settings.showCorrectOnWrong,
+                onChange: (checked: boolean) => setSettings((prev) => ({ ...prev, showCorrectOnWrong: checked })),
+              },
+            ].map((toggle) => (
+              <button
+                key={toggle.label}
+                type="button"
+                disabled={toggle.disabled}
+                onClick={() => toggle.onChange(!toggle.value)}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 14,
+                  padding: "14px 16px",
+                  borderRadius: 18,
+                  border: "1px solid rgba(255,255,255,.08)",
+                  background: toggle.value ? "rgba(56,189,248,.12)" : "rgba(255,255,255,.04)",
+                  color: "var(--arena-text)",
+                  opacity: toggle.disabled ? 0.55 : 1,
+                  cursor: toggle.disabled ? "not-allowed" : "pointer",
+                }}
+              >
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ font: "700 .98rem 'DM Sans', sans-serif" }}>{toggle.label}</div>
+                  <div className="arena-copy" style={{ marginTop: 4, fontSize: ".9rem" }}>{toggle.description}</div>
+                </div>
+                <div style={{
+                  width: 52,
+                  height: 30,
+                  borderRadius: 999,
+                  background: toggle.value ? "linear-gradient(135deg, #38BDF8, #7C3AED)" : "rgba(255,255,255,.1)",
+                  position: "relative",
+                  flexShrink: 0,
+                }}>
+                  <div style={{
+                    position: "absolute",
+                    top: 3,
+                    left: toggle.value ? 25 : 3,
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    transition: "left .16s ease",
+                  }} />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="arena-card arena-fade-up" style={{ padding: "18px 22px", marginTop: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <div className="arena-section-title">Ready</div>
+            <div className="arena-copy" style={{ marginTop: 6 }}>
+              {players.length} players • {settings.rounds * settings.questionsPerRound * players.length} total turns
+            </div>
+            {setupError ? (
+              <div style={{ marginTop: 10, color: "#FCA5A5", font: "700 .95rem 'DM Sans', sans-serif" }}>
+                {setupError}
+              </div>
+            ) : null}
+          </div>
+          <button className="arena-button primary" type="button" onClick={startArena} style={{ padding: "16px 22px", fontSize: "1rem" }}>
+            <Play size={18} />
+            Start classroom arena
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

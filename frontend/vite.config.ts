@@ -27,8 +27,8 @@ export default defineConfig({
       ],
       // Web App Manifest
       manifest: {
-        name: "BlackMonkey – Math Education",
-        short_name: "BlackMonkey",
+        name: "Talent Hub – Abacus & Mental Maths",
+        short_name: "Talent Hub",
         description:
           "The next-gen platform for Abacus and Mental Maths education — gamification, practice, and live attendance for students and institutes.",
         theme_color: "#7C3AED",
@@ -123,7 +123,7 @@ export default defineConfig({
             sizes: "1200x630",
             type: "image/png",
             form_factor: "wide",
-            label: "BlackMonkey – Math Education Platform",
+            label: "Talent Hub – Abacus & Mental Maths Platform",
           },
         ],
       },

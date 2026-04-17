@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { ArrowLeft, CheckCircle2, XCircle, Clock, Trophy, Sparkles, Play, Zap, Target, Loader2, RotateCcw, Square, Star, AlertTriangle, Maximize, Minimize, BookOpen, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "../contexts/AuthContext";
@@ -9,6 +9,7 @@ import { useSuperLetterStore } from "../stores/superLetterStore";
 import { usePointRules, buildPointsLookup } from "../hooks/usePointRules";
 import TimeLimitSlider from "../components/TimeLimitSlider";
 import ErrorBoundary from "../components/ErrorBoundary";
+import { useTour, type TourStep, type TourConfig } from "../contexts/TourContext";
 
 // ────────────────────────────────────────────────
 // Preset definitions – each entry maps to a seed rule
@@ -475,6 +476,116 @@ export default function Mental() {
   const [showExitWarning, setShowExitWarning] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // ── Interactive Guided Tour ──────────────────────────────────────
+  const { startTour, hasSeenTour } = useTour();
+  const tourStartedRef = useRef(false);
+
+  // These must be declared before the tour useEffect that references them
+  const [isStarted, setIsStarted] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [isGameOver, setIsGameOver] = useState(false);
+
+  const mentalTourSteps: TourStep[] = [
+    {
+      target: "[data-tour='mm-hero']",
+      title: "Welcome to Mental Math!",
+      content: "Challenge yourself with timed questions across 12 operations. Earn points, build speed, and track your progress. Let's show you how.",
+      icon: "🧠",
+      placement: "bottom",
+      spotlightPadding: 4,
+      spotlightRadius: 28,
+    },
+    {
+      target: "[data-tour='mm-classroom']",
+      title: "Classroom Arena",
+      content: "Want multiplayer? Launch the Classroom Arena for head-to-head battles with voice input and real-time scoring!",
+      icon: "🏟️",
+      placement: "top",
+      spotlightPadding: 6,
+      spotlightRadius: 16,
+    },
+    {
+      target: "[data-tour='mm-how-to-use']",
+      title: "Need Help Later?",
+      content: "Tap this button anytime to replay this walkthrough and see the step-by-step guide.",
+      icon: "📖",
+      placement: "bottom",
+      spotlightPadding: 6,
+      spotlightRadius: 10,
+    },
+    {
+      target: "[data-tour='mm-student-name']",
+      title: "Enter Your Name",
+      content: "Type your name so session results and points can be tracked properly. This is required before starting.",
+      icon: "✏️",
+      placement: "bottom",
+      spotlightPadding: 8,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='mm-operation']",
+      title: "Choose an Operation",
+      content: "Pick from 12 operations — Add/Sub, Multiplication, Division, Decimals, LCM, GCD, Roots, Percentages, and more.",
+      icon: "🎯",
+      placement: "bottom",
+      spotlightPadding: 8,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='mm-config-mode']",
+      title: "Standard vs Custom",
+      content: "Standard mode uses verified presets that earn points. Custom mode gives you full control over digits and ranges, but earns 0 points.",
+      icon: "⚙️",
+      placement: "bottom",
+      spotlightPadding: 8,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='mm-num-questions']",
+      title: "Set Question Count",
+      content: "Choose 1–50 questions. You need at least 10 in Standard mode to earn points. More questions = more practice!",
+      icon: "🔢",
+      placement: "bottom",
+      spotlightPadding: 8,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='mm-right-column']",
+      title: "Difficulty & Settings",
+      content: "Pick a difficulty preset (Easy/Medium/Hard), see your points-per-correct preview, and adjust the time limit with the slider.",
+      icon: "⭐",
+      placement: "left",
+      spotlightPadding: 8,
+      spotlightRadius: 18,
+    },
+    {
+      target: "[data-tour='mm-start-btn']",
+      title: "Start Practicing!",
+      content: "When you're ready, hit Start Practice. A 3-2-1 countdown begins, then questions appear one by one. Type your answer and press Enter. Good luck!",
+      icon: "🚀",
+      placement: "top",
+      spotlightPadding: 6,
+      spotlightRadius: 16,
+    },
+  ];
+
+  const mentalTourConfig: TourConfig = {
+    id: "mental-math-tour",
+    steps: mentalTourSteps,
+    accent: "#6366F1",
+  };
+
+  // Auto-start tour on first visit (config/setup view only)
+  useEffect(() => {
+    if (!isStarted && !isGameOver && countdown === 0 && !tourStartedRef.current && !hasSeenTour("mental-math-tour")) {
+      const timer = setTimeout(() => {
+        tourStartedRef.current = true;
+        startTour(mentalTourConfig);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [isStarted, isGameOver, countdown]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Multiplication/Division inputs
   const [multiplicandDigits, setMultiplicandDigits] = useState(2);
@@ -614,8 +725,6 @@ export default function Mental() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configMode, operationType, selectedPresetKey, pointsLookup, addSubRows, integerAddSubRows, intlAddSubRows, multiplicandDigits, multiplierDigits, dividendDigits, divisorDigits, decimalMultMultiplicandDigits, decimalMultMultiplierDigits, decimalDivDividendDigits, decimalDivDivisorDigits, lcmGcdFirstDigits, lcmGcdSecondDigits, rootDigits, percentageNumberDigits]);
   
-  const [isStarted, setIsStarted] = useState(false);
-  const [countdown, setCountdown] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentAnswer, setCurrentAnswer] = useState("");
@@ -623,7 +732,6 @@ export default function Mental() {
   const [score, setScore] = useState(0);
   const [results, setResults] = useState<Array<{ question: Question; userAnswer: number | null; isCorrect: boolean }>>([]);
   const [timeRemaining, setTimeRemaining] = useState(0);
-  const [isGameOver, setIsGameOver] = useState(false);
   
   // Add/Sub specific state
   const [addSubDisplayIndex, setAddSubDisplayIndex] = useState(0); // Which row is currently being shown
@@ -2863,7 +2971,7 @@ export default function Mental() {
       )}
 
       {/* Hero banner — Glow Crown */}
-      <div style={{position:"relative",overflow:"hidden",borderRadius:"0 0 28px 28px",padding:"clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)",background:"linear-gradient(145deg, #06071A 0%, #0D0F38 35%, #130E40 65%, #080720 100%)",borderBottom:"1px solid rgba(99,102,241,.25)"}}>
+      <div data-tour="mm-hero" style={{position:"relative",overflow:"hidden",borderRadius:"0 0 28px 28px",padding:"clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)",background:"linear-gradient(145deg, #06071A 0%, #0D0F38 35%, #130E40 65%, #080720 100%)",borderBottom:"1px solid rgba(99,102,241,.25)"}}>
         {/* Atmospheric glow — blue-violet blend */}
         <div style={{position:"absolute",top:"-20%",left:"40%",transform:"translateX(-50%)",width:500,height:400,background:"radial-gradient(ellipse at center, rgba(99,102,241,.18) 0%, rgba(99,102,241,.06) 50%, transparent 70%)",pointerEvents:"none"}} />
         <div style={{position:"absolute",top:"-10%",right:"10%",width:300,height:300,background:"radial-gradient(ellipse at center, rgba(59,130,246,.12) 0%, transparent 70%)",pointerEvents:"none"}} />
@@ -2880,6 +2988,14 @@ export default function Mental() {
           <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(99,102,241,.12)",border:"1px solid rgba(99,102,241,.25)",borderRadius:100,padding:"6px 16px",fontFamily:"var(--mm-fm)",fontSize:12,color:"var(--mm-pur2)",marginTop:14}}>
             🧠 12 operations · Timed · Points · Fullscreen
           </div>
+          <div style={{display:"flex",justifyContent:"center",marginTop:18}}>
+            <Link href="/mental/classroom" style={{textDecoration:"none"}}>
+              <button data-tour="mm-classroom" style={{display:"inline-flex",alignItems:"center",gap:10,padding:"12px 18px",borderRadius:14,border:"1px solid rgba(236,72,153,.28)",background:"linear-gradient(135deg, rgba(236,72,153,.16), rgba(99,102,241,.16))",color:"var(--mm-whi)",fontFamily:"var(--mm-fd)",fontSize:14,fontWeight:800,cursor:"pointer",boxShadow:"0 10px 30px rgba(236,72,153,.12)"}}>
+                <Sparkles style={{width:16,height:16,color:"#F9A8D4"}} />
+                Launch Classroom Arena
+              </button>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -2893,7 +3009,8 @@ export default function Mental() {
             </button>
           </Link>
           <button
-            onClick={() => setShowGuide(true)}
+            data-tour="mm-how-to-use"
+            onClick={() => startTour(mentalTourConfig, true)}
             style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:10,border:"1px solid rgba(99,102,241,.35)",background:"rgba(99,102,241,.12)",fontFamily:"var(--mm-fm)",fontSize:12,fontWeight:600,color:"var(--mm-pur2)",cursor:"pointer",transition:"all .2s",letterSpacing:".02em"}}
             onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.background="rgba(99,102,241,.22)";(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(99,102,241,.55)"}}
             onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.background="rgba(99,102,241,.12)";(e.currentTarget as HTMLButtonElement).style.borderColor="rgba(99,102,241,.35)"}}
@@ -2911,7 +3028,7 @@ export default function Mental() {
           <div className="mm-fade-up" style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr)",borderRadius:20,padding:"clamp(18px,3vw,28px)",display:"flex",flexDirection:"column",gap:20,animationDelay:".1s"}}>
 
                 {/* Student Name */}
-                <div>
+                <div data-tour="mm-student-name">
                   <label style={{display:"flex",alignItems:"center",gap:6,fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"#c8cce0",marginBottom:8}}>
                     <span style={{width:5,height:5,borderRadius:"50%",background:"var(--mm-red)",flexShrink:0}} />
                     Your Name
@@ -2945,7 +3062,7 @@ export default function Mental() {
                 </div>
 
                 {/* Operation Type */}
-                <div>
+                <div data-tour="mm-operation">
                   <label style={{display:"block",fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"#c8cce0",marginBottom:8}}>Operation Type</label>
                   <select
                     value={operationType}
@@ -2973,7 +3090,7 @@ export default function Mental() {
             </div>
 
             {/* Standard / Custom Toggle */}
-            <div>
+            <div data-tour="mm-config-mode">
               <label style={{display:"block",fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"#c8cce0",marginBottom:8}}>Config Mode</label>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0,background:"var(--mm-surf2)",borderRadius:12,padding:3,border:"1.5px solid var(--mm-bdr2)"}}>
                 {(["standard","custom"] as ConfigMode[]).map(m => (
@@ -3003,7 +3120,7 @@ export default function Mental() {
             </div>
 
             {/* Number of Questions */}
-                <div>
+                <div data-tour="mm-num-questions">
                   <label style={{display:"block",fontFamily:"var(--mm-fm)",fontSize:10,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:"#c8cce0",marginBottom:8}}>Number of Questions <span style={{fontWeight:400,opacity:.6}}>(1–50)</span></label>
               <NumericInput
                 value={numQuestions}
@@ -3023,7 +3140,7 @@ export default function Mental() {
           </div>
 
           {/* Right Column */}
-          <div className="mm-fade-up" style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr)",borderRadius:20,padding:"clamp(18px,3vw,28px)",display:"flex",flexDirection:"column",gap:20,animationDelay:".2s"}}>
+          <div data-tour="mm-right-column" className="mm-fade-up" style={{background:"var(--mm-surf)",border:"1px solid var(--mm-bdr)",borderRadius:20,padding:"clamp(18px,3vw,28px)",display:"flex",flexDirection:"column",gap:20,animationDelay:".2s"}}>
 
             {/* ── STANDARD MODE: Preset Grid OR Add/Sub Inputs ── */}
             {configMode === "standard" && (() => {
@@ -3574,7 +3691,7 @@ export default function Mental() {
         </div>
 
         {/* Start Button — sticky footer */}
-        <div style={{position:"sticky",bottom:0,background:"linear-gradient(to top, var(--mm-bg) 65%, transparent)",padding:"16px clamp(12px,3vw,20px) 24px",maxWidth:900,margin:"0 auto"}}>
+        <div data-tour="mm-start-btn" style={{position:"sticky",bottom:0,background:"linear-gradient(to top, var(--mm-bg) 65%, transparent)",padding:"16px clamp(12px,3vw,20px) 24px",maxWidth:900,margin:"0 auto"}}>
           <button
             onClick={startCountdown}
             style={{width:"100%",padding:"18px",background:"linear-gradient(135deg, #6366F1 0%, #4F46E5 30%, #7C3AED 70%, #6D28D9 100%)",border:"none",borderRadius:16,fontFamily:"var(--mm-fd)",fontSize:17,fontWeight:800,color:"#fff",cursor:"pointer",letterSpacing:"-.01em",display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 8px 32px rgba(99,102,241,.35), 0 0 0 1px rgba(99,102,241,.2), inset 0 1px 0 rgba(255,255,255,.12)",transition:"transform .2s, box-shadow .2s"}}
@@ -4021,4 +4138,3 @@ export default function Mental() {
     </ErrorBoundary>
   );
 }
-

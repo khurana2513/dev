@@ -113,16 +113,16 @@ def _get_scoped_student_ids(admin: User, db: Session) -> Optional[List[int]]:
 def _active_students_between(
     db: Session,
     scoped_ids: Optional[List[int]],
-    start_utc_naive: datetime,
-    end_utc_naive: datetime,
+    start_utc: datetime,
+    end_utc: datetime,
 ) -> List[ActiveStudentEntry]:
     ps_q = db.query(PracticeSession.user_id).filter(
-        PracticeSession.started_at >= start_utc_naive,
-        PracticeSession.started_at < end_utc_naive,
+        PracticeSession.started_at >= start_utc,
+        PracticeSession.started_at < end_utc,
     )
     pa_q = db.query(PaperAttempt.user_id).filter(
-        PaperAttempt.started_at >= start_utc_naive,
-        PaperAttempt.started_at < end_utc_naive,
+        PaperAttempt.started_at >= start_utc,
+        PaperAttempt.started_at < end_utc,
     )
     if scoped_ids is not None:
         if not scoped_ids:
@@ -200,8 +200,8 @@ def _active_last_7_days(
     for days_ago in range(6, -1, -1):
         day_ist = (now_ist - timedelta(days=days_ago)).replace(hour=0, minute=0, second=0, microsecond=0)
         next_day_ist = day_ist + timedelta(days=1)
-        day_start = day_ist.astimezone(timezone.utc).replace(tzinfo=None)
-        day_end = next_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
+        day_start = day_ist.astimezone(timezone.utc)
+        day_end = next_day_ist.astimezone(timezone.utc)
         students = _active_students_between(db, scoped_ids, day_start, day_end)
         unique_ids.update(s.user_id for s in students)
         day_records.append(
@@ -715,7 +715,7 @@ async def save_practice_session(
         # The API client retries mutations on network errors (ERR_EMPTY_RESPONSE,
         # timeout, etc.).  Without this check a retry after a dropped connection
         # would award points twice even though the first request already committed.
-        sixty_secs_ago = datetime.utcnow() - timedelta(seconds=60)
+        sixty_secs_ago = get_utc_now() - timedelta(seconds=60)
         existing_session = db.query(PracticeSession).filter(
             PracticeSession.user_id == current_user.id,
             PracticeSession.operation_type == session_data.operation_type,
@@ -1208,8 +1208,8 @@ def get_student_dashboard_data(
                 score=sess.percentage,
                 rank=sess.rank,
             ))
-    except Exception:
-        pass  # exam module may not be available
+    except Exception as _exam_exc:
+        logger.warning("[DASHBOARD] exam session fetch failed: %s", _exam_exc)
 
     # Duel sessions
     try:
@@ -1246,8 +1246,8 @@ def get_student_dashboard_data(
                 score=dsess.score if hasattr(dsess, "score") else None,
                 rank=None,
             ))
-    except Exception:
-        pass  # duel module may not be available
+    except Exception as _duel_exc:
+        logger.warning("[DASHBOARD] duel session fetch failed: %s", _duel_exc)
 
     # Shared-paper attempts (code-based only)
     try:
@@ -1276,8 +1276,19 @@ def get_student_dashboard_data(
     except Exception:
         pass
 
-    # Sort all code sessions by started_at descending
-    code_sessions.sort(key=lambda s: s.started_at or datetime.min.replace(tzinfo=timezone.utc) if False else (s.started_at or datetime.min), reverse=True)
+    # Normalize ALL datetimes in code_sessions to timezone-aware UTC
+    # BEFORE any comparison/sort to prevent offset-naive vs offset-aware errors.
+    for _cs in code_sessions:
+        if _cs.started_at is not None and _cs.started_at.tzinfo is None:
+            _cs.started_at = _cs.started_at.replace(tzinfo=timezone.utc)
+        if _cs.ended_at is not None and _cs.ended_at.tzinfo is None:
+            _cs.ended_at = _cs.ended_at.replace(tzinfo=timezone.utc)
+
+    # Sort all code sessions by started_at descending (all datetimes now UTC-aware).
+    code_sessions.sort(
+        key=lambda s: s.started_at or datetime(1970, 1, 1, tzinfo=timezone.utc),
+        reverse=True,
+    )
 
     elapsed = time.time() - request_start
     print(f"⏱ [DASHBOARD] GET /users/dashboard-data took {elapsed:.2f}s (combined endpoint)")
@@ -1447,8 +1458,8 @@ async def get_admin_stats(
     ist_now = get_ist_now()
     _ist_midnight = ist_now.replace(hour=0, minute=0, second=0, microsecond=0)
     _ist_next_midnight = _ist_midnight + timedelta(days=1)
-    today_start = _ist_midnight.astimezone(timezone.utc).replace(tzinfo=None)
-    today_end = _ist_next_midnight.astimezone(timezone.utc).replace(tzinfo=None)
+    today_start = _ist_midnight.astimezone(timezone.utc)
+    today_end = _ist_next_midnight.astimezone(timezone.utc)
 
     active_today_students = _active_students_between(db, scoped_student_ids, today_start, today_end)
     active_7_days, active_7_days_unique = _active_last_7_days(db, scoped_student_ids, ist_now)
@@ -1791,16 +1802,16 @@ def get_admin_site_insights(
     scoped_student_ids = _get_scoped_student_ids(admin, db)
     now_ist = get_ist_now()
 
-    current_window_start_utc = (now_ist - timedelta(minutes=15)).astimezone(timezone.utc).replace(tzinfo=None)
+    current_window_start_utc = (now_ist - timedelta(minutes=15)).astimezone(timezone.utc)
 
     day_start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
     day_end_ist = day_start_ist + timedelta(days=1)
-    day_start_utc = day_start_ist.astimezone(timezone.utc).replace(tzinfo=None)
-    day_end_utc = day_end_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    day_start_utc = day_start_ist.astimezone(timezone.utc)
+    day_end_utc = day_end_ist.astimezone(timezone.utc)
 
     six_months_ago_ist = now_ist - timedelta(days=180)
-    six_months_ago_utc = six_months_ago_ist.astimezone(timezone.utc).replace(tzinfo=None)
-    now_utc = now_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    six_months_ago_utc = six_months_ago_ist.astimezone(timezone.utc)
+    now_utc = now_ist.astimezone(timezone.utc)
 
     active_currently_students = _active_students_between(db, scoped_student_ids, current_window_start_utc, now_utc)
     active_today_students = _active_students_between(db, scoped_student_ids, day_start_utc, day_end_utc)
@@ -1858,8 +1869,8 @@ def get_student_engagement_admin(
 
     now_ist = get_ist_now()
     start_6m_ist = (now_ist - timedelta(days=180)).replace(hour=0, minute=0, second=0, microsecond=0)
-    start_6m_utc = start_6m_ist.astimezone(timezone.utc).replace(tzinfo=None)
-    now_utc = now_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    start_6m_utc = start_6m_ist.astimezone(timezone.utc)
+    now_utc = now_ist.astimezone(timezone.utc)
 
     practice_rows = db.query(PracticeSession.started_at, PracticeSession.time_taken).filter(
         PracticeSession.user_id == student_id,
@@ -2283,8 +2294,8 @@ async def get_admin_dashboard_data(
     ist_now = get_ist_now()
     _ist_midnight = ist_now.replace(hour=0, minute=0, second=0, microsecond=0)
     _ist_next_midnight = _ist_midnight + timedelta(days=1)
-    today_start = _ist_midnight.astimezone(timezone.utc).replace(tzinfo=None)
-    today_end = _ist_next_midnight.astimezone(timezone.utc).replace(tzinfo=None)
+    today_start = _ist_midnight.astimezone(timezone.utc)
+    today_end = _ist_next_midnight.astimezone(timezone.utc)
     active_today_students = _active_students_between(db, scoped_student_ids, today_start, today_end)
     active_7_days, active_7_days_unique = _active_last_7_days(db, scoped_student_ids, ist_now)
     

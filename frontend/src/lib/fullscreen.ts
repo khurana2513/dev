@@ -14,9 +14,10 @@ export function isFullscreen(): boolean {
 
 /** Request fullscreen — uses Fullscreen API on web, CSS class on native */
 export async function enterFullscreen(): Promise<void> {
+  document.documentElement.style.overflow = "hidden";
+  document.body.style.overflow = "hidden";
   if (Capacitor.isNativePlatform()) {
     document.documentElement.classList.add(FS_CLASS);
-    document.body.style.overflow = "hidden";
     window.dispatchEvent(new Event("fullscreenchange"));
     return;
   }
@@ -25,6 +26,7 @@ export async function enterFullscreen(): Promise<void> {
   } catch (_) {
     // Fallback to CSS-based approach if Fullscreen API fails
     document.documentElement.classList.add(FS_CLASS);
+    document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
     window.dispatchEvent(new Event("fullscreenchange"));
   }
@@ -37,8 +39,13 @@ export async function exitFullscreen(): Promise<void> {
   }
   if (document.documentElement.classList.contains(FS_CLASS)) {
     document.documentElement.classList.remove(FS_CLASS);
+    document.documentElement.style.overflow = "";
     document.body.style.overflow = "";
     window.dispatchEvent(new Event("fullscreenchange"));
+  }
+  if (!document.fullscreenElement) {
+    document.documentElement.style.overflow = "";
+    document.body.style.overflow = "";
   }
 }
 

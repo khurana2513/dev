@@ -1,57 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation, Link } from "wouter";
+import { useLocation } from "wouter";
 import { useAuth } from "../contexts/AuthContext";
 import {
   ArrowRight, Trophy, Zap, BarChart3, Flame, FileText,
-  Target, Brain, Calendar, Star, Mic, Medal,
-  TrendingUp, ChevronRight, Play, Shield, Users, Crown,
-  Gamepad2, BookOpen, Swords, Timer, Award, Sparkles,
-  GraduationCap, CheckCircle2, ArrowUpRight,
-  MonitorSmartphone, Layers, LayoutGrid, PenTool,
+  Target, Brain, Medal, Calendar, Star,
+  TrendingUp, ChevronRight, Play, Shield, Users, Crown
 } from "lucide-react";
-import { motion, useInView as framerInView, useScroll, useTransform } from "framer-motion";
+import { motion, useInView as framerInView, AnimatePresence } from "framer-motion";
 import { fetchPublicLeaderboard, type PublicLeaderboardEntry } from "../lib/rewardsApi";
 import BurstModeGlimpse from "../components/BurstModeGlimpse";
-import DuelModeShowcase from "../components/DuelModeShowcase";
-import PaperSystemGlimpse from "../components/PaperSystemGlimpse";
-import MentalArenaGlimpse from "../components/MentalArenaGlimpse";
-import GameCardsShowcase from "../components/GameCardsShowcase";
-import ForInstitutesShowcase from "../components/ForInstitutesShowcase";
-import StudentJourneyPath from "../components/StudentJourneyPath";
 
-/* ═══════════════════════════════════════════════════════════════
-   DESIGN TOKENS — ONE PALETTE, ONE SYSTEM
-   ═══════════════════════════════════════════════════════════════ */
-const T = {
-  bg:      "#050510",
-  bg2:     "#0a0a1a",
-  surface: "rgba(12,12,30,0.85)",
-  border:  "rgba(255,255,255,0.06)",
-  border2: "rgba(255,255,255,0.10)",
-  text:    "#F0F2FF",
-  text2:   "rgba(240,242,255,0.72)",
-  muted:   "rgba(240,242,255,0.40)",
-  soft:    "rgba(240,242,255,0.22)",
-  accent:  "#6D5CFF",
-  accent2: "#8B7FFF",
-  accent3: "#4A3ADB",
-  warm:    "#F5A623",
-  warm2:   "#FF8C42",
-  teal:    "#3ECFB4",
-  green:   "#34D399",
-  red:     "#FF5A5A",
-  pink:    "#EC4899",
-  fontD:   "'Space Grotesk', 'DM Sans', system-ui, sans-serif",
-  fontM:   "'JetBrains Mono', 'Menlo', monospace",
-  fontS:   "'Fraunces', 'Georgia', serif",
-} as const;
-
-/* ═══════════════════════════════════════════════════════════════
-   UTILITY COMPONENTS
-   ═══════════════════════════════════════════════════════════════ */
-
-function Counter({ to, suffix = "", duration = 2000 }: { to: number; suffix?: string; duration?: number }) {
+// ─── Animated number counter ──────────────────────────────────
+function Counter({ to, suffix = "", duration = 1800 }: { to: number; suffix?: string; duration?: number }) {
   const [val, setVal] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
   const inView = framerInView(ref, { once: true, margin: "-60px" });
@@ -61,8 +22,8 @@ function Counter({ to, suffix = "", duration = 2000 }: { to: number; suffix?: st
     const totalFrames = Math.round((duration / 1000) * 60);
     const tick = () => {
       frame++;
-      const p = frame / totalFrames;
-      const ease = 1 - Math.pow(1 - p, 4);
+      const progress = frame / totalFrames;
+      const ease = 1 - Math.pow(1 - progress, 3);
       setVal(Math.round(ease * to));
       if (frame < totalFrames) requestAnimationFrame(tick);
       else setVal(to);
@@ -565,65 +526,79 @@ export default function Home() {
   ];
 
   return (
-    <div style={{ background: "#07070F", color: "#fff", minHeight: "100vh", overflowX: "hidden", fontFamily: "'Space Grotesk', 'DM Sans', sans-serif" }}>
+    <div style={{ background: "#07070F", color: "#fff", minHeight: "100vh", overflowX: "hidden", fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* ── HERO ──────────────────────────────────── */}
       <section style={{ position: "relative", minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "clamp(72px,12vw,120px) clamp(14px,4vw,24px) clamp(48px,8vw,80px)", overflow: "hidden" }}>
-        {/* Atmospheric glow layers */}
+        {/* Layered atmospheric glow */}
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: "5%", left: "50%", transform: "translateX(-50%)", width: 1100, height: 800, borderRadius: "50%", background: "radial-gradient(ellipse, rgba(109,92,255,0.20) 0%, rgba(109,92,255,0.06) 45%, transparent 70%)", filter: "blur(60px)", animation: "home-glow-breathe 5s ease-in-out infinite" }} />
-          <div style={{ position: "absolute", top: "-10%", right: "5%", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle, rgba(245,166,35,0.10) 0%, transparent 70%)", filter: "blur(80px)" }} />
-          <div style={{ position: "absolute", bottom: "10%", left: "0%", width: 450, height: 450, borderRadius: "50%", background: "radial-gradient(circle, rgba(62,207,180,0.06) 0%, transparent 70%)", filter: "blur(80px)" }} />
-          <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(109,92,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(109,92,255,.04) 1px, transparent 1px)", backgroundSize: "64px 64px", WebkitMaskImage: "radial-gradient(ellipse 90% 60% at 50% 10%, black 20%, transparent 100%)" } as React.CSSProperties} />
+          {/* Primary violet core glow */}
+          <div style={{ position: "absolute", top: "5%", left: "50%", transform: "translateX(-50%)", width: 1100, height: 800, borderRadius: "50%", background: "radial-gradient(ellipse, rgba(124,58,237,0.22) 0%, rgba(109,40,217,0.07) 45%, transparent 70%)", filter: "blur(60px)", animation: "home-glow-breathe 5s ease-in-out infinite" }} />
+          {/* Cyan top-right accent */}
+          <div style={{ position: "absolute", top: "-10%", right: "5%", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle, rgba(6,182,212,0.13) 0%, transparent 70%)", filter: "blur(80px)" }} />
+          {/* Amber bottom-left */}
+          <div style={{ position: "absolute", bottom: "10%", left: "0%", width: 450, height: 450, borderRadius: "50%", background: "radial-gradient(circle, rgba(245,158,11,0.07) 0%, transparent 70%)", filter: "blur(80px)" }} />
+          {/* Subtle grid mesh */}
+          <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(124,58,237,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,237,.04) 1px, transparent 1px)", backgroundSize: "64px 64px", WebkitMaskImage: "radial-gradient(ellipse 90% 60% at 50% 10%, black 20%, transparent 100%)" } as React.CSSProperties} />
+          {/* Particles */}
           {([
-            { width: 5, height: 5, background: "#6D5CFF", top: "22%", left: "13%", opacity: 0.5 },
-            { width: 3, height: 3, background: "#F5A623", top: "36%", right: "11%", opacity: 0.4 },
-            { width: 7, height: 7, background: "rgba(109,92,255,0.3)", top: "60%", left: "7%", opacity: 0.35 },
-            { width: 4, height: 4, background: "#3ECFB4", top: "17%", right: "21%", opacity: 0.4 },
-            { width: 3, height: 3, background: "#F5A623", top: "74%", right: "27%", opacity: 0.45 },
-            { width: 4, height: 4, background: "#6D5CFF", top: "48%", left: "5%", opacity: 0.3 },
+            { width: 5, height: 5, background: "#2563EB", top: "22%", left: "13%", opacity: 0.5 },
+            { width: 3, height: 3, background: "#06b6d4", top: "36%", right: "11%", opacity: 0.4 },
+            { width: 7, height: 7, background: "rgba(37,99,235,0.25)", top: "60%", left: "7%", opacity: 0.35 },
+            { width: 4, height: 4, background: "#f59e0b", top: "17%", right: "21%", opacity: 0.4 },
+            { width: 3, height: 3, background: "#06b6d4", top: "74%", right: "27%", opacity: 0.45 },
+            { width: 4, height: 4, background: "#7c3aed", top: "48%", left: "5%", opacity: 0.3 },
           ] as React.CSSProperties[]).map((p, i) => <Particle key={i} style={p} />)}
         </div>
 
-        <div style={{ position: "relative", zIndex: 1, maxWidth: 900, margin: "0 auto", textAlign: "left" }}>
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 880, margin: "0 auto", textAlign: "left" }}>
 
-          {/* Brand eyebrow */}
+          {/* Live status pill */}
           <FadeUp>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 32, padding: "6px 18px", background: "rgba(109,92,255,0.08)", border: "1px solid rgba(109,92,255,0.22)", borderRadius: 100 }}>
-              <span style={{ fontSize: 12 }}>🐒</span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#8B7FFF", letterSpacing: "0.1em", textTransform: "uppercase" as const }}>BlackMonkey · Math · Play · Grow</span>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 32, padding: "6px 16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100 }}>
+              <motion.div
+                animate={{ scale: [1, 1.35, 1], opacity: [1, 0.5, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 8px rgba(34,197,94,0.6)" }}
+              />
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.6)", letterSpacing: "-0.01em" }}>
+                5,000+ students training right now
+              </span>
             </div>
           </FadeUp>
 
-          {/* Hero headline */}
+          {/* Hero headline — clean sans-serif, accent word */}
           <FadeUp delay={0.07}>
-            <h1 style={{ margin: "0 0 24px", padding: 0, fontFamily: "'DM Sans', sans-serif", fontSize: "clamp(48px, 8vw, 88px)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.02, color: "#F0F2FF" }}>
-              The math trainer<br />
-              kids can&apos;t{" "}
-              <GText>put down.</GText>
+            <h1 style={{ margin: "0 0 24px", padding: 0, fontFamily: "'DM Sans', sans-serif", fontSize: "clamp(48px, 8vw, 88px)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.0, color: "#F8FAFC" }}>
+              Build a{" "}
+              <span style={{ color: "#2563EB" }}>champion</span>
+              {" "}mind.
             </h1>
           </FadeUp>
 
           {/* Sub-headline */}
           <FadeUp delay={0.14}>
-            <p style={{ fontSize: "clamp(16px, 2.2vw, 20px)", color: "rgba(240,242,255,0.52)", lineHeight: 1.65, maxWidth: 560, margin: "0 0 36px", fontWeight: 400, fontFamily: "'DM Sans', sans-serif" }}>
-              Abacus, mental math, speed drills — all gamified. Students earn XP, build streaks, and race each other to the top.{" "}
-              <span style={{ color: "rgba(240,242,255,0.85)", fontWeight: 600 }}>Practice becomes the reward.</span>
+            <p style={{ fontSize: "clamp(16px, 2.2vw, 20px)", color: "rgba(255,255,255,0.5)", lineHeight: 1.65, maxWidth: 540, margin: "0 0 32px", fontWeight: 400, fontFamily: "'DM Sans', sans-serif" }}>
+              The gamified abacus & mental math platform that makes practice{" "}
+              <span style={{ color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>addictive</span>.
+              {" "}Earn XP, build streaks, race to the top.
             </p>
           </FadeUp>
 
-          {/* Proof chips */}
+          {/* Feature badges */}
           <FadeUp delay={0.19}>
-            <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 10, marginBottom: 40 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 36, flexWrap: "wrap" as const }}>
               {[
-                { icon: "⚡", label: "60-second Burst Drills" },
-                { icon: "🥊", label: "1v1 Live Duels" },
-                { icon: "🎙️", label: "Voice Classroom Arena" },
-                { icon: "🔥", label: "Daily Streaks + XP" },
-              ].map((chip, i) => (
-                <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 16px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,0.72)", fontFamily: "'DM Sans', sans-serif" }}>
-                  <span style={{ fontSize: 13 }}>{chip.icon}</span>
-                  {chip.label}
+                { icon: <Zap size={14} />, label: "Calculate Faster", color: "#F59E0B" },
+                { icon: <Flame size={14} />, label: "Build Streaks", color: "#F97316" },
+                { icon: <Trophy size={14} />, label: "Climb the Leaderboard", color: "#2563EB" },
+              ].map((badge, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center" }}>
+                  {i > 0 && <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.1)", margin: "0 16px", flexShrink: 0 }} />}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: badge.color, display: "flex", alignItems: "center" }}>{badge.icon}</span>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.85)", letterSpacing: "-0.01em" }}>{badge.label}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -633,35 +608,35 @@ export default function Home() {
           <FadeUp delay={0.25}>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" as const }}>
               <button onClick={handleCTA}
-                style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "linear-gradient(135deg, #6D5CFF 0%, #5548D9 100%)", color: "#fff", padding: "15px 30px", borderRadius: 12, fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer", letterSpacing: "-0.01em", boxShadow: "0 0 40px rgba(109,92,255,0.45), inset 0 1px 0 rgba(255,255,255,0.15)", transition: "transform 0.15s ease, box-shadow 0.15s ease", fontFamily: "'DM Sans', sans-serif" }}
-                onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = "translateY(-2px)"; b.style.boxShadow = "0 12px 40px rgba(109,92,255,0.6), inset 0 1px 0 rgba(255,255,255,0.15)"; }}
-                onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = "translateY(0)"; b.style.boxShadow = "0 0 40px rgba(109,92,255,0.45), inset 0 1px 0 rgba(255,255,255,0.15)"; }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "#2563EB", color: "#fff", padding: "14px 28px", borderRadius: 10, fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer", letterSpacing: "-0.01em", boxShadow: "0 1px 2px rgba(0,0,0,0.3), 0 0 0 1px rgba(37,99,235,0.5)", transition: "transform 0.15s ease, box-shadow 0.15s ease", fontFamily: "'DM Sans', sans-serif" }}
+                onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = "translateY(-2px)"; b.style.boxShadow = "0 8px 32px rgba(37,99,235,0.4), 0 0 0 1px rgba(37,99,235,0.6)"; }}
+                onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.transform = "translateY(0)"; b.style.boxShadow = "0 1px 2px rgba(0,0,0,0.3), 0 0 0 1px rgba(37,99,235,0.5)"; }}>
                 {isAuthenticated ? "Go to Dashboard" : "Start Training Free"} <ArrowRight size={15} />
               </button>
               <a href="#features"
-                style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.65)", padding: "15px 24px", borderRadius: 12, fontSize: 15, fontWeight: 600, textDecoration: "none", letterSpacing: "-0.01em", transition: "background 0.15s, border-color 0.15s, color 0.15s", fontFamily: "'DM Sans', sans-serif" }}
-                onMouseEnter={e => { const a = e.currentTarget as HTMLAnchorElement; a.style.background = "rgba(255,255,255,0.09)"; a.style.borderColor = "rgba(255,255,255,0.18)"; a.style.color = "rgba(255,255,255,0.88)"; }}
-                onMouseLeave={e => { const a = e.currentTarget as HTMLAnchorElement; a.style.background = "rgba(255,255,255,0.05)"; a.style.borderColor = "rgba(255,255,255,0.10)"; a.style.color = "rgba(255,255,255,0.65)"; }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", padding: "14px 24px", borderRadius: 10, fontSize: 15, fontWeight: 600, textDecoration: "none", letterSpacing: "-0.01em", transition: "background 0.15s, border-color 0.15s, color 0.15s", fontFamily: "'DM Sans', sans-serif" }}
+                onMouseEnter={e => { const a = e.currentTarget as HTMLAnchorElement; a.style.background = "rgba(255,255,255,0.1)"; a.style.borderColor = "rgba(255,255,255,0.18)"; a.style.color = "rgba(255,255,255,0.9)"; }}
+                onMouseLeave={e => { const a = e.currentTarget as HTMLAnchorElement; a.style.background = "rgba(255,255,255,0.06)"; a.style.borderColor = "rgba(255,255,255,0.1)"; a.style.color = "rgba(255,255,255,0.7)"; }}>
                 <Play size={13} /> See how it works
               </a>
             </div>
           </FadeUp>
 
-          {/* Trust strip */}
+          {/* Social proof strip */}
           <FadeUp delay={0.34}>
             <div style={{ marginTop: 56, display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" as const }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.4)" }}>
                 <div style={{ display: "flex" }}>
-                  {["#6D5CFF","#F5A623","#3ECFB4","#FF8C42","#EC4899"].map((c,i) => (
+                  {["#3B82F6","#6366F1","#06b6d4","#f59e0b","#10b981"].map((c,i) => (
                     <div key={i} style={{ width: 24, height: 24, borderRadius: "50%", background: c, border: "2px solid #07070F", marginLeft: i > 0 ? -6 : 0 }} />
                   ))}
                 </div>
-                <span><strong style={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>Trusted</strong> by institutes</span>
+                <span><strong style={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>5,000+</strong> students</span>
               </div>
               <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.08)" }} />
               <div style={{ display: "flex", gap: 2, alignItems: "center", fontSize: 13, color: "rgba(255,255,255,0.4)" }}>
-                {[...Array(5)].map((_,i) => <Star key={i} size={11} fill="#F5A623" color="#F5A623" />)}
-                <span style={{ marginLeft: 6 }}>4.9 rating</span>
+                {[...Array(5)].map((_,i) => <Star key={i} size={11} fill="#F59E0B" color="#F59E0B" />)}
+                <span style={{ marginLeft: 6 }}>4.9 by institutes</span>
               </div>
               <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.08)" }} />
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>
@@ -672,20 +647,89 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── DUEL MODE SHOWCASE ────────────────────────────────── */}
-      <DuelModeShowcase />
+      {/* ── LIVE TICKER ────────────────────────────── */}
+      <LiveTicker />
 
-      {/* ── PAPER SYSTEM GLIMPSE ──────────────────────────────────── */}
-      <PaperSystemGlimpse />
+      {/* ── EDUCATION CRISIS STATS ──────────────────────────────── */}
+      <section style={{ padding: "clamp(40px,8vw,80px) clamp(14px,4vw,24px)", maxWidth: 1200, margin: "0 auto" }}>
+        <FadeUp>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <Pill>The Math Crisis Is Real</Pill>
+            <h2 style={{ fontSize: "clamp(28px, 4vw, 52px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 12 }}>
+              India has a maths problem.<br />
+              <GText gradient="linear-gradient(135deg, #f97316, #ec4899)">Here's what the data shows.</GText>
+            </h2>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", maxWidth: 480, margin: "0 auto", lineHeight: 1.7 }}>
+              Real numbers from ASER 2024 — and why{" "}
+              <em style={{ color: "rgba(255,255,255,0.65)", fontStyle: "normal", fontWeight: 600 }}>structured, gamified practice</em>{" "}
+              is the only fix.
+            </p>
+          </div>
+        </FadeUp>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2, background: "rgba(255,255,255,0.05)", borderRadius: 24, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {crisisStats.map((s, i) => (
+            <FadeUp key={s.label} delay={i * 0.08}>
+              <div style={{ background: "#07070F", padding: "40px 28px", position: "relative", overflow: "hidden" }}>
+                {/* Colored bottom accent bar */}
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, transparent, ${s.color}80, transparent)` }} />
+                {/* Subtle background glow */}
+                <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", height: "60%", background: `radial-gradient(ellipse at top, ${s.color}10 0%, transparent 70%)`, pointerEvents: "none" }} />
+                <div style={{ position: "relative", zIndex: 1 }}>
+                  <div style={{ fontSize: 32, marginBottom: 14 }}>{s.icon}</div>
+                  <div style={{ fontSize: "clamp(44px, 5vw, 68px)", fontWeight: 900, letterSpacing: "-0.05em", lineHeight: 1, marginBottom: 10, color: s.color, textShadow: `0 0 48px ${s.color}70` }}>
+                    <Counter to={s.value} suffix={s.suffix} />
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.65)", lineHeight: 1.55, marginBottom: 12 }}>{s.label}</div>
+                  <div style={{ display: "inline-block", fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: "rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, padding: "3px 10px" }}>{s.note}</div>
+                </div>
+              </div>
+            </FadeUp>
+          ))}
+        </div>
+        <FadeUp delay={0.2}>
+          <p style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>
+            Sources: ASER (Annual Status of Education Report) 2024, NCERT Learning Outcomes Survey
+          </p>
+        </FadeUp>
+      </section>
 
-      {/* ── MENTAL MATH + ARENA GLIMPSE ───────────────────────────── */}
-      <MentalArenaGlimpse />
+      {/* ── FEATURES ─────────────────────────────────────────────── */}
+      <section id="features" style={{ padding: "clamp(40px,8vw,80px) clamp(14px,4vw,24px)", maxWidth: 1200, margin: "0 auto" }}>
+        <FadeUp>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <Pill>Everything You Need</Pill>
+            <h2 style={{ fontSize: "clamp(28px, 4vw, 52px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 16 }}>
+              Every tool.
+              <br /><GText>Zero excuses.</GText>
+            </h2>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.42)", maxWidth: 480, margin: "0 auto", lineHeight: 1.7 }}>
+              Practice engine. Speed trainer. Analytics. Gamification. Attendance. PDF papers. One platform, seamlessly connected.
+            </p>
+          </div>
+        </FadeUp>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
+          {features.map((f, i) => (
+            <FadeUp key={f.title} delay={i * 0.07}>
+              <div
+                className="home-feature-card"
+                style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: "32px 28px", height: "100%", position: "relative", overflow: "hidden" }}
+              >
+                {/* Gradient top-edge accent */}
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${f.gradient.match(/#[0-9a-fA-F]{6}/g)?.[0] ?? "#7c3aed"}60 50%, transparent 100%)` }} />
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+                  <div style={{ width: 50, height: 50, borderRadius: 14, background: f.gradient, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: `0 8px 24px ${f.gradient.match(/#[0-9a-fA-F]{6}/g)?.[0] ?? "#7c3aed"}40` }}>{f.icon}</div>
+                  <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: "rgba(255,255,255,0.32)", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 100, padding: "3px 10px", letterSpacing: "0.06em" }}>{f.tag}</span>
+                </div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 10, color: "#f1f5f9", letterSpacing: "-0.025em" }}>{f.title}</h3>
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.42)", lineHeight: 1.75 }}>{f.desc}</p>
+              </div>
+            </FadeUp>
+          ))}
+        </div>
+      </section>
 
       {/* ── BURST MODE INTERACTIVE GLIMPSE ──────────────────────── */}
       <BurstModeGlimpse />
-
-      {/* ── GAME TOOLS SHOWCASE (Soroban, Vedic, Magic, Flash) ──── */}
-      <GameCardsShowcase />
 
       {/* ── HOW IT WORKS ──────────────────────────────────────────── */}
       <section style={{ padding: "clamp(40px,8vw,80px) clamp(14px,4vw,24px)", maxWidth: 1100, margin: "0 auto" }}>
@@ -714,9 +758,6 @@ export default function Home() {
           ))}
         </div>
       </section>
-
-      {/* ── STUDENT JOURNEY PATH ─────────────────────────────────── */}
-      <StudentJourneyPath />
 
       {/* ── GAMIFICATION SPOTLIGHT ────────────────────────────────── */}
       <section style={{ padding: "clamp(40px,8vw,80px) clamp(14px,4vw,24px)", maxWidth: 1100, margin: "0 auto" }}>
@@ -769,8 +810,54 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── FOR INSTITUTES SHOWCASE ──────────────────────────── */}
-      <ForInstitutesShowcase />
+      {/* ── FOR INSTITUTES ────────────────────────────────────────── */}
+      <section style={{ padding: "clamp(40px,8vw,80px) clamp(14px,4vw,24px)", background: "rgba(6,182,212,0.03)", borderTop: "1px solid rgba(6,182,212,0.08)", borderBottom: "1px solid rgba(6,182,212,0.08)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 60, alignItems: "center" }}>
+          <FadeUp>
+            <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(6,182,212,0.15)", borderRadius: 24, padding: 28 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(6,182,212,0.6)", letterSpacing: "0.1em", marginBottom: 18, textTransform: "uppercase" as const }}>Today's Attendance — Batch A</div>
+              {[
+                { name: "Shreya Agarwal", time: "09:02 AM", status: "present" },
+                { name: "Karan Verma", time: "09:05 AM", status: "present" },
+                { name: "Nisha Patel", time: "09:08 AM", status: "present" },
+                { name: "Aakash Singh", time: "—", status: "absent" },
+                { name: "Meera Roy", time: "09:12 AM", status: "present" },
+              ].map((s, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderRadius: 10, background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent", marginBottom: 4 }}>
+                  <span style={{ fontSize: 13.5, color: "#e2e8f0" }}>{s.name}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{s.time}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 100, background: s.status === "present" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: s.status === "present" ? "#4ade80" : "#f87171", border: `1px solid ${s.status === "present" ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}` }}>{s.status}</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop: 18, padding: "12px 14px", background: "rgba(6,182,212,0.05)", borderRadius: 12, border: "1px solid rgba(6,182,212,0.12)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Attendance Rate</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: "#06b6d4" }}>80%</span>
+              </div>
+            </div>
+          </FadeUp>
+          <FadeUp delay={0.12}>
+            <Pill>For Institutes</Pill>
+            <h2 style={{ fontSize: "clamp(26px, 3.5vw, 48px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 20 }}>Run your academy<br /><GText gradient="linear-gradient(135deg, #06b6d4, #7c3aed)">without the chaos.</GText></h2>
+            <p style={{ fontSize: 15.5, color: "rgba(255,255,255,0.45)", lineHeight: 1.75, marginBottom: 28 }}>Attendance, student tracking, analytics, worksheets — all wired together. You focus on teaching. We handle the operations.</p>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+              {instituteFeatures.map((f, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14, color: "rgba(255,255,255,0.65)" }}>
+                  <div style={{ color: "#06b6d4", flexShrink: 0 }}>{f.icon}</div>
+                  {f.text}
+                </div>
+              ))}
+            </div>
+            <button onClick={handleCTA}
+              style={{ marginTop: 32, display: "inline-flex", alignItems: "center", gap: 10, background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.3)", color: "#06b6d4", padding: "14px 26px", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "background 0.2s" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(6,182,212,0.2)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(6,182,212,0.12)"; }}>
+              Get Institute Access <ArrowRight size={15} />
+            </button>
+          </FadeUp>
+        </div>
+      </section>
 
       {/* ── METRICS ───────────────────────────────────────────────── */}
       <section style={{ padding: "clamp(40px,8vw,80px) clamp(14px,4vw,24px)", maxWidth: 1000, margin: "0 auto", textAlign: "center" }}>

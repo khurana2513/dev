@@ -27,6 +27,7 @@ import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
 const PaperCreate = lazy(() => import("./pages/PaperCreate"));
 const PaperAttempt = lazy(() => import("./pages/PaperAttempt"));
 const Mental = lazy(() => import("./pages/Mental"));
+const ClassroomArena = lazy(() => import("./pages/ClassroomArena"));
 const BurstMode = lazy(() => import("./pages/BurstMode"));
 const SharedPaperView = lazy(() => import("./pages/SharedPaperView"));
 const EnterCode = lazy(() => import("./pages/EnterCode"));
@@ -68,21 +69,16 @@ const SuperLetterCinematic = lazy(() => import("./components/rewards/SuperLetter
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, loading, user } = useAuth();
-  
-  console.log("🟡 [PROTECTED] Route check - loading:", loading, "authenticated:", isAuthenticated, "user:", user?.email);
-  
+  const { isAuthenticated, loading } = useAuth();
+
   if (loading) {
-    console.log("🟡 [PROTECTED] Still loading, showing loading screen");
     return <LoadingScreen />;
   }
-  
+
   if (!isAuthenticated) {
-    console.log("🟡 [PROTECTED] Not authenticated, showing login");
     return <Login />;
   }
-  
-  console.log("✅ [PROTECTED] Authenticated, showing protected content");
+
   return <>{children}</>;
 }
 
@@ -120,6 +116,25 @@ function AppContent() {
 
   // Track user inactivity (30 minute warning)
   const { showInactivityWarning, dismissWarning } = useInactivityDetection();
+  const [isFullscreenActive, setIsFullscreenActive] = useState(false);
+
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setIsFullscreenActive(
+        !!document.fullscreenElement ||
+        document.documentElement.classList.contains("app-fullscreen")
+      );
+    };
+    syncFullscreen();
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    document.addEventListener("webkitfullscreenchange", syncFullscreen as EventListener);
+    window.addEventListener("fullscreenchange", syncFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreen);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreen as EventListener);
+      window.removeEventListener("fullscreenchange", syncFullscreen);
+    };
+  }, []);
 
   return (
     <ErrorBoundary>
@@ -127,8 +142,18 @@ function AppContent() {
         isOpen={showInactivityWarning} 
         onDismiss={dismissWarning} 
       />
-      <div className="flex flex-col min-h-screen transition-colors duration-300" style={{ background: '#07070F' }}>
-        <Header />        <BetaBanner />        <GraceBanner />        <main className="flex-grow" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+      <div
+        className="flex flex-col min-h-screen transition-colors duration-300"
+        style={{
+          background: '#07070F',
+          minHeight: isFullscreenActive ? "100vh" : undefined,
+          overflow: isFullscreenActive ? "hidden" : undefined,
+        }}
+      >
+        <Header />
+        {!isFullscreenActive && <BetaBanner />}
+        {!isFullscreenActive && <GraceBanner />}
+        <main className="flex-grow" style={{ paddingBottom: isFullscreenActive ? 0 : "env(safe-area-inset-bottom, 0px)", overflow: isFullscreenActive ? "hidden" : undefined }}>
           <ErrorBoundary>
             <Suspense fallback={<LoadingScreen />}>
             <Switch>
@@ -179,19 +204,30 @@ function AppContent() {
                   <Mental />
                 </ProtectedRoute>
               </Route>
+              <Route path="/mental/classroom">
+                <ProtectedRoute>
+                  <ClassroomArena />
+                </ProtectedRoute>
+              </Route>
               <Route path="/burst">
                 <ProtectedRoute>
-                  <BurstMode />
+                  <ErrorBoundary>
+                    <BurstMode />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               </Route>
               <Route path="/duel/:code">
                 <ProtectedRoute>
-                  <DuelMode />
+                  <ErrorBoundary>
+                    <DuelMode />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               </Route>
               <Route path="/duel">
                 <ProtectedRoute>
-                  <DuelMode />
+                  <ErrorBoundary>
+                    <DuelMode />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               </Route>
               <Route path="/paper/attempt">
@@ -203,7 +239,9 @@ function AppContent() {
               </Route>
               <Route path="/dashboard">
                 <ProtectedRoute>
-                  <StudentDashboard />
+                  <ErrorBoundary>
+                    <StudentDashboard />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               </Route>
               <Route path="/profile">
@@ -213,7 +251,9 @@ function AppContent() {
               </Route>
               <Route path="/admin">
                 <AdminRoute>
-                  <AdminDashboard />
+                  <ErrorBoundary>
+                    <AdminDashboard />
+                  </ErrorBoundary>
                 </AdminRoute>
               </Route>
               <Route path="/admin/student-ids">
@@ -284,7 +324,9 @@ function AppContent() {
               </Route>
               <Route path="/exam/:code">
                 <ProtectedRoute>
-                  <ExamTake />
+                  <ErrorBoundary>
+                    <ExamTake />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               </Route>
               <Route path="/admin/fees">
@@ -327,7 +369,7 @@ function AppContent() {
             </Suspense>
           </ErrorBoundary>
         </main>
-        <Footer />
+        {!isFullscreenActive && <Footer />}
         <MobileTabBar />
       </div>
       <Suspense fallback={null}>

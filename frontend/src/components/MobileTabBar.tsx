@@ -26,6 +26,7 @@ import {
   User, FileText, Brain, Calculator, Grid3X3, Sparkles,
   BookOpen, Award, IndianRupee, Calendar, Shield, LogOut,
   ArrowRight, Hash, Receipt, Building2, AlertCircle, Gamepad2,
+  Mic,
 } from "lucide-react";
 import { useAuthSafe } from "../contexts/AuthContext";
 
@@ -425,6 +426,7 @@ function MoreSheet({ isOpen, onClose, user, isAuthenticated, isAdmin, logout }: 
               <SectionLabel title="Practice" />
               <NavItem icon={<FileText size={16} />}    label="Create Paper"      path="/create/basic"                  color="#7C3AED" />
               <NavItem icon={<Brain size={16} />}       label="Mental Math"        path="/mental"                        color="#3B82F6" />
+              <NavItem icon={<Mic size={16} />}         label="Classroom Arena"    path="/mental/classroom"              color="#EC4899" badge="NEW" />
               <NavItem icon={<Zap size={16} />}         label="Burst Mode"         path="/burst"                         color="#F97316" />
               <NavItem icon={<Swords size={16} />}      label="Duel Mode"          path="/duel"                          color="#8B5CF6" badge="LIVE" />
               <NavItem icon={<Hash size={16} />}        label="Enter Code"         path="/enter-code"                    color="#06B6D4" />

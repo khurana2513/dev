@@ -579,7 +579,7 @@ def get_weekly_summary(
     for ts, pts in rows:
         # Convert UTC timestamp to IST date
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=IST_TIMEZONE)
+            ts = ts.replace(tzinfo=timezone.utc)
         ist_date = ts.astimezone(IST_TIMEZONE).date()
         day_totals[ist_date] = day_totals.get(ist_date, 0) + (pts or 0)
 

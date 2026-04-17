@@ -1,713 +1,669 @@
-import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Play, RotateCcw, ChevronRight, Zap, CheckCircle2, XCircle, Timer } from "lucide-react";
+/**
+ * BurstModeGlimpse — Split layout: live demo on the left, copy on the right.
+ * Matches the visual language of the Gamification / For Institutes sections.
+ */
+
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence, useInView, useAnimation } from "framer-motion";
+import { Zap, Flame, TrendingUp, Target, ChevronRight, Clock } from "lucide-react";
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const C = {
+  bg:        "#050510",
+  surf:      "#0A0A1A",
+  surf2:     "#0E0E1F",
+  bdr:       "rgba(255,255,255,0.06)",
+  bdr2:      "rgba(255,255,255,0.09)",
+  orange:    "#F97316",
+  orangeDim: "rgba(249,115,22,0.10)",
+  violet:    "#6D5CFF",
+  green:     "#10B981",
+  red:       "#EF4444",
+  gold:      "#F5A623",
+  white:     "#F0F2FF",
+  muted:     "#252840",
+  ff:        "'DM Sans', sans-serif",
+  fm:        "'JetBrains Mono', monospace",
+} as const;
+
+// ─── Circular timer ───────────────────────────────────────────────────────────
+
+const R            = 50;
+const CIRCUMFERENCE = 2 * Math.PI * R;
+
+// ─── Scripted questions ───────────────────────────────────────────────────────
+
+interface ScriptedQ {
+  display:     string;
+  chars:       string[];   // incremental typed states
+  correct:     boolean;
+  xp:          number;
+  streakAfter: number;
+}
+
+const QUESTIONS: ScriptedQ[] = [
+  { display: "47 × 8",  chars: ["3","37","376"],    correct: true,  xp: 12, streakAfter: 1 },
+  { display: "√ 225",   chars: ["1","15"],          correct: true,  xp: 12, streakAfter: 2 },
+  { display: "63 ÷ 7",  chars: ["9"],              correct: true,  xp: 12, streakAfter: 3 },
+  { display: "12 × 14", chars: ["1","16","168"],   correct: true,  xp: 15, streakAfter: 4 },
+  { display: "√ 144",   chars: ["1","12"],         correct: true,  xp: 18, streakAfter: 5 },
+  { display: "89 × 7",  chars: ["6","62","621"],   correct: false, xp:  0, streakAfter: 0 },
+  { display: "15 × 15", chars: ["2","22","225"],   correct: true,  xp: 12, streakAfter: 1 },
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Phase = "idle" | "countdown" | "playing" | "result";
+interface ScoreState { c: number; w: number }
 
-interface Question {
-  id: number;
-  a: number;
-  b: number;
-  op: string;
-  answer: number;
-  text: string;
-}
+// ─── Right-column feature bullets ────────────────────────────────────────────
 
-interface AnswerRecord {
-  q: Question;
-  userAnswer: number | null;
-  correct: boolean;
-  timeMs: number;
-}
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const TOTAL_TIME = 15; // seconds for the demo round
-const TOTAL_QUESTIONS = 8;
-
-const OPERATIONS = [
-  { key: "tables", label: "Tables", icon: "📊", color: "#8b5cf6", bg: "rgba(139,92,246,0.10)" },
-  { key: "multiply", label: "Multiply", icon: "✖️", color: "#3b82f6", bg: "rgba(59,130,246,0.10)" },
-  { key: "division", label: "Division", icon: "➗", color: "#10b981", bg: "rgba(16,185,129,0.10)" },
-  { key: "square", label: "Square Root", icon: "√", color: "#d946ef", bg: "rgba(217,70,239,0.10)" },
-  { key: "percentage", label: "Percentage", icon: "%", color: "#14b8a6", bg: "rgba(20,184,166,0.10)" },
+const FEATURES = [
+  { icon: <Clock size={15} color="#f97316" />,      text: "60-second timed sessions with live countdown" },
+  { icon: <Flame size={15} color="#f97316" />,      text: "Streak multipliers reward consecutive correct answers" },
+  { icon: <TrendingUp size={15} color="#22c55e" />, text: "XP earned every session, tracked on the leaderboard" },
+  { icon: <Target size={15} color="#a78bfa" />,     text: "Covers multiplication, division, square roots & more" },
 ];
-
-// ─── Math generation (safe, always integer answers) ───────────────────────────
-
-function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-
-function generateQuestion(id: number): Question {
-  const ops = [
-    () => { const a = rand(2, 12); const b = rand(2, 12); return { a, b, op: "×", answer: a * b, text: `${a} × ${b}` }; },
-    () => { const a = rand(11, 99); const b = rand(2, 9); return { a, b, op: "×", answer: a * b, text: `${a} × ${b}` }; },
-    () => { const b = rand(2, 9); const ans = rand(5, 30); const a = b * ans; return { a, b, op: "÷", answer: ans, text: `${a} ÷ ${b}` }; },
-    () => { const root = rand(2, 15); const a = root * root; return { a, b: 0, op: "√", answer: root, text: `√${a}` }; },
-  ];
-  const fn = ops[rand(0, ops.length - 1)];
-  const { a, b, op, answer, text } = fn();
-  return { id, a, b, op, answer, text };
-}
-
-function generateRound(): Question[] {
-  return Array.from({ length: TOTAL_QUESTIONS }, (_, i) => generateQuestion(i));
-}
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const V = {
-  bg: "#07070F",
-  surf: "#0F1120",
-  surf2: "#141729",
-  bdr: "rgba(255,255,255,0.06)",
-  bdr2: "rgba(255,255,255,0.10)",
-  accent: "#F97316",
-  accent2: "#FB923C",
-  accentDim: "rgba(249,115,22,0.12)",
-  green: "#10B981",
-  red: "#EF4444",
-  gold: "#F59E0B",
-  white: "#F0F2FF",
-  white2: "#B8BDD8",
-  muted: "#525870",
-  ff: "'DM Sans', sans-serif",
-  fm: "'JetBrains Mono', monospace",
-  fd: "'Playfair Display', Georgia, serif",
-};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BurstModeGlimpse() {
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [questions, setQuestions] = useState<Question[]>(() => generateRound());
-  const [qIndex, setQIndex] = useState(0);
-  const [input, setInput] = useState("");
-  const [timeLeft, setTimeLeft] = useState(TOTAL_TIME);
-  const [score, setScore] = useState({ correct: 0, wrong: 0 });
-  const [answers, setAnswers] = useState<AnswerRecord[]>([]);
-  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
-  const [countdownVal, setCountdownVal] = useState(3);
-  const [selectedOp, setSelectedOp] = useState(0);
+  const wrapRef  = useRef<HTMLDivElement>(null);
+  const isInView = useInView(wrapRef, { once: false, margin: "-60px" });
+  const shake    = useAnimation();
 
-  const inputRef = useRef<HTMLInputElement>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const qStartRef = useRef(Date.now());
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [phase,        setPhase]        = useState<Phase>("idle");
+  const [countdownNum, setCountdownNum] = useState(3);
+  const [qIndex,       setQIndex]       = useState(0);
+  const [typed,        setTyped]        = useState("");
+  const [feedback,     setFeedback]     = useState<"correct" | "wrong" | null>(null);
+  const [score,        setScore]        = useState<ScoreState>({ c: 0, w: 0 });
+  const [streak,       setStreak]       = useState(0);
+  const [timer,        setTimer]        = useState(60);
+  const [xpPop,        setXpPop]        = useState<number | null>(null);
 
-  // ── Timer ─────────────────────────────────────────────────────
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const timerIvRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startedRef  = useRef(false);
+  const cycleRef    = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
-    if (phase !== "playing") return;
-    timerRef.current = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) {
-          clearInterval(timerRef.current!);
-          setPhase("result");
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [phase]);
-
-  // ── Focus input on question change ────────────────────────────
-
-  useEffect(() => {
-    if (phase === "playing") {
-      setTimeout(() => inputRef.current?.focus(), 50);
-      qStartRef.current = Date.now();
-    }
-  }, [phase, qIndex]);
-
-  // ── Start the game ────────────────────────────────────────────
-
-  const startGame = useCallback(() => {
-    const qs = generateRound();
-    setQuestions(qs);
-    setQIndex(0);
-    setInput("");
-    setTimeLeft(TOTAL_TIME);
-    setScore({ correct: 0, wrong: 0 });
-    setAnswers([]);
-    setFeedback(null);
-    setCountdownVal(3);
-    setPhase("countdown");
-
-    // 3-2-1 countdown
-    let c = 3;
-    const iv = setInterval(() => {
-      c--;
-      if (c <= 0) {
-        clearInterval(iv);
-        setPhase("playing");
-      } else {
-        setCountdownVal(c);
-      }
-    }, 800);
-  }, []);
-
-  // ── Submit answer ─────────────────────────────────────────────
-
-  const submitAnswer = useCallback(() => {
-    if (input.trim() === "" || phase !== "playing") return;
-    const q = questions[qIndex];
-    const userAns = parseInt(input, 10);
-    const isCorrect = userAns === q.answer;
-    const timeMs = Date.now() - qStartRef.current;
-
-    setFeedback(isCorrect ? "correct" : "wrong");
-    setScore(s => isCorrect ? { ...s, correct: s.correct + 1 } : { ...s, wrong: s.wrong + 1 });
-    setAnswers(a => [...a, { q, userAnswer: userAns, correct: isCorrect, timeMs }]);
-
-    setTimeout(() => {
-      setFeedback(null);
-      setInput("");
-      if (qIndex < questions.length - 1) {
-        setQIndex(i => i + 1);
-      } else {
-        if (timerRef.current) clearInterval(timerRef.current);
-        setPhase("result");
-      }
-    }, 350);
-  }, [input, phase, questions, qIndex]);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") submitAnswer();
+  const clearAll = () => {
+    timeoutsRef.current.forEach(clearTimeout);
+    timeoutsRef.current = [];
+    if (timerIvRef.current) { clearInterval(timerIvRef.current); timerIvRef.current = null; }
   };
 
-  // ── Derived ───────────────────────────────────────────────────
+  const t = (ms: number, fn: () => void) => {
+    const id = setTimeout(fn, ms);
+    timeoutsRef.current.push(id);
+  };
 
-  const q = questions[qIndex];
-  const timePct = (timeLeft / TOTAL_TIME) * 100;
-  const timerColor = timePct > 50 ? V.green : timePct > 25 ? V.gold : V.red;
-  const accuracy = answers.length > 0 ? Math.round((score.correct / answers.length) * 100) : 0;
+  // Always-fresh cycle — stored in ref so the last scheduled restart gets newest closure
+  cycleRef.current = () => {
+    clearAll();
 
-  // ── Render ────────────────────────────────────────────────────
+    setPhase("countdown");
+    setCountdownNum(3);
+    setQIndex(0);
+    setTyped("");
+    setFeedback(null);
+    setScore({ c: 0, w: 0 });
+    setStreak(0);
+    setTimer(60);
+    setXpPop(null);
+
+    // 3-2-1
+    t(800,  () => setCountdownNum(2));
+    t(1600, () => setCountdownNum(1));
+    t(2400, () => {
+      setPhase("playing");
+      timerIvRef.current = setInterval(
+        () => setTimer(v => (v > 0 ? v - 1 : 0)),
+        1000,
+      );
+    });
+
+    // Schedule each question: appear → type chars → submit → next
+    const scheduleQ = (
+      offset:     number,
+      qIdx:       number,
+      scoreAfter: ScoreState,
+    ): number => {
+      const q = QUESTIONS[qIdx];
+      t(offset, () => { setQIndex(qIdx); setTyped(""); setFeedback(null); setXpPop(null); });
+
+      let charT = offset + 600;
+      for (const ch of q.chars) {
+        t(charT, () => setTyped(ch));
+        charT += 290;
+      }
+
+      const submitT = charT + 180;
+      t(submitT, () => {
+        setFeedback(q.correct ? "correct" : "wrong");
+        setScore(scoreAfter);
+        setStreak(q.streakAfter);
+        if (q.correct && q.xp > 0) setXpPop(q.xp);
+        if (!q.correct) {
+          shake.start({
+            x:          [0, -10, 10, -7, 7, -3, 3, 0],
+            transition: { duration: 0.48, ease: "easeInOut" },
+          });
+        }
+      });
+
+      return submitT + 480;
+    };
+
+    let cursor = 2400;
+    const run: ScoreState = { c: 0, w: 0 };
+    QUESTIONS.forEach((q, i) => {
+      const after = { c: run.c + (q.correct ? 1 : 0), w: run.w + (q.correct ? 0 : 1) };
+      cursor = scheduleQ(cursor, i, after) + 160;
+      run.c = after.c; run.w = after.w;
+    });
+
+    // Results
+    t(cursor + 200, () => {
+      if (timerIvRef.current) { clearInterval(timerIvRef.current); timerIvRef.current = null; }
+      setPhase("result");
+      setFeedback(null);
+      setXpPop(null);
+    });
+
+    // Restart
+    t(cursor + 4800, () => cycleRef.current?.());
+  };
+
+  useEffect(() => {
+    if (isInView && !startedRef.current) {
+      startedRef.current = true;
+      t(350, () => cycleRef.current?.());
+    }
+    if (!isInView) {
+      clearAll();
+      startedRef.current = false;
+      setPhase("idle");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInView]);
+
+  useEffect(() => () => clearAll(), []);
+
+  // Derived visuals
+  const timerPct   = timer / 60;
+  const timerColor = timerPct > 0.5 ? C.green : timerPct > 0.25 ? C.gold : C.red;
+  const arcOffset  = CIRCUMFERENCE * (1 - timerPct);
+  const q          = QUESTIONS[Math.max(0, Math.min(qIndex, QUESTIONS.length - 1))];
+  const totalAns   = score.c + score.w;
+  const accuracy   = totalAns > 0 ? Math.round((score.c / totalAns) * 100) : 100;
+  const totalXP    = score.c * 12 + (score.c >= 5 ? 24 : score.c >= 3 ? 9 : 0);
 
   return (
-    <section style={{ padding: "100px 24px 80px", position: "relative", overflow: "hidden" }}>
-      {/* Background atmospheric effects */}
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: "10%", left: "8%", width: 500, height: 500, borderRadius: "50%", background: `radial-gradient(circle, ${V.accent}08 0%, transparent 70%)`, filter: "blur(80px)" }} />
-        <div style={{ position: "absolute", bottom: "5%", right: "10%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)", filter: "blur(80px)" }} />
+    <section style={{ padding: "clamp(40px,8vw,80px) clamp(14px,4vw,24px)", position: "relative", overflow: "hidden" }}>
+
+      {/* Atmospheric glows */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", top: "10%", left: "3%", width: 700, height: 700, borderRadius: "50%", background: `radial-gradient(circle, ${C.orange}07 0%, transparent 70%)`, filter: "blur(120px)" }} />
+        <div style={{ position: "absolute", top: "5%", right: "3%", width: 500, height: 500, borderRadius: "50%", background: `radial-gradient(circle, ${C.violet}06 0%, transparent 70%)`, filter: "blur(100px)" }} />
       </div>
 
-      <div ref={containerRef} style={{ maxWidth: 1100, margin: "0 auto", position: "relative", zIndex: 1 }}>
-        {/* Section header */}
-        <div style={{ textAlign: "center", marginBottom: 56 }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            background: V.accentDim, border: `1px solid ${V.accent}30`, borderRadius: 100,
-            padding: "5px 16px", marginBottom: 20, fontSize: 11,
-            fontFamily: V.fm, fontWeight: 700, color: V.accent, letterSpacing: "0.08em",
-          }}>
-            <Zap size={12} /> LIVE INTERACTIVE PREVIEW
-          </div>
-          <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 14, fontFamily: V.ff, color: V.white }}>
-            This is{" "}
-            <span style={{
-              fontFamily: V.fd, fontStyle: "italic", fontWeight: 900,
-              background: `linear-gradient(135deg, ${V.accent2}, ${V.accent})`,
-              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            }}>Burst Mode.</span>
-          </h2>
-          <p style={{ fontSize: 16, color: "rgba(255,255,255,0.42)", maxWidth: 520, margin: "0 auto", lineHeight: 1.75 }}>
-            Speed math. Real-time scoring. Addictive practice sessions
-            that sharpen mental calculation — right here, right now. Try it.
-          </p>
-        </div>
+      {/* ── Two-column grid ─────────────────────────────────────────────── */}
+      <div ref={wrapRef} style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "clamp(32px,5vw,64px)", alignItems: "center", position: "relative", zIndex: 1 }}>
 
-        {/* Main interactive area */}
-        <div style={{
-          background: V.bg,
-          border: `1px solid ${V.bdr}`,
-          borderRadius: 28,
-          overflow: "hidden",
-          position: "relative",
-          boxShadow: `0 40px 120px rgba(0,0,0,0.5), 0 0 80px ${V.accent}06`,
-        }}>
-          {/* Browser chrome bar */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "12px 20px",
-            background: V.surf,
-            borderBottom: `1px solid ${V.bdr}`,
-          }}>
+        {/* ── LEFT: live demo ─────────────────────────────────────────────── */}
+        <div style={{ minWidth: 0 }}>
+        {/* Window chrome */}
+        <motion.div
+          animate={shake}
+          style={{
+            background:   C.bg,
+            border:       `1px solid ${C.bdr2}`,
+            borderRadius: 20,
+            overflow:     "hidden",
+            boxShadow:    "0 40px 120px rgba(0,0,0,0.60), 0 0 0 1px rgba(255,255,255,0.04)",
+            position:     "relative",
+          }}
+        >
+          {/* Feedback flash */}
+          <AnimatePresence>
+            {feedback && (
+              <motion.div
+                key={`flash-${feedback}-${qIndex}`}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                style={{
+                  position: "absolute", inset: 0, zIndex: 20, pointerEvents: "none",
+                  background: feedback === "correct"
+                    ? "radial-gradient(ellipse 80% 60% at 50% 55%, rgba(16,185,129,0.09) 0%, transparent 70%)"
+                    : "radial-gradient(ellipse 80% 60% at 50% 55%, rgba(239,68,68,0.09) 0%, transparent 70%)",
+                }}
+              />
+            )}
+          </AnimatePresence>
+
+          {/* macOS chrome bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 18px", background: C.surf, borderBottom: `1px solid ${C.bdr}` }}>
             <div style={{ display: "flex", gap: 6 }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#EF4444" }} />
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#F59E0B" }} />
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#22C55E" }} />
-            </div>
-            <div style={{
-              flex: 1, background: V.surf2, borderRadius: 8, padding: "5px 14px",
-              fontSize: 11, fontFamily: V.fm, color: V.muted, textAlign: "center",
-              border: `1px solid ${V.bdr}`,
-            }}>
-              blackmonkey.app/burst-mode
-            </div>
-          </div>
-
-          {/* Sticky game top bar */}
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "10px 20px",
-            background: `linear-gradient(180deg, ${V.surf} 0%, transparent 100%)`,
-            borderBottom: `1px solid ${V.bdr}`,
-          }}>
-            {/* Left — operation pills */}
-            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingRight: 8 }}>
-              {OPERATIONS.map((op, i) => (
-                <button
-                  key={op.key}
-                  onClick={() => { if (phase === "idle") setSelectedOp(i); }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    padding: "5px 12px", borderRadius: 10,
-                    border: `1px solid ${i === selectedOp ? `${op.color}50` : V.bdr2}`,
-                    background: i === selectedOp ? op.bg : "transparent",
-                    color: i === selectedOp ? op.color : V.muted,
-                    fontSize: 11, fontFamily: V.fm, fontWeight: 600,
-                    cursor: phase === "idle" ? "pointer" : "default",
-                    transition: "all 0.2s",
-                    whiteSpace: "nowrap",
-                    ...(phase !== "idle" ? { opacity: 0.45, pointerEvents: "none" as const } : {}),
-                  }}
-                >
-                  <span style={{ fontSize: 13 }}>{op.icon}</span>
-                  <span style={{ display: "none" }} className="bm-glimpse-op-label">{op.label}</span>
-                </button>
+              {["#FF5F57","#FFBD2E","#28C840"].map(col => (
+                <div key={col} style={{ width: 10, height: 10, borderRadius: "50%", background: col }} />
               ))}
             </div>
+            <div style={{ flex: 1, background: C.surf2, borderRadius: 6, padding: "4px 14px", fontSize: 11, fontFamily: C.fm, color: "#343650", textAlign: "center", border: `1px solid ${C.bdr}` }}>
+              blackmonkey.app/burst-mode
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 8, background: C.orangeDim, border: "1px solid rgba(249,115,22,0.22)", fontFamily: C.fm, fontSize: 10, fontWeight: 700, color: C.orange, letterSpacing: "0.05em", whiteSpace: "nowrap" }}>
+              <Zap size={9} /> BURST
+            </div>
+          </div>
 
-            {/* Center — Timer */}
+          {/* Game area */}
+          <div style={{ display: "flex", minHeight: 380 }}>
+
+            {/* Left: timer + score + streak */}
             <div style={{
-              fontFamily: V.fm, fontWeight: 800,
-              fontSize: phase === "playing" ? 22 : 16,
-              color: phase === "playing" ? timerColor : V.muted,
-              transition: "all 0.3s",
-              minWidth: 60, textAlign: "center",
-              ...(phase === "playing" && timeLeft <= 5 ? { animation: "bm-g-shake 0.4s ease infinite" } : {}),
+              width: "clamp(120px, 25%, 164px)", padding: "26px 14px",
+              borderRight: `1px solid ${C.bdr}`,
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 18,
+              background: `linear-gradient(180deg, ${C.surf}90 0%, transparent 100%)`,
+              flexShrink: 0,
             }}>
-              {phase === "playing"
-                ? `0:${String(timeLeft).padStart(2, "0")}`
-                : phase === "result" ? "0:00" : `0:${String(TOTAL_TIME).padStart(2, "0")}`}
-            </div>
 
-            {/* Right — score badges */}
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: V.fm, fontSize: 13, fontWeight: 700 }}>
-                <CheckCircle2 size={14} color={V.green} />
-                <span style={{ color: V.green }}>{score.correct}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: V.fm, fontSize: 13, fontWeight: 700 }}>
-                <XCircle size={14} color={V.red} />
-                <span style={{ color: V.red }}>{score.wrong}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div style={{ height: 3, background: V.bdr }}>
-            <div style={{
-              height: "100%", width: `${timePct}%`,
-              background: `linear-gradient(90deg, ${timerColor}, ${timerColor}aa)`,
-              borderRadius: 3,
-              transition: "width 1s linear, background 0.5s",
-              boxShadow: `2px 0 12px ${timerColor}`,
-            }} />
-          </div>
-
-          {/* Main content area */}
-          <div style={{
-            minHeight: 340,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            padding: "40px 24px",
-            position: "relative",
-          }}>
-            <AnimatePresence mode="wait">
-
-              {/* ── IDLE — invite to play ────────────────────── */}
-              {phase === "idle" && (
-                <motion.div
-                  key="idle"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.4 }}
-                  style={{ textAlign: "center", maxWidth: 400 }}
-                >
-                  <div style={{
-                    width: 80, height: 80, borderRadius: 24,
-                    background: V.accentDim, border: `1px solid ${V.accent}30`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    margin: "0 auto 24px",
-                    boxShadow: `0 16px 48px ${V.accent}15`,
-                  }}>
-                    <Zap size={36} color={V.accent} />
-                  </div>
-                  <h3 style={{ fontFamily: V.fd, fontSize: 28, fontWeight: 800, color: V.white, marginBottom: 10, letterSpacing: "-0.02em" }}>
-                    Ready to Burst?
-                  </h3>
-                  <p style={{ fontSize: 14, color: V.white2, lineHeight: 1.65, marginBottom: 28 }}>
-                    {TOTAL_QUESTIONS} rapid-fire math questions. {TOTAL_TIME} seconds on the clock.
-                    <br />How many can you nail?
-                  </p>
-                  <button
-                    onClick={startGame}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 8,
-                      padding: "14px 32px", borderRadius: 14,
-                      background: `linear-gradient(135deg, ${V.accent}, #C2410C)`,
-                      border: "none", color: "#fff",
-                      fontFamily: V.fm, fontSize: 15, fontWeight: 700,
-                      cursor: "pointer",
-                      boxShadow: `0 8px 32px ${V.accent}40, 0 0 20px ${V.accent}15`,
-                      transition: "all 0.25s",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 12px 40px ${V.accent}55, 0 0 30px ${V.accent}25`; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `0 8px 32px ${V.accent}40, 0 0 20px ${V.accent}15`; }}
-                  >
-                    <Play size={18} fill="#fff" /> Start Burst
-                  </button>
-                </motion.div>
-              )}
-
-              {/* ── COUNTDOWN — 3…2…1 ────────────────────────── */}
-              {phase === "countdown" && (
-                <motion.div
-                  key="countdown"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  style={{ textAlign: "center", position: "relative" }}
-                >
-                  {/* Pulsing ring */}
-                  <div style={{
-                    position: "absolute", top: "50%", left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    width: 180, height: 180, borderRadius: "50%",
-                    border: `2px solid ${V.accent}30`,
-                    animation: "bm-g-ring 0.8s ease-out infinite",
-                  }} />
+              {/* Arc timer */}
+              <div style={{ position: "relative", width: "clamp(80px,18vw,120px)", height: "clamp(80px,18vw,120px)" }}>
+                <div style={{
+                  position: "absolute", inset: -8, borderRadius: "50%",
+                  background: `radial-gradient(circle, ${phase === "playing" ? timerColor : C.orange}16 0%, transparent 70%)`,
+                  filter: "blur(10px)", transition: "background 0.5s",
+                }} />
+                <svg width="100%" height="100%" viewBox="0 0 120 120" style={{ position: "absolute", transform: "rotate(-90deg)" }}>
+                  <circle cx="60" cy="60" r={R} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="5" />
+                  <circle
+                    cx="60" cy="60" r={R} fill="none"
+                    stroke={phase === "playing" ? timerColor : C.orange}
+                    strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={CIRCUMFERENCE}
+                    strokeDashoffset={phase === "playing" ? arcOffset : 0}
+                    style={{ transition: "stroke-dashoffset 1s linear, stroke 0.5s" }}
+                  />
+                </svg>
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                   <AnimatePresence mode="wait">
                     <motion.div
-                      key={countdownVal}
-                      initial={{ opacity: 0, scale: 2.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.5 }}
-                      transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+                      key={phase === "countdown" ? `cd-${countdownNum}` : `t-${timer}`}
+                      initial={{ opacity: 0, scale: 0.4 }}
+                      animate={{ opacity: 1, scale: 1   }}
+                      exit={   { opacity: 0, scale: 1.8 }}
+                      transition={{ duration: 0.28 }}
                       style={{
-                        fontFamily: V.fm, fontWeight: 800,
-                        fontSize: "clamp(80px, 15vw, 160px)",
-                        background: `linear-gradient(135deg, ${V.accent2} 0%, #FDBA74 40%, ${V.accent} 100%)`,
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        lineHeight: 1, letterSpacing: "-0.04em",
+                        fontFamily: C.fm, fontWeight: 800,
+                        fontSize: phase === "countdown" ? 38 : 28,
+                        color:     phase === "playing"   ? timerColor
+                                 : phase === "countdown" ? C.orange
+                                 : "rgba(255,255,255,0.22)",
+                        lineHeight: 1,
                       }}
                     >
-                      {countdownVal}
+                      {phase === "countdown" ? countdownNum : timer}
                     </motion.div>
                   </AnimatePresence>
-                  <p style={{ fontFamily: V.fm, fontSize: 12, color: V.accent, fontWeight: 700, letterSpacing: "0.15em", marginTop: 16 }}>
-                    GET READY
-                  </p>
-                </motion.div>
-              )}
-
-              {/* ── PLAYING — question + input ───────────────── */}
-              {phase === "playing" && q && (
-                <motion.div
-                  key={`q-${qIndex}`}
-                  initial={{ opacity: 0, scale: 0.85, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ textAlign: "center", width: "100%", maxWidth: 480, position: "relative" }}
-                >
-                  {/* Question number badge */}
-                  <div style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "4px 12px", borderRadius: 8,
-                    background: V.accentDim, border: `1px solid ${V.accent}25`,
-                    fontFamily: V.fm, fontSize: 10, fontWeight: 700, color: V.accent,
-                    letterSpacing: "0.08em", marginBottom: 20,
-                  }}>
-                    QUESTION {qIndex + 1} / {TOTAL_QUESTIONS}
+                  <div style={{ fontFamily: C.fm, fontSize: 8, color: "rgba(255,255,255,0.18)", letterSpacing: "0.12em", marginTop: 5 }}>
+                    {phase === "playing" ? "SECS" : phase === "countdown" ? "READY" : phase === "result" ? "DONE" : "BURST"}
                   </div>
+                </div>
+              </div>
 
-                  {/* Question text */}
-                  <div style={{
-                    fontFamily: V.fm, fontWeight: 800,
-                    fontSize: "clamp(48px, 10vw, 96px)",
-                    color: V.white,
-                    letterSpacing: "-0.03em",
-                    lineHeight: 1.1,
-                    marginBottom: 32,
-                    display: "flex", alignItems: "baseline", justifyContent: "center", gap: "0.15em",
-                  }}>
-                    <span>{q.text}</span>
-                    <span style={{
-                      fontSize: "0.45em", color: V.muted, fontWeight: 500,
-                    }}>=</span>
-                  </div>
-
-                  {/* Answer input */}
-                  <div style={{ display: "flex", gap: 10, maxWidth: 320, margin: "0 auto" }}>
-                    <div style={{ flex: 1, position: "relative" }}>
-                      <input
-                        ref={inputRef}
-                        type="number"
-                        inputMode="numeric"
-                        value={input}
-                        onChange={e => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="?"
+              {/* Score */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+                {([
+                  { label: "CORRECT", val: score.c, color: C.green, dim: "rgba(16,185,129,0.09)" },
+                  { label: "WRONG",   val: score.w, color: C.red,   dim: "rgba(239,68,68,0.09)"  },
+                ] as const).map(({ label, val, color, dim }) => (
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={val}
+                        initial={{ scale: 1.7, opacity: 0 }}
+                        animate={{ scale: 1,   opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 22 }}
                         style={{
-                          width: "100%", padding: "14px 18px",
-                          borderRadius: 14,
-                          border: `2px solid ${
-                            feedback === "correct" ? V.green :
-                            feedback === "wrong" ? V.red :
-                            V.bdr2
-                          }`,
-                          background: feedback === "correct" ? "rgba(16,185,129,0.08)"
-                            : feedback === "wrong" ? "rgba(239,68,68,0.08)"
-                            : V.surf2,
-                          color: V.white, fontFamily: V.fm, fontSize: 22, fontWeight: 700,
-                          outline: "none", textAlign: "center",
-                          transition: "all 0.15s",
-                          boxShadow: feedback === "correct" ? `0 0 20px ${V.green}30`
-                            : feedback === "wrong" ? `0 0 20px ${V.red}30`
-                            : "none",
+                          width: 28, height: 28, borderRadius: 8,
+                          background: dim, border: `1px solid ${color}28`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontFamily: C.fm, fontWeight: 800, fontSize: 14, color,
+                          flexShrink: 0,
                         }}
-                        autoComplete="off"
-                      />
-                      {/* Feedback icon */}
-                      <AnimatePresence>
+                      >
+                        {val}
+                      </motion.div>
+                    </AnimatePresence>
+                    <span style={{ fontFamily: C.fm, fontSize: 9, color: "rgba(255,255,255,0.18)", letterSpacing: "0.08em" }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Streak */}
+              <div style={{ width: "100%", paddingTop: 8, borderTop: `1px solid ${C.bdr}` }}>
+                <div style={{ fontFamily: C.fm, fontSize: 9, color: "rgba(255,255,255,0.16)", letterSpacing: "0.1em", marginBottom: 8 }}>STREAK</div>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={streak}
+                    initial={{ scale: 0.3, opacity: 0 }}
+                    animate={{ scale: 1,   opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 600, damping: 18 }}
+                  >
+                    {streak > 0 ? (
+                      <>
+                        <div style={{ fontSize: 17, lineHeight: 1, marginBottom: 5 }}>
+                          {"🔥".repeat(Math.min(streak, 5))}
+                        </div>
+                        <div style={{
+                          fontFamily: C.fm, fontWeight: 800, fontSize: 11, letterSpacing: "0.04em",
+                          color: streak >= 5 ? C.gold : streak >= 3 ? C.orange : "rgba(255,255,255,0.4)",
+                        }}>
+                          {streak}× COMBO
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontFamily: C.fm, fontSize: 11, color: C.muted }}>· · ·</div>
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* Centre: question + typed answer */}
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "36px 24px", position: "relative", overflow: "hidden" }}>
+
+              {/* Ambient glow behind active question */}
+              <div style={{
+                position: "absolute", inset: 0, pointerEvents: "none",
+                background: `radial-gradient(ellipse 70% 55% at 50% 48%, ${C.orange}05 0%, transparent 70%)`,
+              }} />
+
+              <AnimatePresence mode="wait">
+
+                {/* IDLE */}
+                {phase === "idle" && (
+                  <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 0.35 }} exit={{ opacity: 0 }}>
+                    <div style={{ fontFamily: C.fm, fontSize: 12, color: "rgba(255,255,255,0.3)", letterSpacing: "0.15em" }}>INITIALISING…</div>
+                  </motion.div>
+                )}
+
+                {/* COUNTDOWN */}
+                {phase === "countdown" && (
+                  <motion.div key="countdown" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ textAlign: "center" }}>
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={countdownNum}
+                        initial={{ opacity: 0, scale: 3.8, y: -20 }}
+                        animate={{ opacity: 1, scale: 1,   y: 0   }}
+                        exit={   { opacity: 0, scale: 0.25          }}
+                        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                        style={{
+                          fontFamily: C.fm, fontWeight: 800,
+                          fontSize: "clamp(88px,17vw,168px)",
+                          background: `linear-gradient(135deg, ${C.orange} 0%, #FDBA74 55%, ${C.orange} 100%)`,
+                          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+                          lineHeight: 1, letterSpacing: "-0.06em",
+                          filter: `drop-shadow(0 0 55px ${C.orange}40)`,
+                        }}
+                      >
+                        {countdownNum}
+                      </motion.div>
+                    </AnimatePresence>
+                    <div style={{ fontFamily: C.fm, fontSize: 11, color: C.orange, letterSpacing: "0.22em", marginTop: 12, opacity: 0.65 }}>
+                      GET READY
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* PLAYING */}
+                {phase === "playing" && (
+                  <motion.div
+                    key={`q-${qIndex}`}
+                    initial={{ opacity: 0, scale: 0.52, y: 44 }}
+                    animate={{ opacity: 1, scale: 1,    y: 0  }}
+                    exit={   { opacity: 0, scale: 1.1,  y: -28 }}
+                    transition={{ type: "spring", stiffness: 370, damping: 24 }}
+                    style={{ textAlign: "center", width: "100%", maxWidth: 420, position: "relative" }}
+                  >
+                    {/* Q badge */}
+                    <div style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "3px 12px", borderRadius: 6,
+                      background: C.orangeDim, border: "1px solid rgba(249,115,22,0.16)",
+                      fontFamily: C.fm, fontSize: 10, fontWeight: 700, color: C.orange,
+                      letterSpacing: "0.1em", marginBottom: 22,
+                    }}>
+                      Q {qIndex + 1} / {QUESTIONS.length}
+                    </div>
+
+                    {/* Question — the big impact moment */}
+                    <div style={{
+                      fontFamily: C.fm, fontWeight: 800,
+                      fontSize: "clamp(48px,10vw,90px)",
+                      color: C.white, letterSpacing: "-0.04em", lineHeight: 1.05,
+                      marginBottom: 32,
+                      filter: `drop-shadow(0 2px 28px rgba(249,115,22,0.10))`,
+                    }}>
+                      {q.display}
+                      <span style={{ color: "rgba(255,255,255,0.18)", fontSize: "0.4em", marginLeft: "0.22em" }}>= ?</span>
+                    </div>
+
+                    {/* Answer box */}
+                    <div style={{ display: "flex", justifyContent: "center", position: "relative" }}>
+                      <motion.div
+                        animate={{
+                          borderColor: feedback === "correct" ? C.green
+                                     : feedback === "wrong"   ? C.red
+                                     : "rgba(255,255,255,0.11)",
+                          boxShadow:   feedback === "correct"
+                            ? `0 0 28px ${C.green}42, 0 0 70px ${C.green}09`
+                            : feedback === "wrong"
+                            ? `0 0 28px ${C.red}42,   0 0 70px ${C.red}09`
+                            : "0 0 0 rgba(0,0,0,0)",
+                        }}
+                        transition={{ duration: 0.16 }}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          minWidth: 158, height: 66, borderRadius: 16,
+                          border: "2px solid rgba(255,255,255,0.11)",
+                          background: feedback === "correct" ? "rgba(16,185,129,0.07)"
+                                    : feedback === "wrong"   ? "rgba(239,68,68,0.07)"
+                                    : "rgba(255,255,255,0.022)",
+                          padding: "0 20px", gap: 4,
+                        }}
+                      >
+                        <span style={{
+                          fontFamily: C.fm, fontWeight: 800, fontSize: 29,
+                          color:    feedback === "correct" ? C.green
+                                  : feedback === "wrong"   ? C.red
+                                  : C.white,
+                          letterSpacing: "-0.02em", transition: "color 0.16s", minWidth: 12,
+                        }}>
+                          {typed}
+                        </span>
+
+                        {!feedback && (
+                          <motion.span
+                            animate={{ opacity: [1, 0, 1] }}
+                            transition={{ duration: 0.72, repeat: Infinity, ease: "linear" }}
+                            style={{ display: "inline-block", width: 2.5, height: 28, background: C.orange, borderRadius: 2 }}
+                          />
+                        )}
+
                         {feedback && (
+                          <motion.span
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 640, damping: 18 }}
+                            style={{ fontFamily: C.fm, fontWeight: 800, fontSize: 22, color: feedback === "correct" ? C.green : C.red }}
+                          >
+                            {feedback === "correct" ? " ✓" : " ✗"}
+                          </motion.span>
+                        )}
+                      </motion.div>
+
+                      {/* XP float */}
+                      <AnimatePresence>
+                        {xpPop && feedback === "correct" && (
                           <motion.div
-                            initial={{ opacity: 0, scale: 0 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0 }}
+                            key={`xp-${qIndex}`}
+                            initial={{ opacity: 0, y: 6,   scale: 0.55 }}
+                            animate={{ opacity: 1, y: -50, scale: 1    }}
+                            exit={   { opacity: 0, y: -85               }}
+                            transition={{ duration: 0.92, ease: "easeOut" }}
                             style={{
-                              position: "absolute", right: -36, top: "50%",
-                              transform: "translateY(-50%)",
+                              position: "absolute", right: -6, top: "50%",
+                              fontFamily: C.fm, fontWeight: 800, fontSize: 15,
+                              color: C.gold, textShadow: `0 0 22px ${C.gold}65`,
+                              letterSpacing: "0.02em", whiteSpace: "nowrap",
                             }}
                           >
-                            {feedback === "correct"
-                              ? <CheckCircle2 size={22} color={V.green} />
-                              : <XCircle size={22} color={V.red} />}
+                            +{xpPop} XP
                           </motion.div>
                         )}
                       </AnimatePresence>
                     </div>
-                    <button
-                      onClick={submitAnswer}
-                      disabled={!input.trim()}
-                      style={{
-                        padding: "14px 20px", borderRadius: 14,
-                        background: input.trim() ? `linear-gradient(135deg, ${V.accent}, #C2410C)` : V.surf2,
-                        border: "none", color: input.trim() ? "#fff" : V.muted,
-                        fontFamily: V.fm, fontSize: 14, fontWeight: 700,
-                        cursor: input.trim() ? "pointer" : "default",
-                        transition: "all 0.2s",
-                        boxShadow: input.trim() ? `0 4px 16px ${V.accent}35` : "none",
-                      }}
-                    >
-                      <ChevronRight size={20} />
-                    </button>
-                  </div>
-                </motion.div>
-              )}
+                  </motion.div>
+                )}
 
-              {/* ── RESULT — scorecard ────────────────────────── */}
-              {phase === "result" && (
-                <motion.div
-                  key="result"
-                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ textAlign: "center", width: "100%", maxWidth: 480 }}
-                >
-                  {/* Trophy */}
-                  <div style={{
-                    width: 64, height: 64, borderRadius: 20,
-                    background: accuracy >= 70 ? "rgba(16,185,129,0.12)" : accuracy >= 40 ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)",
-                    border: `1px solid ${accuracy >= 70 ? V.green : accuracy >= 40 ? V.gold : V.red}30`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    margin: "0 auto 20px",
-                  }}>
-                    <span style={{ fontSize: 28 }}>
-                      {accuracy >= 70 ? "🏆" : accuracy >= 40 ? "⭐" : "💪"}
-                    </span>
-                  </div>
-
-                  <h3 style={{
-                    fontFamily: V.fd, fontSize: 26, fontWeight: 800, color: V.white,
-                    marginBottom: 8, letterSpacing: "-0.02em",
-                  }}>
-                    {accuracy >= 80 ? "Incredible!" : accuracy >= 60 ? "Great Job!" : accuracy >= 40 ? "Nice Try!" : "Keep Practicing!"}
-                  </h3>
-
-                  {/* Stat grid */}
-                  <div style={{
-                    display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10,
-                    marginBottom: 24,
-                  }}>
-                    {[
-                      { label: "Correct", value: score.correct, color: V.green, icon: "✓" },
-                      { label: "Wrong", value: score.wrong, color: V.red, icon: "✗" },
-                      { label: "Accuracy", value: `${accuracy}%`, color: accuracy >= 70 ? V.green : accuracy >= 40 ? V.gold : V.red, icon: "◎" },
-                    ].map(s => (
-                      <div
-                        key={s.label}
-                        style={{
-                          background: V.surf, border: `1px solid ${V.bdr}`, borderRadius: 14,
-                          padding: "16px 12px",
-                        }}
-                      >
-                        <div style={{ fontFamily: V.fm, fontSize: 24, fontWeight: 800, color: s.color, marginBottom: 4 }}>
-                          {s.icon} {s.value}
-                        </div>
-                        <div style={{ fontSize: 10, color: V.muted, fontFamily: V.fm, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                          {s.label}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Accuracy bar */}
-                  <div style={{ height: 6, background: V.surf2, borderRadius: 100, marginBottom: 24, position: "relative", overflow: "hidden" }}>
+                {/* RESULT */}
+                {phase === "result" && (
+                  <motion.div
+                    key="result"
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0  }}
+                    exit={   { opacity: 0         }}
+                    transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
+                    style={{ textAlign: "center", maxWidth: 400, width: "100%" }}
+                  >
                     <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${accuracy}%` }}
-                      transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-                      style={{
-                        height: "100%", borderRadius: 100,
-                        background: accuracy >= 70
-                          ? `linear-gradient(90deg, ${V.green}, #34d399)`
-                          : accuracy >= 40
-                          ? `linear-gradient(90deg, ${V.gold}, #fbbf24)`
-                          : `linear-gradient(90deg, ${V.red}, #f87171)`,
-                        boxShadow: `0 0 12px ${accuracy >= 70 ? V.green : accuracy >= 40 ? V.gold : V.red}35`,
-                      }}
-                    />
-                  </div>
-
-                  {/* Answer review (scrollable) */}
-                  <div style={{
-                    maxHeight: 120, overflowY: "auto", marginBottom: 24,
-                    borderRadius: 12, border: `1px solid ${V.bdr}`,
-                    background: V.surf,
-                  }}>
-                    {answers.map((a, i) => (
-                      <div key={i} style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "8px 14px",
-                        borderBottom: i < answers.length - 1 ? `1px solid ${V.bdr}` : "none",
-                        fontSize: 12, fontFamily: V.fm,
-                      }}>
-                        <span style={{ color: V.white2 }}>{a.q.text} = {a.q.answer}</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ color: a.correct ? V.green : V.red, fontWeight: 700 }}>
-                            {a.userAnswer ?? "—"}
-                          </span>
-                          {a.correct
-                            ? <CheckCircle2 size={12} color={V.green} />
-                            : <XCircle size={12} color={V.red} />
-                          }
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                    <button
-                      onClick={() => { setPhase("idle"); }}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 6,
-                        padding: "10px 20px", borderRadius: 12,
-                        border: `1px solid ${V.bdr2}`, background: V.surf,
-                        color: V.white2, fontFamily: V.fm, fontSize: 13, fontWeight: 600,
-                        cursor: "pointer", transition: "all 0.2s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = V.surf2; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = V.surf; }}
+                      initial={{ scale: 0, rotate: -25 }}
+                      animate={{ scale: 1, rotate: 0   }}
+                      transition={{ delay: 0.1, type: "spring", stiffness: 360, damping: 18 }}
+                      style={{ fontSize: 54, lineHeight: 1, marginBottom: 18 }}
                     >
-                      <RotateCcw size={14} /> Try Again
-                    </button>
-                    <button
-                      onClick={() => window.location.href = "/burst"}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 6,
-                        padding: "10px 24px", borderRadius: 12,
-                        background: `linear-gradient(135deg, ${V.accent}, #C2410C)`,
-                        border: "none", color: "#fff",
-                        fontFamily: V.fm, fontSize: 13, fontWeight: 700,
-                        cursor: "pointer", transition: "all 0.2s",
-                        boxShadow: `0 4px 20px ${V.accent}35`,
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.transform = ""; }}
+                      🏆
+                    </motion.div>
+
+                    <div style={{ fontFamily: C.fm, fontSize: 11, fontWeight: 700, color: C.orange, letterSpacing: "0.18em", marginBottom: 22 }}>
+                      SESSION COMPLETE
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 24 }}>
+                      {([
+                        { label: "CORRECT",  value: `${score.c}/${totalAns}`, color: C.green  },
+                        { label: "ACCURACY", value: `${accuracy}%`,           color: C.orange },
+                        { label: "XP WON",   value: `+${totalXP}`,            color: C.gold   },
+                      ] as const).map(({ label, value, color }, i) => (
+                        <motion.div
+                          key={label}
+                          initial={{ opacity: 0, y: 18 }}
+                          animate={{ opacity: 1, y: 0  }}
+                          transition={{ delay: 0.18 + i * 0.09, duration: 0.4, ease: "easeOut" }}
+                          style={{
+                            background: "rgba(255,255,255,0.022)", border: `1px solid ${C.bdr}`,
+                            borderRadius: 14, padding: "16px 8px",
+                          }}
+                        >
+                          <div style={{ fontFamily: C.fm, fontWeight: 800, fontSize: 22, color, lineHeight: 1, marginBottom: 7 }}>{value}</div>
+                          <div style={{ fontFamily: C.fm, fontSize: 8, color: "rgba(255,255,255,0.18)", letterSpacing: "0.1em" }}>{label}</div>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    <motion.div
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+                      style={{ fontFamily: C.fm, fontSize: 10, color: "rgba(255,255,255,0.18)", letterSpacing: "0.08em" }}
                     >
-                      Play Full Game <ChevronRight size={14} />
-                    </button>
-                  </div>
-                </motion.div>
-              )}
+                      Replaying in a moment…
+                    </motion.div>
+                  </motion.div>
+                )}
 
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* Bottom info strip — social proof */}
-        <div style={{
-          display: "flex", justifyContent: "center", gap: 32, flexWrap: "wrap",
-          marginTop: 32, padding: "0 16px",
-        }}>
-          {[
-            { icon: <Zap size={14} />, text: "2M+ questions solved", color: V.accent },
-            { icon: <Timer size={14} />, text: "40% faster calculations", color: V.green },
-            { icon: <CheckCircle2 size={14} />, text: "98% accuracy improvement", color: "#8b5cf6" },
-          ].map(s => (
-            <div key={s.text} style={{
-              display: "flex", alignItems: "center", gap: 6,
-              fontFamily: V.fm, fontSize: 11, fontWeight: 600, color: s.color,
-              letterSpacing: "0.04em",
-            }}>
-              {s.icon} {s.text}
+              </AnimatePresence>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* CSS Keyframes */}
-      <style>{`
-        @keyframes bm-g-shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-2px); }
-          75% { transform: translateX(2px); }
-        }
-        @keyframes bm-g-ring {
-          0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.6; }
-          100% { transform: translate(-50%, -50%) scale(1.4); opacity: 0; }
-        }
-        /* Remove number input spinners */
-        .bm-glimpse-input::-webkit-outer-spin-button,
-        .bm-glimpse-input::-webkit-inner-spin-button {
-          -webkit-appearance: none; margin: 0;
-        }
-        .bm-glimpse-input[type=number] { -moz-appearance: textfield; }
-        /* Show op labels on wider screens */
-        @media (min-width: 768px) {
-          .bm-glimpse-op-label { display: inline !important; }
-        }
-      `}</style>
+          {/* Bottom progress bar */}
+          <div style={{ height: 3, background: "rgba(255,255,255,0.035)" }}>
+            <motion.div
+              animate={{ width: `${timerPct * 100}%` }}
+              transition={{ duration: 1, ease: "linear" }}
+              style={{
+                height: "100%",
+                background: `linear-gradient(90deg, ${timerColor}cc, ${timerColor}55)`,
+                boxShadow: `0 0 10px ${timerColor}70`,
+                borderRadius: 3, transition: "background 0.5s",
+              }}
+            />
+          </div>
+        </motion.div>
+        </div>{/* end LEFT demo col */}
+
+        {/* ── RIGHT: copy + features + CTA ───────────────────────────────── */}
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {/* Pill */}
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start", background: C.orangeDim, border: "1px solid rgba(249,115,22,0.24)", borderRadius: 100, padding: "5px 16px", marginBottom: 22, fontFamily: C.fm, fontSize: 11, fontWeight: 700, color: C.orange, letterSpacing: "0.08em" }}>
+            <Zap size={11} /> Burst Mode
+          </div>
+
+          {/* Headline */}
+          <h2 style={{ fontSize: "clamp(26px,3.5vw,48px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.08, marginBottom: 16, fontFamily: "'DM Sans', sans-serif", color: C.white }}>
+            60 seconds.{" "}
+            <span style={{ background: `linear-gradient(135deg, ${C.orange}, #FDBA74)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontStyle: "italic" }}>
+              Maximum math.
+            </span>
+          </h2>
+
+          {/* Description */}
+          <p style={{ fontSize: 15.5, color: "rgba(255,255,255,0.45)", lineHeight: 1.75, marginBottom: 28, fontFamily: "'DM Sans', sans-serif" }}>
+            Questions burst onto the screen. Students type, race the clock, and build streaks.
+            {" "}<em style={{ color: "rgba(255,255,255,0.65)", fontStyle: "normal", fontWeight: 600 }}>It's addictive by design.</em>
+          </p>
+
+          {/* Feature bullets */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 32 }}>
+            {FEATURES.map((f, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(249,115,22,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {f.icon}
+                </div>
+                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.68)", fontFamily: "'DM Sans', sans-serif" }}>{f.text}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Stats mini-strip */}
+          <div style={{ display: "flex", gap: 24, marginBottom: 30, flexWrap: "wrap" }}>
+            {([
+              { n: "60s",  desc: "per session"       },
+              { n: "15+Q", desc: "avg per session"   },
+              { n: "94%",  desc: "improve in week 1" },
+            ] as const).map(({ n, desc }) => (
+              <div key={desc}>
+                <div style={{ fontFamily: C.fm, fontWeight: 800, fontSize: 20, color: C.orange, letterSpacing: "-0.03em", lineHeight: 1 }}>{n}</div>
+                <div style={{ fontFamily: C.fm, fontSize: 10, color: "rgba(255,255,255,0.22)", letterSpacing: "0.04em", marginTop: 5 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <a
+            href="/burst-mode"
+            style={{ display: "inline-flex", alignItems: "center", gap: 10, alignSelf: "flex-start", background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.30)", color: C.orange, padding: "14px 24px", borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: "none", fontFamily: "'DM Sans', sans-serif", transition: "background 0.2s, border-color 0.2s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(249,115,22,0.22)"; (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(249,115,22,0.5)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(249,115,22,0.12)"; (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(249,115,22,0.30)"; }}
+          >
+            Try Burst Mode <ChevronRight size={15} />
+          </a>
+        </div>{/* end RIGHT copy col */}
+
+      </div>
     </section>
   );
 }
+

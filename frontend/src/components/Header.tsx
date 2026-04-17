@@ -176,7 +176,7 @@ export default function Header() {
           <Link href="/" onClick={handleLogoClick} className="flex items-center gap-3 group cursor-pointer z-10">
             <div className="relative">
               <img
-                src="/imagesproject/logo.ico.jpg"
+                src="/imagesproject/blackmonkey_logo_transparent.png"
                 alt="BlackMonkey Logo"
                 className="w-11 h-11 rounded-xl object-cover shadow-md group-hover:shadow-lg transition-all duration-300 group-hover:scale-105"
                 onError={(e) => {

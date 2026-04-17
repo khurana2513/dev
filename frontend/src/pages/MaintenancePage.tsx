@@ -162,7 +162,7 @@ export default function MaintenancePage({ message }: Props) {
 
           {/* Footer note */}
           <p style={{ textAlign: "center", marginTop: 24, color: "rgba(255,255,255,0.22)", fontSize: 13 }}>
-            Questions? Contact <span style={{ color: "rgba(167,139,250,0.7)" }}>support@blackmonkey.in</span>
+            Questions? Contact <span style={{ color: "rgba(167,139,250,0.7)" }}>ayushkhurana47@gmail.com</span>
           </p>
         </div>
       </div>

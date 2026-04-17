@@ -6,6 +6,7 @@ import { previewPaper, createPaper, generatePdf, PaperConfig, BlockConfig, Gener
 import { buildApiUrl, looksLikeHtmlDocument } from "@/lib/apiBase";
 import { useAuth } from "@/contexts/AuthContext";
 import MathQuestion from "@/components/MathQuestion";
+import { useTour, type TourStep, type TourConfig } from "../contexts/TourContext";
 
 // Helper function to generate section name based on block settings
 function generateSectionName(block: BlockConfig): string {
@@ -541,7 +542,7 @@ export default function PaperCreate() {
 
   const handleWhatsAppShare = () => {
     const link = getShareLink();
-    const text = `Hey! Try this math paper I made on TalentHub: ${shareResult?.paper_title || "Practice Paper"}\n\nCode: ${shareResult?.code}\n\n${link}\n\nValid for 24 hours!`;
+    const text = `Hey! Try this math paper I made on BlackMonkey: ${shareResult?.paper_title || "Practice Paper"}\n\nCode: ${shareResult?.code}\n\n${link}\n\nValid for 24 hours!`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
 
@@ -924,6 +925,103 @@ export default function PaperCreate() {
   const [showAnswers, setShowAnswers] = useState<boolean>(false);
   const [downloadDropdownOpen, setDownloadDropdownOpen] = useState<boolean>(false);
   const [showGuide, setShowGuide] = useState(false);
+
+  // ── Interactive Guided Tour ──────────────────────────────────────
+  const { startTour, hasSeenTour } = useTour();
+  const tourStartedRef = useRef(false);
+
+  const paperTourSteps: TourStep[] = [
+    {
+      target: "[data-tour='pc-hero']",
+      title: "Welcome to Paper Generator!",
+      content: "Build custom practice papers with multiple question blocks, preview them live, and export print-ready PDFs. Let's walk you through it.",
+      icon: "📄",
+      placement: "bottom",
+      spotlightPadding: 4,
+      spotlightRadius: 28,
+    },
+    {
+      target: "[data-tour='pc-mode-tabs']",
+      title: "Choose Your Mode",
+      content: "Switch between Junior, Basic, Advanced, and Vedic Maths. Each mode offers different operation types suited to that level.",
+      icon: "🎯",
+      placement: "bottom",
+      spotlightPadding: 6,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='pc-how-to-use']",
+      title: "Need Help Later?",
+      content: "Tap this button anytime to replay this walkthrough or review the step-by-step guide.",
+      icon: "📖",
+      placement: "bottom",
+      spotlightPadding: 6,
+      spotlightRadius: 10,
+    },
+    {
+      target: "[data-tour='pc-title-input']",
+      title: "Name Your Paper",
+      content: "Give your paper a title — it will appear at the top of the printed PDF. Keep it short and descriptive.",
+      icon: "✏️",
+      placement: "bottom",
+      spotlightPadding: 8,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='pc-level-select']",
+      title: "Pick a Level or Template",
+      content: "Select a preset level (AB-1 through AB-10) to auto-load question blocks, or choose Custom to build from scratch. Your saved templates also appear here.",
+      icon: "📋",
+      placement: "bottom",
+      spotlightPadding: 8,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='pc-add-block']",
+      title: "Add Question Blocks",
+      content: "Each block is a section of questions. Click here to add a new block. You can add multiple blocks with different operations in one paper.",
+      icon: "➕",
+      placement: "top",
+      spotlightPadding: 6,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='pc-block-card']",
+      title: "Configure Each Block",
+      content: "Choose the operation type, set the number of questions, and adjust digit/row settings. Use ↑↓ to reorder, copy to duplicate, or trash to remove.",
+      icon: "⚙️",
+      placement: "top",
+      spotlightPadding: 8,
+      spotlightRadius: 18,
+    },
+    {
+      target: "[data-tour='pc-generate']",
+      title: "Generate & Preview",
+      content: "When your blocks are ready, hit Generate Preview to see all questions rendered. Toggle answers to verify, then go back to edit anytime.",
+      icon: "👁️",
+      placement: "top",
+      spotlightPadding: 6,
+      spotlightRadius: 16,
+    },
+  ];
+
+  const paperTourConfig: TourConfig = {
+    id: "paper-create-tour",
+    steps: paperTourSteps,
+    accent: "#10B981",
+  };
+
+  // Auto-start tour on first visit (Step 1 / build view only)
+  useEffect(() => {
+    if (step === 1 && !tourStartedRef.current && !hasSeenTour("paper-create-tour")) {
+      const timer = setTimeout(() => {
+        tourStartedRef.current = true;
+        startTour(paperTourConfig);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Validation errors: { blockIndex: { fieldName: errorMessage } }
   const [validationErrors, setValidationErrors] = useState<Record<number, Record<string, string>>>({});
 
@@ -1636,7 +1734,7 @@ export default function PaperCreate() {
 
       {/* Sticky header */}
       {/* Hero banner */}
-      <div className="pc-hero-banner" style={{ position:"relative", overflow:"hidden", borderRadius:"0 0 28px 28px", padding:"clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)", background:"linear-gradient(145deg, #030E08 0%, #051A0F 35%, #071E12 65%, #020A06 100%)", borderBottom:"1px solid rgba(16,185,129,.25)" }}>
+      <div data-tour="pc-hero" className="pc-hero-banner" style={{ position:"relative", overflow:"hidden", borderRadius:"0 0 28px 28px", padding:"clamp(32px,5vw,52px) clamp(16px,4vw,32px) clamp(36px,5vw,56px)", background:"linear-gradient(145deg, #030E08 0%, #051A0F 35%, #071E12 65%, #020A06 100%)", borderBottom:"1px solid rgba(16,185,129,.25)" }}>
         {/* Atmospheric glow — dual emerald-teal */}
         <div style={{ position:"absolute", top:"-20%", left:"40%", transform:"translateX(-50%)", width:500, height:400, background:"radial-gradient(ellipse at center, rgba(16,185,129,.18) 0%, rgba(16,185,129,.05) 50%, transparent 70%)", pointerEvents:"none" }} />
         <div style={{ position:"absolute", top:"-10%", right:"5%", width:300, height:300, background:"radial-gradient(ellipse at center, rgba(20,184,166,.12) 0%, transparent 70%)", pointerEvents:"none" }} />
@@ -1676,7 +1774,7 @@ export default function PaperCreate() {
           <div style={{width:1,height:18,background:'rgba(255,255,255,0.1)',flexShrink:0,marginRight:8}} />
 
           {/* Abacus group */}
-          <span style={{fontSize:10,fontWeight:700,color:'#10B981',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.12em',textTransform:'uppercase',marginRight:2,flexShrink:0}}>Abacus</span>
+          <span data-tour="pc-mode-tabs" style={{fontSize:10,fontWeight:700,color:'#10B981',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'0.12em',textTransform:'uppercase',marginRight:2,flexShrink:0}}>Abacus</span>
           <button
             onClick={() => setLocation('/create/junior')}
             style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:999,fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:isJuniorPage?'rgba(16,185,129,0.22)':'rgba(255,255,255,0.04)',border:isJuniorPage?'1.5px solid rgba(16,185,129,0.55)':'1.5px solid rgba(255,255,255,0.07)',color:isJuniorPage?'#6EE7B7':'#9DA3BC',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
@@ -1702,7 +1800,8 @@ export default function PaperCreate() {
           {/* Block count + guide — pushed to right */}
           <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
             <button
-              onClick={() => setShowGuide(true)}
+              data-tour="pc-how-to-use"
+              onClick={() => startTour(paperTourConfig, true)}
               style={{display:'flex',alignItems:'center',gap:5,padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",background:'rgba(16,185,129,0.08)',border:'1px solid rgba(16,185,129,0.25)',color:'#34D399',cursor:'pointer',transition:'all 0.18s',outline:'none'}}
             >
               How to Use
@@ -1778,7 +1877,7 @@ export default function PaperCreate() {
             
             {/* Paper Info */}
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',gap:20,marginBottom:28}}>
-              <div>
+              <div data-tour="pc-title-input">
                 <label className="pc-label">Paper Title</label>
                 <input
                   type="text"
@@ -1795,7 +1894,7 @@ export default function PaperCreate() {
                 />
               </div>
 
-              <div>
+              <div data-tour="pc-level-select">
                 <label className="pc-label">Level</label>
                 <select
                   value={activeTemplateId ? `__tpl__${activeTemplateId}` : level}
@@ -2007,6 +2106,7 @@ export default function PaperCreate() {
                     Clear All
                   </button>
                   <button
+                    data-tour="pc-add-block"
                     onClick={addBlock}
                     style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',background:'linear-gradient(135deg,#10B981,#34D399)',color:'white',borderRadius:10,fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:13,border:'none',cursor:'pointer',boxShadow:'0 4px 16px rgba(16,185,129,0.3)',transition:'all 0.2s'}}
                   >
@@ -2021,6 +2121,7 @@ export default function PaperCreate() {
                   <div
                     key={block.id}
                     data-block-index={index}
+                    data-tour={index === 0 ? "pc-block-card" : undefined}
                     draggable
                     onDragStart={() => setDraggedIndex(index)}
                     onDragOver={(e) => e.preventDefault()}
@@ -4741,6 +4842,7 @@ export default function PaperCreate() {
               </div>
 
               <button
+                data-tour="pc-generate"
                 onClick={handlePreview}
                 disabled={previewMutation.isPending || loadingPresets}
                 style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:10,padding:'16px 32px',background:'linear-gradient(135deg,#10B981,#059669)',color:'white',borderRadius:14,fontWeight:700,fontFamily:'DM Sans, sans-serif',fontSize:16,border:'none',cursor:previewMutation.isPending||loadingPresets?'not-allowed':'pointer',opacity:previewMutation.isPending||loadingPresets?0.6:1,boxShadow:'0 6px 24px rgba(16,185,129,0.3)',transition:'all 0.2s'}}

@@ -77,7 +77,7 @@ export default function PrivacyPolicy() {
           },
           {
             title: "Contact Us",
-            body: "If you have any questions about this Privacy Policy, please contact us at: BlackMonkey. Email: support@blackmonkey.in.",
+            body: "If you have any questions about this Privacy Policy, please contact us at: BlackMonkey. Email: ayushkhurana47@gmail.com.",
           },
         ].map(({ title, body }) => (
           <div key={title} style={{ marginBottom: 40 }}>
@@ -92,7 +92,7 @@ export default function PrivacyPolicy() {
         <div style={{ marginTop: 64, padding: "24px", background: S.surface, borderRadius: 16, border: `1px solid ${S.border}` }}>
           <p style={{ fontSize: 13.5, color: S.muted, lineHeight: 1.7, margin: 0 }}>
             This is a summary of our privacy practices. For full details or to exercise your rights, contact us at{" "}
-            <a href="tel:+919266117055" style={{ color: S.purple, textDecoration: "none" }}>+91 92661 17055</a>.
+            <a href="tel:+919718325064" style={{ color: S.purple, textDecoration: "none" }}>+91 97183 25064</a>.
           </p>
         </div>
       </div>

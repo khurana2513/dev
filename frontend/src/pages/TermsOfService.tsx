@@ -81,7 +81,7 @@ export default function TermsOfService() {
           },
           {
             title: "Contact",
-            body: "For questions about these Terms of Service, please contact us at: BlackMonkey. Email: support@blackmonkey.in.",
+            body: "For questions about these Terms of Service, please contact us at: BlackMonkey. Email: ayushkhurana47@gmail.com.",
           },
         ].map(({ title, body }) => (
           <div key={title} style={{ marginBottom: 40 }}>
@@ -96,7 +96,7 @@ export default function TermsOfService() {
         <div style={{ marginTop: 64, padding: "24px", background: S.surface, borderRadius: 16, border: `1px solid ${S.border}` }}>
           <p style={{ fontSize: 13.5, color: S.muted, lineHeight: 1.7, margin: 0 }}>
             These terms govern your use of BlackMonkey services. For questions, reach us at{" "}
-            <a href="mailto:support@blackmonkey.in" style={{ color: S.purple, textDecoration: "none" }}>support@blackmonkey.in</a>.
+            <a href="mailto:ayushkhurana47@gmail.com" style={{ color: S.purple, textDecoration: "none" }}>ayushkhurana47@gmail.com</a>.
           </p>
         </div>
       </div>

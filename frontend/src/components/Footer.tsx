@@ -21,14 +21,14 @@ export default function Footer() {
   const linkStyle: CSSProperties = {
     display: "flex", alignItems: "center", gap: 7,
     fontSize: 13, color: D.white2, textDecoration: "none",
-    marginBottom: 3, fontFamily: fontBody, transition: "color 0.2s",
-    lineHeight: 1.4,
+    fontFamily: fontBody, transition: "color 0.2s",
+    lineHeight: 1.3, padding: "1px 0",
   };
 
   const sectionLabel: CSSProperties = {
     fontFamily: fontMono, fontSize: 10, fontWeight: 600,
     letterSpacing: "0.14em", textTransform: "uppercase",
-    color: D.muted, marginBottom: 8,
+    color: D.muted, marginBottom: 7,
   };
 
   const contactIcon: CSSProperties = {
@@ -72,7 +72,7 @@ export default function Footer() {
             <Link href="/" style={{ display:"flex", alignItems:"center", gap:9, marginBottom:8, textDecoration:"none" }}>
               <div style={{ position: "relative", flexShrink: 0 }}>
                 <img
-                  src="/imagesproject/logo.ico.jpg"
+                  src="/imagesproject/blackmonkey_logo_transparent.png"
                   alt="BlackMonkey Logo"
                   style={{ width: 40, height: 40, borderRadius: 12, objectFit: "cover" }}
                   onError={(e) => {
@@ -113,48 +113,54 @@ export default function Footer() {
           </div>
 
           {/* Practice */}
-          <div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={sectionLabel}>Practice</div>
-            {([
-              [FileText, "Create Papers",  "/create"],
-              [Brain,    "Mental Math",    "/mental"],
-              [Zap,      "Burst Mode",     "/burst"],
-              [Sparkles, "Vedic Maths",    "/vedic-maths"],
-            ] as [any, string, string][]).map(([Icon, label, href]) => (
-              <Link href={href} key={label} style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
-                <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
-              </Link>
-            ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {([
+                [FileText, "Create Papers",  "/create"],
+                [Brain,    "Mental Math",    "/mental"],
+                [Zap,      "Burst Mode",     "/burst"],
+                [Sparkles, "Vedic Maths",    "/vedic-maths"],
+              ] as [any, string, string][]).map(([Icon, label, href]) => (
+                <Link href={href} key={label} style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
+                  <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
+                </Link>
+              ))}
+            </div>
           </div>
 
           {/* Games */}
-          <div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={sectionLabel}>Games</div>
-            {([
-              [Calculator, "Soroban Abacus",  "/tools/soroban"],
-              [Grid3X3,    "Vedic Grid",       "/tools/gridmaster"],
-              [Swords,     "Duel Mode",        "/duel"],
-              [Brain,      "Number Ninja",     "/number-ninja"],
-            ] as [any, string, string][]).map(([Icon, label, href]) => (
-              <Link href={href} key={label} style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
-                <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
-              </Link>
-            ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {([
+                [Calculator, "Soroban Abacus",  "/tools/soroban"],
+                [Grid3X3,    "Vedic Grid",       "/tools/gridmaster"],
+                [Swords,     "Duel Mode",        "/duel"],
+                [Brain,      "Number Ninja",     "/number-ninja"],
+              ] as [any, string, string][]).map(([Icon, label, href]) => (
+                <Link href={href} key={label} style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
+                  <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
+                </Link>
+              ))}
+            </div>
           </div>
 
           {/* Platform */}
-          <div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={sectionLabel}>Platform</div>
-            {([
-              [Hash,      "Enter Code",    "/enter-code"],
-              [Grid3X3,   "Dashboard",     "/dashboard"],
-              [Sparkles,  "Hall of Fame",  "/hall-of-fame"],
-              [FileText,  "Shared Papers", "/paper/shared"],
-            ] as [any, string, string][]).map(([Icon, label, href]) => (
-              <Link href={href} key={label} style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
-                <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
-              </Link>
-            ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {([
+                [Hash,      "Enter Code",    "/enter-code"],
+                [Grid3X3,   "Dashboard",     "/dashboard"],
+                [Sparkles,  "Hall of Fame",  "/hall-of-fame"],
+                [FileText,  "Shared Papers", "/paper/shared"],
+              ] as [any, string, string][]).map(([Icon, label, href]) => (
+                <Link href={href} key={label} style={linkStyle} onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}>
+                  <Icon size={13} style={{ flexShrink: 0, opacity: 0.65 }} />{label}
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
 

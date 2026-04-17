@@ -17,7 +17,6 @@ const MAX_RETRIES = 2; // Reduced from 3 — fewer retries = fewer duplicate req
 const RETRY_DELAY = 1000; // 1 second base delay
 const MAX_PENDING_REQUESTS = 50; // Prevent unbounded cache growth
 const REQUEST_CACHE_TTL = 5000; // Clear requests older than 5 seconds
-console.log("🌍 API_BASE =", API_BASE);
 
 // Request deduplication cache with automatic cleanup
 // ✓ Prevents memory leaks with automatic TTL and max size limits
@@ -167,7 +166,7 @@ async function attemptTokenRefresh(): Promise<string | null> {
 /**
  * Wait for auth to be ready (with timeout)
  */
-async function waitForAuth(timeout: number = 5000): Promise<boolean> {
+async function waitForAuth(timeout: number = 10000): Promise<boolean> {
   if (authReady) return true;
   
   return new Promise((resolve) => {

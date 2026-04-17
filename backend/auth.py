@@ -38,7 +38,7 @@ if len(SECRET_KEY) < 32:
 
 ALGORITHM = "HS256"
 # Security: Use shorter-lived tokens with refresh token strategy
-ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 30  # 30 days for refresh tokens
 
 APP_ENV = os.getenv("APP_ENV", "development").lower()

@@ -304,7 +304,7 @@ function NoOrgState() {
           You don't have an organization yet
         </h1>
         <p style={{ fontSize: 15, color: TEXT2, lineHeight: 1.6, margin: "0 0 32px" }}>
-          Organizations are created by the TalentHub platform administrator. Contact the admin to set up your school or coaching centre.
+          Organizations are created by the BlackMonkey platform administrator. Contact the admin to set up your school or coaching centre.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
           <Link href="/dashboard">

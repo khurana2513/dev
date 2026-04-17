@@ -593,14 +593,122 @@ export default function BurstMode() {
     accent: "#F97316",
   };
 
+  // ── Config Phase Tour ──
+  const burstConfigTourSteps: TourStep[] = [
+    {
+      target: "[data-tour='bm-cfg-play-style']",
+      title: "Pick Your Play Style",
+      content: "Classic shows questions the whole time. Memory Sequence flashes them briefly — you must answer from memory!",
+      icon: "🎮",
+      placement: "bottom",
+      spotlightPadding: 6,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='bm-cfg-difficulty']",
+      title: "Select Difficulty",
+      content: "Choose a difficulty level. Higher digit combos earn more points per correct answer. Pick what challenges you!",
+      icon: "⭐",
+      placement: "bottom",
+      spotlightPadding: 8,
+      spotlightRadius: 16,
+    },
+    {
+      target: "[data-tour='bm-cfg-howit']",
+      title: "How It Works",
+      content: "60 seconds on the clock. Answer as many as you can. In Memory mode, questions vanish after 1.5s. Speed = more points!",
+      icon: "💡",
+      placement: "top",
+      spotlightPadding: 6,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='bm-cfg-start']",
+      title: "Ready? Start!",
+      content: "Once you've chosen your style and difficulty, smash this button to begin the 60-second countdown!",
+      icon: "🚀",
+      placement: "top",
+      spotlightPadding: 6,
+      spotlightRadius: 16,
+    },
+  ];
+
+  const burstConfigTourConfig: TourConfig = {
+    id: "burst-config-tour",
+    steps: burstConfigTourSteps,
+    accent: "#F97316",
+  };
+
+  // ── Mix Phase Tour ──
+  const burstMixTourSteps: TourStep[] = [
+    {
+      target: "[data-tour='bm-mix-counter']",
+      title: "Combo Counter",
+      content: "You can select up to 10 difficulty combos across all operations. This counter shows how many you've picked.",
+      icon: "🔢",
+      placement: "bottom",
+      spotlightPadding: 6,
+      spotlightRadius: 12,
+    },
+    {
+      target: "[data-tour='bm-mix-play-style']",
+      title: "Play Style",
+      content: "Choose Classic or Memory Sequence — same as single-operation mode, but applied to your entire mix!",
+      icon: "🎮",
+      placement: "bottom",
+      spotlightPadding: 6,
+      spotlightRadius: 14,
+    },
+    {
+      target: "[data-tour='bm-mix-ops']",
+      title: "Pick Your Combos",
+      content: "Tap the difficulty buttons under each operation to add them to your mix. Green means selected. Mix operations for the ultimate challenge!",
+      icon: "🎲",
+      placement: "top",
+      spotlightPadding: 8,
+      spotlightRadius: 16,
+    },
+    {
+      target: "[data-tour='bm-mix-start']",
+      title: "Start Mix Burst!",
+      content: "Once you've selected at least one combo, hit this button. Questions from all your selected operations will appear randomly in 60 seconds!",
+      icon: "🚀",
+      placement: "top",
+      spotlightPadding: 6,
+      spotlightRadius: 16,
+    },
+  ];
+
+  const burstMixTourConfig: TourConfig = {
+    id: "burst-mix-tour",
+    steps: burstMixTourSteps,
+    accent: "#F97316",
+  };
+
   // Auto-start tour on first visit (only when on select phase)
   const tourStartedRef = useRef(false);
+  const configTourStartedRef = useRef(false);
+  const mixTourStartedRef = useRef(false);
   useEffect(() => {
     if (phase === "select" && !tourStartedRef.current && !hasSeenTour("burst-mode-tour")) {
       // Delay slightly so DOM elements are rendered
       const timer = setTimeout(() => {
         tourStartedRef.current = true;
         startTour(burstTourConfig);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+    if (phase === "config" && !configTourStartedRef.current && !hasSeenTour("burst-config-tour")) {
+      const timer = setTimeout(() => {
+        configTourStartedRef.current = true;
+        startTour(burstConfigTourConfig);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+    if (phase === "mix" && !mixTourStartedRef.current && !hasSeenTour("burst-mix-tour")) {
+      const timer = setTimeout(() => {
+        mixTourStartedRef.current = true;
+        startTour(burstMixTourConfig);
       }, 600);
       return () => clearTimeout(timer);
     }

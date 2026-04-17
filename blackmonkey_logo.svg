@@ -1,0 +1,73 @@
+<svg width="500" height="400" viewBox="0 0 500 400" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>BlackMonkey Logo</title>
+  <desc>Premium minimal logo for BlackMonkey math learning platform</desc>
+
+  <!-- Card background -->
+  <rect x="0" y="0" width="500" height="400" rx="16" fill="#111"/>
+
+  <!-- Abacus rod — vertical spine -->
+  <rect x="247" y="60" width="6" height="190" rx="3" fill="#e8a020"/>
+
+  <!-- Three abacus beads -->
+  <ellipse cx="250" cy="98" rx="26" ry="13" fill="#f0b030"/>
+  <ellipse cx="250" cy="148" rx="26" ry="13" fill="#e8a020"/>
+  <ellipse cx="250" cy="198" rx="26" ry="13" fill="#d49018"/>
+
+  <!-- Monkey head -->
+  <circle cx="250" cy="68" r="40" fill="#1a1a1a"/>
+  <circle cx="250" cy="68" r="40" fill="none" stroke="#e8a020" stroke-width="2.5"/>
+
+  <!-- Ears -->
+  <circle cx="210" cy="68" r="13" fill="#1a1a1a"/>
+  <circle cx="210" cy="68" r="13" fill="none" stroke="#e8a020" stroke-width="2"/>
+  <circle cx="290" cy="68" r="13" fill="#1a1a1a"/>
+  <circle cx="290" cy="68" r="13" fill="none" stroke="#e8a020" stroke-width="2"/>
+  <circle cx="210" cy="68" r="7" fill="#e8a020" opacity="0.25"/>
+  <circle cx="290" cy="68" r="7" fill="#e8a020" opacity="0.25"/>
+
+  <!-- Eyes -->
+  <circle cx="238" cy="64" r="5" fill="#e8a020"/>
+  <circle cx="262" cy="64" r="5" fill="#e8a020"/>
+  <circle cx="240" cy="62" r="1.5" fill="#fff" opacity="0.8"/>
+  <circle cx="264" cy="62" r="1.5" fill="#fff" opacity="0.8"/>
+
+  <!-- Muzzle -->
+  <ellipse cx="250" cy="78" rx="15" ry="10" fill="#2a2a2a"/>
+  <ellipse cx="250" cy="78" rx="15" ry="10" fill="none" stroke="#e8a020" stroke-width="1.5" opacity="0.5"/>
+  <ellipse cx="250" cy="75" rx="4" ry="2.5" fill="#e8a020" opacity="0.7"/>
+  <path d="M242 81 Q250 87 258 81" fill="none" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Tail -->
+  <path d="M250 250 Q200 280 180 250 Q160 220 190 210" fill="none" stroke="#e8a020" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+  <circle cx="190" cy="210" r="5" fill="#e8a020"/>
+
+  <!-- Math asterisk accent -->
+  <g transform="translate(300,38)" opacity="0.4">
+    <line x1="0" y1="-8" x2="0" y2="8" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="-7" y1="-4" x2="7" y2="4" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="-7" y1="4" x2="7" y2="-4" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="250" y="308"
+    text-anchor="middle"
+    fill="#f0f0f0"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="28"
+    font-weight="400"
+    letter-spacing="5">BLACKMONKEY</text>
+
+  <!-- Tagline -->
+  <text x="250" y="335"
+    text-anchor="middle"
+    fill="#888"
+    font-family="'Helvetica Neue', Arial, sans-serif"
+    font-size="10"
+    font-weight="400"
+    letter-spacing="3">MATH · PLAY · GROW</text>
+
+  <!-- Rule lines -->
+  <line x1="100" y1="333" x2="180" y2="333" stroke="#888" stroke-width="0.5" opacity="0.4"/>
+  <line x1="320" y1="333" x2="400" y2="333" stroke="#888" stroke-width="0.5" opacity="0.4"/>
+
+</svg>

@@ -25,15 +25,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const restoreSession = async () => {
       const storedUser = localStorage.getItem("user_data");
-      console.log("🟡 [AUTH] Initializing - stored user present:", !!storedUser);
 
       try {
         const userData = await getCurrentUser();
-        console.log("✅ [AUTH] User restored from secure cookie:", userData.email);
         setUser(userData);
         localStorage.setItem("user_data", JSON.stringify(userData));
       } catch (error: any) {
-        console.error("❌ [AUTH] Failed to restore user:", error);
         const errorMsg = error?.message || "";
         const isUnauthorized =
           errorMsg.includes("Unauthorized") ||
@@ -47,11 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setApiAuthToken(refreshResponse.access_token);
 
             const userData = await getCurrentUser();
-            console.log("✅ [AUTH] User restored after cookie refresh:", userData.email);
             setUser(userData);
             localStorage.setItem("user_data", JSON.stringify(userData));
           } catch (refreshError) {
-            console.error("❌ [AUTH] Cookie refresh failed:", refreshError);
+            console.error("[AUTH] Cookie refresh failed:", refreshError);
             removeAuthToken();
             localStorage.removeItem("user_data");
             setUser(null);
@@ -60,7 +56,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (storedUser) {
           try {
             const userData = JSON.parse(storedUser);
-            console.log("⚠️ [AUTH] Using cached user data after network error:", userData.email);
             setUser(userData);
           } catch {
             setUser(null);
@@ -69,7 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       } finally {
-        console.log("🟡 [AUTH] Loading complete");
         setLoading(false);
         setAuthReady(true);
       }
@@ -79,11 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (token: string) => {
-    console.log("🟡 [AUTH] Login function called");
     try {
-      console.log("🟡 [AUTH] Calling loginWithGoogle...");
       const response = await loginWithGoogle(token);
-      console.log("🟡 [AUTH] loginWithGoogle returned, setting user state...");
       setAuthToken(response.access_token);
       setApiAuthToken(response.access_token);
       // Store the initial user data from login response
@@ -95,14 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const freshUser = await getCurrentUser();
         setUser(freshUser);
         localStorage.setItem("user_data", JSON.stringify(freshUser));
-        console.log("✅ [AUTH] Fresh user data loaded after login");
       } catch (_e) {
         // Fallback: use the data from the login response
         setUser(response.user);
       }
-      console.log("✅ [AUTH] User state updated, user:", response.user.email);
     } catch (error) {
-      console.error("❌ [AUTH] Login error in context:", error);
+      console.error("[AUTH] Login error:", error);
       // Do NOT call setAuthReady(false) here — if auth was already ready
       // (re-auth scenario), doing so would cause all pending API calls to
       // block inside waitForAuth() for up to 5 seconds.

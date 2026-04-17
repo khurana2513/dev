@@ -212,11 +212,12 @@ def evaluate_attendance_badges(db: Session, year: int, month: int) -> None:
     Monthly evaluation for attendance badges.
     Awards Attendance Champion badge for 100% attendance.
     """
-    month_start = datetime(year, month, 1).replace(tzinfo=IST_TIMEZONE)
+    # ClassSession.session_date is DateTime (no tz), so use naive datetimes
+    month_start = datetime(year, month, 1)
     if month == 12:
-        month_end = datetime(year + 1, 1, 1).replace(tzinfo=IST_TIMEZONE)
+        month_end = datetime(year + 1, 1, 1)
     else:
-        month_end = datetime(year, month + 1, 1).replace(tzinfo=IST_TIMEZONE)
+        month_end = datetime(year, month + 1, 1)
     
     month_str = f"{year}-{month:02d}"
     
@@ -276,11 +277,12 @@ def evaluate_tshirt_star_badges(db: Session, year: int, month: int) -> None:
     Monthly evaluation for T-shirt star badges.
     Awards Gold T-Shirt Star Badge for all classes marked.
     """
-    month_start = datetime(year, month, 1).replace(tzinfo=IST_TIMEZONE)
+    # ClassSession.session_date is DateTime (no tz), so use naive datetimes
+    month_start = datetime(year, month, 1)
     if month == 12:
-        month_end = datetime(year + 1, 1, 1).replace(tzinfo=IST_TIMEZONE)
+        month_end = datetime(year + 1, 1, 1)
     else:
-        month_end = datetime(year, month + 1, 1).replace(tzinfo=IST_TIMEZONE)
+        month_end = datetime(year, month + 1, 1)
     
     month_str = f"{year}-{month:02d}"
     
@@ -339,11 +341,12 @@ def award_leaderboard_badges(db: Session, year: int, month: int) -> None:
     """
     Award leaderboard badges to top 3 students for the month.
     """
-    month_start = datetime(year, month, 1).replace(tzinfo=IST_TIMEZONE)
+    # ClassSession.session_date is DateTime (no tz), so use naive datetimes
+    month_start = datetime(year, month, 1)
     if month == 12:
-        month_end = datetime(year + 1, 1, 1).replace(tzinfo=IST_TIMEZONE)
+        month_end = datetime(year + 1, 1, 1)
     else:
-        month_end = datetime(year, month + 1, 1).replace(tzinfo=IST_TIMEZONE)
+        month_end = datetime(year, month + 1, 1)
     
     month_str = f"{year}-{month:02d}"
     

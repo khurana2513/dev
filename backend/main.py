@@ -232,16 +232,20 @@ async def health_check() -> Dict[str, Any]:
             "version": app.version,
         }
     except Exception as e:
-        return {
-            "status": "degraded",
-            "message": "Server is running but database connection failed",
-            "database": "disconnected",
-            "error": str(e)[:100],
-            "uptime_seconds": round(time.monotonic() - app_start_time, 2),
-            "env": APP_CONFIG.env,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "version": app.version,
-        }
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "degraded",
+                "message": "Server is running but database connection failed",
+                "database": "disconnected",
+                "error": str(e)[:100],
+                "uptime_seconds": round(time.monotonic() - app_start_time, 2),
+                "env": APP_CONFIG.env,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "version": app.version,
+            },
+        )
 
 @app.get("/")
 async def root() -> Dict[str, str]:
@@ -700,7 +704,7 @@ def cleanup_stale_incomplete_attempts(db: Session, user_id: Optional[int] = None
         
         query = db.query(PaperAttempt).filter(
             PaperAttempt.completed_at.is_(None),  # Only incomplete attempts
-            PaperAttempt.started_at < timeout_threshold.replace(tzinfo=None)  # Older than timeout (UTC)
+            PaperAttempt.started_at < timeout_threshold  # Older than timeout (UTC, aware)
         )
         
         if user_id:
@@ -712,7 +716,7 @@ def cleanup_stale_incomplete_attempts(db: Session, user_id: Optional[int] = None
             logger.info("[CLEANUP] stale_attempts=%s", len(stale_attempts))
             for attempt in stale_attempts:
                 # Mark as completed with zero score (abandoned)
-                attempt.completed_at = utc_now.replace(tzinfo=None)
+                attempt.completed_at = utc_now
                 attempt.correct_answers = 0
                 attempt.wrong_answers = 0
                 attempt.accuracy = 0.0
@@ -748,7 +752,7 @@ async def get_paper_attempts(
         has_stale = db.query(PaperAttempt.id).filter(
             PaperAttempt.user_id == current_user.id,
             PaperAttempt.completed_at.is_(None),
-            PaperAttempt.started_at < timeout_threshold_check.replace(tzinfo=None),
+            PaperAttempt.started_at < timeout_threshold_check,
         ).limit(1).scalar()
         if has_stale:
             cleanup_stale_incomplete_attempts(db, user_id=current_user.id)
@@ -1222,8 +1226,10 @@ async def start_paper_attempt(
             )
     else:
         # ── Direct attempt path ───────────────────────────────────────────
-        existing_attempts = (
-            db.query(PaperAttempt)
+        # PostgreSQL forbids FOR UPDATE with aggregate functions (count()),
+        # so we fetch matching IDs with a row-level lock and count in Python.
+        existing_attempt_rows = (
+            db.query(PaperAttempt.id)
             .filter(
                 PaperAttempt.user_id == current_user.id,
                 PaperAttempt.seed == attempt_data.seed,
@@ -1231,10 +1237,10 @@ async def start_paper_attempt(
                 PaperAttempt.shared_paper_code == None,  # noqa: E711 — SQLAlchemy IS NULL
             )
             .with_for_update()
-            .count()
+            .all()
         )
 
-        if existing_attempts >= 2:
+        if len(existing_attempt_rows) >= 2:
             raise HTTPException(
                 status_code=400,
                 detail="Maximum attempts reached. You can only attempt this paper twice (1 fresh attempt + 1 re-attempt).",
@@ -1425,8 +1431,7 @@ async def submit_paper_attempt(
         paper_attempt.score = score
         paper_attempt.time_taken = time_taken
         paper_attempt.points_earned = points_earned
-        # Store completed_at as naive UTC datetime
-        paper_attempt.completed_at = datetime.utcnow()
+        paper_attempt.completed_at = get_utc_now()
         
         # ── Award points (single atomic DB-level ADD) ─────────────────────────
         # Use a server-side expression so the increment is atomic even under
@@ -1541,7 +1546,7 @@ async def get_paper_attempt(
         time_elapsed = (utc_now - started_at).total_seconds()
         if time_elapsed > INCOMPLETE_ATTEMPT_TIMEOUT_SECONDS:
             # Mark as abandoned
-            paper_attempt.completed_at = utc_now.replace(tzinfo=None)
+            paper_attempt.completed_at = utc_now
             paper_attempt.correct_answers = 0
             paper_attempt.wrong_answers = 0
             paper_attempt.accuracy = 0.0

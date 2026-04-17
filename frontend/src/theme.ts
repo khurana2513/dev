@@ -18,7 +18,7 @@ export const BRAND = {
   logo: "/logo.png",
   logoAlt: "BlackMonkey",
   website: "https://blackmonkey.in",
-  supportEmail: "support@blackmonkey.in",
+  supportEmail: "ayushkhurana47@gmail.com",
   social: {
     twitter: "https://twitter.com/blackmonkeyapp",
     instagram: "https://instagram.com/blackmonkeyapp",
