@@ -664,8 +664,10 @@ export default function MobileTabBar() {
                       style={{
                         position:     "absolute",
                         top:          6,
-                        left:         "50%",
-                        transform:    "translateX(-50%)",
+                        left:         0,
+                        right:        0,
+                        marginLeft:   "auto",
+                        marginRight:  "auto",
                         width:        40,
                         height:       36,
                         borderRadius: 12,
@@ -708,6 +710,10 @@ export default function MobileTabBar() {
                       style={{
                         position:     "absolute",
                         bottom:       2,
+                        left:         0,
+                        right:        0,
+                        marginLeft:   "auto",
+                        marginRight:  "auto",
                         width:        4,
                         height:       4,
                         borderRadius: 2,
